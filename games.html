@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>All Games - Platinum Games</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="sidebar-menu">
+        <div class="sidebar-logo">P</div>
+        <div class="sidebar-separator"></div>
+        <div class="sidebar-content" id="sidebarContent">
+            <a href="index.html" class="sidebar-link" title="Home">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                    <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+            </a>
+            <a href="games.html" class="sidebar-link active" title="Games">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="6" y="2" width="12" height="20" rx="2"/>
+                    <path d="M12 18h.01"/>
+                </svg>
+            </a>
+            <a href="proxy.html" class="sidebar-link" title="Proxy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+            </a>
+        </div>
+    </div>
+    
+    <div class="page-content">
+        <section class="section" style="padding-top: 2rem;">
+            <div class="container">
+                <div class="section-header">
+                    <h2 class="section-title">All Games</h2>
+                    <div class="filter-tabs">
+                        <button class="filter-btn active">All</button>
+                        <button class="filter-btn">Action</button>
+                        <button class="filter-btn">Puzzle</button>
+                        <button class="filter-btn">Racing</button>
+                        <button class="filter-btn">Adventure</button>
+                        <button class="filter-btn">Arcade</button>
+                        <button class="filter-btn">Strategy</button>
+                    </div>
+                </div>
+                <div class="games-grid">
+                    <a href="game-player.html?game=games/fnaf-1.html" class="game-card" data-game="fnaf-1.html">
+                        <div class="game-image" style="background-image: url('images/game-img/fnaf-icon.png'); background-size: cover; background-position: center;">
+                            <div class="game-badge">New</div>
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Five Nights at Freddy's</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.8</span>
+                                <span class="game-category">Horror</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="game-player.html?game=games/fnaf-2.html&title=Five%20Nights%20at%20Freddy%27s%202&author=Author%3A%20Scott%20Cawthon" class="game-card" data-game="fnaf-2.html">
+                        <div class="game-image" style="background-image: url('images/game-img/fnaf2-icon.png'); background-size: cover; background-position: center;">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Five Nights at Freddy's 2</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.8</span>
+                                <span class="game-category">Horror</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="game-player.html?game=games/fnaf-3.html&title=Five%20Nights%20at%20Freddy%27s%203&author=Author%3A%20Scott%20Cawthon" class="game-card" data-game="fnaf-3.html">
+                        <div class="game-image" style="background-image: url('images/game-img/fnaf3-icon.png'); background-size: cover; background-position: center;">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Five Nights at Freddy's 3</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.8</span>
+                                <span class="game-category">Horror</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/space-invaders.html" class="game-card" data-game="space-invaders.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Space Invaders</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.8</span>
+                                <span class="game-category">Action</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/puzzle-quest.html" class="game-card" data-game="puzzle-quest.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Puzzle Quest</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.9</span>
+                                <span class="game-category">Puzzle</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/racing-legends.html" class="game-card" data-game="racing-legends.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Racing Legends</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.7</span>
+                                <span class="game-category">Racing</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/adventure-quest.html" class="game-card" data-game="adventure-quest.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Adventure Quest</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.6</span>
+                                <span class="game-category">Adventure</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/arcade-classic.html" class="game-card" data-game="arcade-classic.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Arcade Classic</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.5</span>
+                                <span class="game-category">Arcade</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/strategy-master.html" class="game-card" data-game="strategy-master.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Strategy Master</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.7</span>
+                                <span class="game-category">Strategy</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/battle-arena.html" class="game-card" data-game="battle-arena.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Battle Arena</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.6</span>
+                                <span class="game-category">Action</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/match-three.html" class="game-card" data-game="match-three.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Match Three</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.8</span>
+                                <span class="game-category">Puzzle</span>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="games/speed-racer.html" class="game-card" data-game="speed-racer.html">
+                        <div class="game-image">
+                            <div class="play-overlay">
+                                <div class="play-icon">▶</div>
+                                <span>Play Now</span>
+                            </div>
+                        </div>
+                        <div class="game-info">
+                            <h3>Speed Racer</h3>
+                            <div class="game-meta">
+                                <span class="game-rating">⭐ 4.5</span>
+                                <span class="game-category">Racing</span>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </section>
+    </div>
+    
+    <!-- Game iframe modal -->
+    <div id="gameModal" class="game-modal" style="display: none;">
+        <div class="game-modal-content">
+            <div class="game-modal-header">
+                <h3 id="gameModalTitle">Game</h3>
+                <div class="game-modal-controls">
+                    <button class="game-modal-btn" id="gameFullscreenBtn" title="Fullscreen">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                    </button>
+                    <button class="game-modal-btn" id="gameNewTabBtn" title="Open in New Tab">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/>
+                        </svg>
+                    </button>
+                    <button class="game-modal-btn" id="gameCloseBtn" title="Close">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="18" y1="6" x2="6" y2="18"/>
+                            <line x1="6" y1="6" x2="18" y2="18"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <iframe id="gameModalFrame" class="game-modal-frame" src="about:blank"></iframe>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
