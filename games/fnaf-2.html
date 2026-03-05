@@ -19,9 +19,9 @@
     <link rel="stylesheet" type="text/css" href="style.css"/>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        html, body { width: 100% !important; height: 100% !important; overflow: hidden; background: #000 !important; display: flex !important; align-items: center !important; justify-content: center !important; position: relative !important; }
+        html, body { width: 100% !important; height: 100% !important; overflow: hidden; display: flex !important; align-items: center !important; justify-content: center !important; position: relative !important; }
         body > div:first-of-type { width: 100% !important; height: 100% !important; display: flex !important; align-items: center !important; justify-content: center !important; -webkit-user-select: none; user-select: none; position: relative !important; left: auto !important; top: auto !important; }
-        #MMFCanvas { display: block !important; background: #000 !important; width: 100% !important; height: 100% !important; position: absolute !important; left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important; }
+        #MMFCanvas { display: block !important; width: 100% !important; height: 100% !important; position: absolute !important; left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important; }
         #progress-container { position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%); color: #fff; text-align: center; z-index: 10; }
         .fnaf2-canvas-wrap { position: absolute !important; inset: 0 !important; left: 0 !important; top: 0 !important; right: 0 !important; bottom: 0 !important; }
     </style>
@@ -41,6 +41,19 @@
         </div>
     </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script>
+        (function() {
+            var realFetch = window.fetch;
+            if (!realFetch) return;
+            window.fetch = function(input, init) {
+                var url = typeof input === 'string' ? input : (input && input.url);
+                if (url && (url.indexOf('/pages/home') !== -1 || url === window.location.origin + '/pages/home.html')) {
+                    return Promise.resolve({ ok: true, text: function() { return Promise.resolve(''); } });
+                }
+                return realFetch.apply(this, arguments);
+            };
+        })();
+    </script>
     <script src="main.js"></script>
 </body>
 </html>

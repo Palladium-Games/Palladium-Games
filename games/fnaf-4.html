@@ -9,7 +9,7 @@
 <html lang="en">
 
 <head>
-    <base href="https://cdn.jsdelivr.net/gh/genizy/fnaf@latest/1/">
+	<base href="https://cdn.jsdelivr.net/gh/genizy/fnaf@latest/4/">
     <link rel="stylesheet" type="text/css" href="style.css"/>
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
@@ -17,7 +17,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="HandheldFriendly" content="true" />
-    <title>Five Nights at Freddy's 1</title>
+    <title>Five Nights at Freddy's 4</title>
 <style>
 #sidebarad1,
 #sidebarad2 {
@@ -57,11 +57,15 @@
   border: none;
   display: block;
 }
+html, body { min-height: 100vh !important; width: 100% !important; margin: 0 !important; padding: 0 !important; padding-left: 0 !important; padding-right: 0 !important; background: #000 !important; box-sizing: border-box !important; overflow: hidden !important; position: relative !important; }
+.fnaf4-center-wrap { position: absolute !important; left: 50% !important; top: 50% !important; transform: translate(-50%, -50%) !important; width: fit-content !important; max-width: 100vw !important; height: fit-content !important; max-height: 100vh !important; margin: 0 !important; padding: 0 !important; -webkit-user-select: none; user-select: none; display: flex !important; align-items: center !important; justify-content: center !important; }
+.fnaf4-center-wrap #MMFCanvas { max-width: 100vw !important; max-height: 100vh !important; width: 1280px !important; height: 720px !important; display: block !important; object-fit: contain !important; margin: 0 !important; float: none !important; position: relative !important; left: auto !important; right: auto !important; }
+#progress-container { position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; z-index: 10; }
 </style>
 </head>
 
 <body>
-    <div style="display: inline-block; -webkit-user-select: none; text-align: left">
+    <div class="fnaf4-center-wrap">
         <canvas id="MMFCanvas" width="1280" height="720"> Your browser does not support Canvas, Please try again. </canvas>
     </div>
     <div id="progress-container">
