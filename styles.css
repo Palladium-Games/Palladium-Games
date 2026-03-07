@@ -73,6 +73,11 @@ body.homepage {
 body.proxy-page {
     overflow: hidden;
     height: 100vh;
+    background: #050506;
+}
+
+body.proxy-page::before {
+    display: none;
 }
 
 body.iframe-page {
@@ -140,8 +145,7 @@ body.homepage .sidebar-menu {
     position: fixed;
 }
 
-body:not(.homepage):not(.iframe-page) .sidebar-menu,
-body.game-page .sidebar-menu {
+body:not(.homepage):not(.iframe-page) .sidebar-menu {
     position: fixed !important;
     width: 80px !important;
     background: #000000 !important;
@@ -152,6 +156,28 @@ body.game-page .sidebar-menu {
     left: 1rem !important;
     bottom: 1rem !important;
     height: auto !important;
+    z-index: 1000 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    padding: 1.5rem 0 !important;
+    border-radius: 16px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+    box-sizing: border-box !important;
+}
+
+/* Game page: sidebar same height as game content area (2rem padding on content = 4rem total vertical) */
+body.game-page .sidebar-menu {
+    position: fixed !important;
+    width: 80px !important;
+    background: #000000 !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+    transition: width 0.3s ease !important;
+    overflow: hidden !important;
+    top: 2rem !important;
+    left: 1rem !important;
+    bottom: auto !important;
+    height: calc(100vh - 4rem) !important;
     z-index: 1000 !important;
     display: flex !important;
     flex-direction: column !important;
@@ -266,6 +292,85 @@ body.game-page .sidebar-link svg {
     position: relative;
     display: flex;
     flex-direction: column;
+}
+
+/* Proxy page: full-bleed embed, no toolbar — Scramjet has its own UI */
+body.proxy-page .iframe-wrapper {
+    margin-left: calc(80px + 2rem);
+    width: calc(100vw - 80px - 2rem);
+    height: 100vh;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+body.proxy-page .proxy-embed-wrap {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #0a0a0b;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 
+        0 0 0 1px rgba(255, 255, 255, 0.06),
+        0 4px 24px rgba(0, 0, 0, 0.4),
+        0 24px 48px -12px rgba(0, 0, 0, 0.35);
+}
+
+body.proxy-page .browser-container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: #0a0a0b;
+}
+
+body.proxy-page .browser-content {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+    overflow: hidden;
+    background: #0a0a0b;
+}
+
+body.proxy-page .browser-frame {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: none;
+    border-radius: 0 0 16px 16px;
+    background: #0a0a0b;
+}
+
+body.proxy-page .browser-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: #0a0a0b;
+    z-index: 10;
+}
+
+body.proxy-page .browser-loading p {
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 0.9rem;
+    margin-top: 0.75rem;
+}
+
+body.proxy-page .browser-spinner {
+    border-color: rgba(255, 255, 255, 0.12);
+    border-top-color: rgba(255, 255, 255, 0.8);
+}
+
+@media (max-width: 768px) {
+    body.proxy-page .iframe-wrapper {
+        margin-left: 0;
+        width: 100vw;
+        padding: 0.5rem;
+    }
 }
 
 .content-frame {

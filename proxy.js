@@ -1,8 +1,20 @@
 // Proxy / "Run your own instance of Chrome"
-// Set this to your proxy service base URL to load all sites through it (e.g. Ultraviolet, Holy Unblocker).
-// Format: base URL that accepts the target as a query param, e.g. "https://your-proxy.com/uv/service/?url="
-// Leave empty to load sites directly in the iframe (many sites will block embedding).
-const PROXY_SERVICE_BASE = '';
+// Many sites block being embedded in an iframe ("refused to connect"). To load them, use a proxy:
+//
+// 1. Deploy a proxy that accepts the target URL and serves the page through itself (same origin as the proxy).
+//    Examples: Scramjet (https://docs.titaniumnetwork.org/proxies/scramjet/), Corrosion, Ultraviolet, Holy Unblocker.
+//
+// 2. If your proxy uses a query parameter (e.g. ?url=), set PROXY_SERVICE_BASE to that base, e.g.:
+//      PROXY_SERVICE_BASE = 'https://your-proxy.vercel.app/?url=';
+//    Some proxies use a path, e.g. Corrosion: 'https://your-app.vercel.app/service/gateway?url='
+//
+// 3. If your proxy is a full-page app (e.g. Scramjet-App) that has its own URL bar, set PROXY_SERVICE_BASE to the
+//    app URL. Then use the proxy's URL bar, or if the app supports ?url= or ?destination= on load, we'll append it.
+//
+// When self-hosting: run the proxy from the repo (see proxy-service/README.md), then set this:
+//   Local:  PROXY_SERVICE_BASE = 'http://localhost:8080/';
+//   Deploy: PROXY_SERVICE_BASE = 'https://your-proxy.railway.app/';  (or your proxy URL)
+const PROXY_SERVICE_BASE = 'http://localhost:8080/';
 
 // Browser functionality
 document.addEventListener('DOMContentLoaded', function() {
@@ -16,7 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const browserLoading = document.getElementById('browserLoading');
     
     let history = [];
-    let displayHistory = []; // URL to show in address bar (same as history when not using proxy)
+    let displayHistory = [];
     let historyIndex = -1;
     
     // Function to detect if input is a URL
@@ -46,16 +58,9 @@ document.addEventListener('DOMContentLoaded', function() {
         return false;
     }
     
-    // Function to get search URL - use multiple search engines as fallback
+    // Function to get search URL - Google is the default search engine
     function getSearchUrl(query) {
-        // Try multiple search engines
-        const searchEngines = [
-            `https://www.bing.com/search?q=${encodeURIComponent(query)}`,
-            `https://search.yahoo.com/search?p=${encodeURIComponent(query)}`,
-            `https://yandex.com/search/?text=${encodeURIComponent(query)}`,
-            `https://www.ecosia.org/search?q=${encodeURIComponent(query)}`
-        ];
-        return searchEngines[0]; // Use Bing as primary
+        return `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     }
     
     // Proxy service: when set, load all URLs through it (run your own Chrome instance).
@@ -114,8 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 const urlObj = new URL(canonicalUrl);
                 const hostname = urlObj.hostname.toLowerCase();
                 const blockedDomains = [
-                    'poki.com', 'www.poki.com', 
-                    'google.com', 'www.google.com',
+                    'poki.com', 'www.poki.com',
                     'duckduckgo.com', 'www.duckduckgo.com',
                     'bing.com', 'www.bing.com'
                 ];
@@ -130,10 +134,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
         
-        browserLoading.style.display = 'flex';
+        if (browserLoading) browserLoading.style.display = 'flex';
         
-        browserFrame.removeAttribute('sandbox');
-        browserFrame.src = finalLoadUrl;
+        if (browserFrame) {
+            browserFrame.removeAttribute('sandbox');
+            browserFrame.src = finalLoadUrl;
+        }
         
         history = history.slice(0, historyIndex + 1);
         history.push(finalLoadUrl);
@@ -142,75 +148,86 @@ document.addEventListener('DOMContentLoaded', function() {
         historyIndex = history.length - 1;
         updateNavButtons();
         
-        browserAddressInput.value = canonicalUrl;
+        if (browserAddressInput) browserAddressInput.value = canonicalUrl;
     }
     
-    // Check for search query from homepage
+    // Initial load: search from homepage, or proxy homepage when using proxy, or blank
     const urlParams = new URLSearchParams(window.location.search);
     const searchQuery = urlParams.get('q');
     if (searchQuery) {
         loadUrl(searchQuery);
     } else {
-        browserFrame.src = 'about:blank';
+        const proxyBase = (PROXY_SERVICE_BASE || '').trim();
+        if (proxyBase && browserFrame) {
+            const baseUrl = proxyBase.replace(/\?url=.*$/, '').replace(/&url=.*$/, '');
+            browserFrame.src = baseUrl || proxyBase;
+        } else if (browserFrame) {
+            browserFrame.src = 'about:blank';
+        }
     }
     
     function updateNavButtons() {
-        browserBack.disabled = historyIndex <= 0;
-        browserForward.disabled = historyIndex >= history.length - 1;
+        if (browserBack) browserBack.disabled = historyIndex <= 0;
+        if (browserForward) browserForward.disabled = historyIndex >= history.length - 1;
     }
     
-    browserAddressForm.addEventListener('submit', function(e) {
-        e.preventDefault();
-        const url = browserAddressInput.value.trim();
-        if (url) {
-            loadUrl(url);
-        }
-    });
+    if (browserAddressForm && browserAddressInput) {
+        browserAddressForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const url = browserAddressInput.value.trim();
+            if (url) loadUrl(url);
+        });
+    }
     
-    browserBack.addEventListener('click', function() {
-        if (historyIndex > 0) {
-            historyIndex--;
-            browserLoading.style.display = 'flex';
-            browserFrame.src = history[historyIndex];
-            browserAddressInput.value = displayHistory[historyIndex] != null ? displayHistory[historyIndex] : history[historyIndex];
-            updateNavButtons();
-        }
-    });
+    if (browserBack) {
+        browserBack.addEventListener('click', function() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                browserLoading.style.display = 'flex';
+                browserFrame.src = history[historyIndex];
+                if (browserAddressInput) browserAddressInput.value = displayHistory[historyIndex] != null ? displayHistory[historyIndex] : history[historyIndex];
+                updateNavButtons();
+            }
+        });
+    }
     
-    browserForward.addEventListener('click', function() {
-        if (historyIndex < history.length - 1) {
-            historyIndex++;
-            browserLoading.style.display = 'flex';
-            browserFrame.src = history[historyIndex];
-            browserAddressInput.value = displayHistory[historyIndex] != null ? displayHistory[historyIndex] : history[historyIndex];
-            updateNavButtons();
-        }
-    });
+    if (browserForward) {
+        browserForward.addEventListener('click', function() {
+            if (historyIndex < history.length - 1) {
+                historyIndex++;
+                browserLoading.style.display = 'flex';
+                browserFrame.src = history[historyIndex];
+                if (browserAddressInput) browserAddressInput.value = displayHistory[historyIndex] != null ? displayHistory[historyIndex] : history[historyIndex];
+                updateNavButtons();
+            }
+        });
+    }
     
-    browserRefresh.addEventListener('click', function() {
-        if (browserFrame.src && browserFrame.src !== 'about:blank') {
-            browserLoading.style.display = 'flex';
-            browserFrame.src = browserFrame.src;
-        }
-    });
+    if (browserRefresh) {
+        browserRefresh.addEventListener('click', function() {
+            if (browserFrame.src && browserFrame.src !== 'about:blank') {
+                browserLoading.style.display = 'flex';
+                browserFrame.src = browserFrame.src;
+            }
+        });
+    }
     
-    browserHome.addEventListener('click', function() {
-        window.location.href = 'index.html';
-    });
+    if (browserHome) {
+        browserHome.addEventListener('click', function() {
+            window.location.href = 'index.html';
+        });
+    }
     
     browserFrame.addEventListener('load', function() {
-        browserLoading.style.display = 'none';
+        if (browserLoading) browserLoading.style.display = 'none';
         if (!PROXY_SERVICE_BASE || !PROXY_SERVICE_BASE.trim()) {
             try {
-                const currentUrl = browserFrame.contentWindow.location.href;
-                browserAddressInput.value = currentUrl;
-            } catch (e) {
-                // Cross-origin: keep current address bar (displayHistory)
-            }
+                if (browserAddressInput) browserAddressInput.value = browserFrame.contentWindow.location.href;
+            } catch (e) {}
         }
     });
     
     browserFrame.addEventListener('error', function() {
-        browserLoading.style.display = 'none';
+        if (browserLoading) browserLoading.style.display = 'none';
     });
 });
