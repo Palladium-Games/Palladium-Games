@@ -257,43 +257,26 @@ html.nav-strip-expanded .nav-strip-label-toggle {
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 0;
+    gap: 12px;
     min-height: 52px;
-    padding: 0;
+    padding: 0 0 0 calc((var(--nav-strip-icon-width) - 40px) / 2);
     transition: padding var(--nav-strip-duration) var(--nav-strip-ease);
 }
 
-/* Logo icon column: same width as tab icons so P aligns with SVGs below */
+/* P icon: same column width as tab SVGs (72px), P box centered in it so they align */
 .nav-strip-logo-icon {
-    width: var(--nav-strip-icon-width);
-    min-width: var(--nav-strip-icon-width);
+    width: 40px;
     height: 40px;
+    min-width: 40px;
     display: flex;
     align-items: center;
     justify-content: center;
-    flex-shrink: 0;
-}
-
-/* P mark inside the icon column (same visual weight as 26px SVGs) */
-.nav-strip-logo-icon::before,
-.nav-strip-logo .nav-strip-logo-icon {
-    /* P is text inside the span; we style the span as the icon cell */
-}
-.nav-strip-logo .nav-strip-logo-icon {
-    width: var(--nav-strip-icon-width);
-    min-width: var(--nav-strip-icon-width);
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
     background: white;
     border-radius: 10px;
     font-weight: 800;
     font-size: 1.25rem;
     color: #000000;
     letter-spacing: -0.5px;
-    margin: 0;
 }
 
 /* "Palladium Games" text: fades in when expanded, sits on dark strip so use light color */
@@ -709,6 +692,60 @@ body.browse-page .browser-content {
     position: relative;
     overflow: hidden;
     background: var(--bg-secondary);
+}
+
+body.browse-page .browser-proxy-error {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #fcd34d;
+}
+
+body.browse-page .browser-proxy-error a {
+    color: #b45309;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+body.browse-page .browser-proxy-error a:hover {
+    text-decoration: underline;
+}
+
+body.browse-page .browser-open-in-new-tab-notice {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 15;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+    background: #e0f2fe;
+    color: #0369a1;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #7dd3fc;
+}
+
+body.browse-page .browser-open-in-new-tab-notice a {
+    color: #0284c7;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+body.browse-page .browser-open-in-new-tab-notice a:hover {
+    text-decoration: underline;
 }
 
 body.browse-page .browser-frame {

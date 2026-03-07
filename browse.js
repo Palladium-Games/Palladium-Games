@@ -23,6 +23,34 @@
     return base + (base.indexOf('?') >= 0 ? '&' : '?') + 'url=' + encodeURIComponent(targetUrl);
   }
 
+  // Sites that trigger MessagePort errors when proxy runs inside an iframe; open in new tab instead
+  var OPEN_IN_NEW_TAB_HOSTS = ['youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'];
+
+  function shouldOpenInNewTab(hostname) {
+    if (!hostname) return false;
+    var h = hostname.toLowerCase();
+    for (var i = 0; i < OPEN_IN_NEW_TAB_HOSTS.length; i++) {
+      if (h === OPEN_IN_NEW_TAB_HOSTS[i] || h.endsWith('.' + OPEN_IN_NEW_TAB_HOSTS[i])) return true;
+    }
+    return false;
+  }
+
+  // Path-based proxy URLs (e.g. .../scramjet/https%3A%2F%2Fyoutube.com%2F) trigger MessagePort errors in iframe
+  function getDestinationHostFromProxyUrl(proxyUrl) {
+    try {
+      var u = new URL(proxyUrl);
+      var path = u.pathname;
+      var prefix = '/scramjet/';
+      if (path.indexOf(prefix) !== 0) return null;
+      var encoded = path.slice(prefix.length).split('#')[0];
+      if (!encoded) return null;
+      var dest = new URL(decodeURIComponent(encoded));
+      return dest.hostname;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function loadBlockedRedirect(url) {
     function esc(s) {
       return String(s)
@@ -56,9 +84,10 @@
     displayUrl = loadUrlResult;
     var finalLoad = loadUrlResult;
     var base = (PROXY_BASE || '').trim();
+    var built = null;
 
     if (base) {
-      var built = buildProxyUrl(loadUrlResult);
+      built = buildProxyUrl(loadUrlResult);
       if (built) finalLoad = built;
     } else {
       try {
@@ -77,9 +106,62 @@
     var frame = document.getElementById('browserFrame');
     var loading = document.getElementById('browserLoading');
     var addressInput = document.getElementById('browserAddressInput');
+    var errBanner = document.getElementById('browserProxyError');
+
+    if (base && built) {
+      try {
+        var destHost = getDestinationHostFromProxyUrl(finalLoad) || getDestinationHostFromProxyUrl(loadUrlResult);
+        if (!destHost) destHost = new URL(loadUrlResult).hostname;
+        if (destHost && shouldOpenInNewTab(destHost)) {
+          window.open(finalLoad, '_blank', 'noopener,noreferrer');
+          if (errBanner) errBanner.style.display = 'none';
+          if (frame) {
+            frame.src = 'about:blank';
+            var notice = document.getElementById('browserOpenInNewTabNotice');
+            if (notice) {
+              notice.style.display = 'block';
+              var link = document.getElementById('browserOpenInNewTabLink');
+              if (link) { link.href = finalLoad; link.target = '_blank'; }
+            }
+          }
+          if (loading) loading.style.display = 'none';
+          historyList = historyList.slice(0, historyIndex + 1);
+          historyList.push(finalLoad);
+          displayList = displayList.slice(0, historyIndex + 1);
+          displayList.push(displayUrl);
+          historyIndex = historyList.length - 1;
+          updateNavButtons();
+          if (addressInput) addressInput.value = displayUrl;
+          return;
+        }
+      } catch (e) {}
+    }
 
     if (loading) loading.style.display = 'flex';
+    if (errBanner) errBanner.style.display = 'none';
+    var notice = document.getElementById('browserOpenInNewTabNotice');
+    if (notice) notice.style.display = 'none';
     if (frame) {
+      var pathDest = getDestinationHostFromProxyUrl(finalLoad);
+      if (pathDest && shouldOpenInNewTab(pathDest)) {
+        window.open(finalLoad, '_blank', 'noopener,noreferrer');
+        if (errBanner) errBanner.style.display = 'none';
+        frame.src = 'about:blank';
+        if (notice) {
+          notice.style.display = 'block';
+          var link = document.getElementById('browserOpenInNewTabLink');
+          if (link) { link.href = finalLoad; link.target = '_blank'; }
+        }
+        if (loading) loading.style.display = 'none';
+        historyList = historyList.slice(0, historyIndex + 1);
+        historyList.push(finalLoad);
+        displayList = displayList.slice(0, historyIndex + 1);
+        displayList.push(displayUrl);
+        historyIndex = historyList.length - 1;
+        updateNavButtons();
+        if (addressInput) addressInput.value = displayUrl;
+        return;
+      }
       frame.removeAttribute('sandbox');
       frame.src = finalLoad;
     }
@@ -187,8 +269,22 @@
         if (loading) loading.style.display = 'none';
       });
       window.addEventListener('message', function (e) {
-        if (!e.data || e.data.type !== 'palladium-frame-url' || !e.data.url) return;
-        if (addressInput) addressInput.value = e.data.url;
+        if (!e.data || !e.data.type) return;
+        if (e.data.type === 'palladium-frame-url' && e.data.url) {
+          if (addressInput) addressInput.value = e.data.url;
+          return;
+        }
+        if (e.data.type === 'palladium-frame-error') {
+          if (loading) loading.style.display = 'none';
+          var banner = document.getElementById('browserProxyError');
+          var link = document.getElementById('browserProxyErrorOpen');
+          if (banner && link && e.data.url) {
+            link.href = e.data.url;
+            link.rel = 'noopener noreferrer';
+            link.target = '_blank';
+            banner.style.display = 'flex';
+          }
+        }
       });
     }
   });

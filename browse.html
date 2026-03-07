@@ -78,6 +78,14 @@
                     </form>
                 </div>
                 <div class="browser-content">
+                    <div id="browserProxyError" class="browser-proxy-error" style="display: none;" role="alert">
+                        <span>This site can't be displayed in the embedded viewer.</span>
+                        <a id="browserProxyErrorOpen" href="#" target="_blank" rel="noopener noreferrer">Open in new tab</a>
+                    </div>
+                    <div id="browserOpenInNewTabNotice" class="browser-open-in-new-tab-notice" style="display: none;" role="status">
+                        <span>Opened in a new tab for compatibility.</span>
+                        <a id="browserOpenInNewTabLink" href="#" target="_blank" rel="noopener noreferrer">Open again</a>
+                    </div>
                     <iframe id="browserFrame" class="browser-frame" title="Browse"></iframe>
                     <div id="browserLoading" class="browser-loading" style="display: none;">
                         <div class="browser-spinner"></div>

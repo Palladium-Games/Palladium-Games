@@ -17,6 +17,28 @@ const scramjet = new ScramjetController({
 
 scramjet.init();
 
+let lastNavigatedUrl = "";
+
+// Catch MessagePort errors that are thrown asynchronously (e.g. when frame loads)
+function handleAsyncError(msg, source, lineno, colno, err) {
+  const errMsg = (err && err.message) || msg || "";
+  if (/MessagePort|invalid.*port/i.test(errMsg)) {
+    showFrameError(err || new Error(msg), lastNavigatedUrl);
+  }
+}
+window.onerror = function (msg, source, lineno, colno, err) {
+  handleAsyncError(msg, source, lineno, colno, err);
+  return false;
+};
+window.addEventListener("unhandledrejection", function (ev) {
+  const err = ev.reason;
+  const errMsg = (err && err.message) ? err.message : String(err);
+  if (/MessagePort|invalid.*port/i.test(errMsg)) {
+    handleAsyncError(errMsg, "", 0, 0, err);
+    ev.preventDefault();
+  }
+});
+
 const connection = new BareMux.BareMuxConnection("/baremux/worker.js");
 
 const wispUrl =
@@ -46,6 +68,7 @@ async function ensureTransportReady() {
 
 async function goToUrl(url) {
   if (!url || !url.trim()) return;
+  lastNavigatedUrl = url;
   try {
     await ensureTransportReady();
   } catch (err) {
@@ -53,10 +76,21 @@ async function goToUrl(url) {
   }
   const loadingEl = document.getElementById("sj-loading");
   if (loadingEl) loadingEl.style.display = "none";
-  const frame = scramjet.createFrame();
+  let frame;
+  try {
+    frame = scramjet.createFrame();
+  } catch (err) {
+    showFrameError(err, url);
+    return;
+  }
   frame.frame.id = "sj-frame";
   document.body.appendChild(frame.frame);
-  frame.go(url);
+  try {
+    frame.go(url);
+  } catch (err) {
+    showFrameError(err, url);
+    return;
+  }
 
   // Tell parent (browse.html) the current URL so it can update its address bar
   function sendUrlToParent(u) {
@@ -74,6 +108,28 @@ async function goToUrl(url) {
         sendUrlToParent(cur);
       } catch (e) {}
     });
+  } catch (e) {}
+}
+
+function showFrameError(err, url) {
+  const errMsg = err && err.message ? err.message : String(err);
+  const isMessagePort = /MessagePort|invalid.*port/i.test(errMsg);
+  if (error) {
+    error.textContent = isMessagePort
+      ? "This page can't be displayed in the embedded viewer (browser restriction)."
+      : err.message || "Failed to load.";
+  }
+  if (errorCode) {
+    errorCode.textContent = errMsg;
+  }
+  try {
+    const openUrl = (url || "").trim();
+    if (window.parent !== window) {
+      window.parent.postMessage(
+        { type: "palladium-frame-error", url: window.location.href, message: errMsg },
+        "*"
+      );
+    }
   } catch (e) {}
 }
 
