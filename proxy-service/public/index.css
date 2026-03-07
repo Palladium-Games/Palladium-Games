@@ -9,6 +9,28 @@ body {
   min-height: 100vh;
 }
 
+/* When opened with ?url= (from parent's address bar), hide form so only the frame shows */
+body.auto-navigate .logo-wrapper,
+body.auto-navigate .desc,
+body.auto-navigate #sj-form,
+body.auto-navigate footer {
+  display: none !important;
+}
+
+.auto-navigate-loading {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 18px;
+}
+
+body.auto-navigate .auto-navigate-loading {
+  display: block;
+}
+
 .flex-center {
   display: flex;
   justify-content: center;

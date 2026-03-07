@@ -7,8 +7,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "start": "node src/index.js",
-    "install-deps": "pnpm install"
+    "start": "node src/index.js"
   },
   "keywords": ["proxy", "scramjet"],
   "license": "AGPL-3.0",
@@ -20,6 +19,5 @@
     "@mercuryworkshop/scramjet": "https://github.com/MercuryWorkshop/scramjet/releases/download/latest/mercuryworkshop-scramjet-2.0.0-alpha.tgz",
     "@mercuryworkshop/wisp-js": "^0.4.1",
     "ws": "^8.18.3"
-  },
-  "packageManager": "pnpm@10.18.3"
+  }
 }

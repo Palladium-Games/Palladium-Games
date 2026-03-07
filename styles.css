@@ -17,13 +17,30 @@
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
     --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.1);
+    --nav-strip-icon-width: 72px;
+    --nav-strip-width: 72px;
+    --nav-strip-width-expanded: 260px;
+    --nav-strip-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --nav-strip-duration: 0s; /* enabled to 0.35s by nav-strip.js after first paint */
+}
+html.nav-strip-ready {
+    --nav-strip-duration: 0.35s;
+}
+
+/* First-paint restore: expanded state from localStorage (set in head script) */
+html.nav-strip-expanded {
+    --nav-strip-width: var(--nav-strip-width-expanded);
+}
+
+body.nav-expanded {
+    --nav-strip-width: var(--nav-strip-width-expanded);
 }
 
 body {
     font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     line-height: 1.6;
-    color: var(--text-primary);
-    background-color: var(--bg-primary);
+    color: #e2e8f0;
+    background-color: #0e1520;
     overflow-x: hidden;
     position: relative;
 }
@@ -36,11 +53,11 @@ body::before {
     width: 100%;
     height: 100%;
     background: 
-        radial-gradient(circle at 20% 50%, rgba(0, 0, 0, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 80% 80%, rgba(0, 0, 0, 0.03) 0%, transparent 50%),
-        radial-gradient(circle at 40% 20%, rgba(0, 0, 0, 0.02) 0%, transparent 50%),
-        radial-gradient(circle at 60% 40%, rgba(0, 0, 0, 0.02) 0%, transparent 50%);
-    animation: backgroundPulse 25s ease-in-out infinite;
+        radial-gradient(ellipse 80% 50% at 15% 20%, rgba(59, 130, 246, 0.18) 0%, transparent 50%),
+        radial-gradient(ellipse 60% 40% at 85% 15%, rgba(99, 102, 241, 0.14) 0%, transparent 45%),
+        radial-gradient(ellipse 70% 60% at 50% 90%, rgba(6, 182, 212, 0.12) 0%, transparent 50%),
+        radial-gradient(ellipse 50% 50% at 75% 60%, rgba(139, 92, 246, 0.08) 0%, transparent 45%);
+    animation: backgroundPulse 20s ease-in-out infinite;
     pointer-events: none;
     z-index: 0;
 }
@@ -70,14 +87,40 @@ body.homepage {
     height: 100vh;
 }
 
-body.proxy-page {
-    overflow: hidden;
-    height: 100vh;
-    background: #050506;
+/* Restore dark text on light cards/panels */
+.game-card,
+.about-card,
+.category-card,
+.game-modal-content,
+.game-modal-header,
+.filter-btn,
+.page-content .section-title,
+.page-content .container {
+    color: var(--text-primary);
 }
 
-body.proxy-page::before {
-    display: none;
+/* Homepage hero on dark background */
+body.homepage .homepage-title {
+    color: #f8fafc;
+}
+body.homepage .homepage-link {
+    color: rgba(248, 250, 252, 0.9);
+}
+body.homepage .homepage-link:hover {
+    color: #fff;
+}
+body.homepage .homepage-link::after {
+    background: #fff;
+}
+
+body.browse-page {
+    overflow: hidden;
+    height: 100vh;
+    background-color: #0e1520;
+}
+
+body.browse-page::before {
+    display: block;
 }
 
 body.iframe-page {
@@ -85,13 +128,350 @@ body.iframe-page {
     height: 100vh;
 }
 
+/* Nav strip: full-height left strip, expands to show tabs (replaces sidebar) */
+.nav-strip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: var(--nav-strip-width);
+    background: rgba(15, 23, 42, 0.97);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    transition: width var(--nav-strip-duration) var(--nav-strip-ease);
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+/* Collapsed: fixed width; same transition so expand/collapse animates smoothly */
+.nav-strip:not(.expanded) {
+    width: 72px;
+}
+
+.nav-strip.expanded {
+    width: var(--nav-strip-width-expanded);
+}
+
+body.nav-expanded .nav-strip {
+    width: var(--nav-strip-width-expanded);
+}
+
+html.nav-strip-expanded .nav-strip {
+    width: var(--nav-strip-width-expanded);
+}
+
+/* Collapsed: hide labels so only icons show — only animate the label, never the icon */
+.nav-strip-tab-label {
+    white-space: nowrap;
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    transition: opacity var(--nav-strip-duration) var(--nav-strip-ease), max-width var(--nav-strip-duration) var(--nav-strip-ease);
+}
+.nav-strip:not(.expanded) .nav-strip-tab-label {
+    opacity: 0;
+    max-width: 0;
+}
+
+.nav-strip.expanded .nav-strip-tab .nav-strip-tab-label,
+body.nav-expanded .nav-strip-tab .nav-strip-tab-label,
+html.nav-strip-expanded .nav-strip-tab .nav-strip-tab-label {
+    opacity: 1;
+    max-width: 220px;
+}
+
+.nav-strip-toggle {
+    flex-shrink: 0;
+    width: 100%;
+    min-height: 60px;
+    padding: 0 12px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.85);
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    font-family: inherit;
+    font-size: 0.95rem;
+}
+
+.nav-strip-toggle:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+/* Toggle icon column: same fixed width as tab icons so chevron never teleports */
+.nav-strip-toggle-icon {
+    width: var(--nav-strip-icon-width);
+    min-width: var(--nav-strip-icon-width);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-strip-toggle-icon svg {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    transition: transform var(--nav-strip-duration) var(--nav-strip-ease);
+}
+
+.nav-strip.expanded .nav-strip-toggle-icon svg,
+body.nav-expanded .nav-strip-toggle-icon svg,
+html.nav-strip-expanded .nav-strip-toggle-icon svg {
+    transform: rotate(180deg);
+}
+
+html.nav-strip-expanded .nav-strip-toggle {
+    padding: 0 12px 0 0;
+}
+
+.nav-strip-label-toggle {
+    white-space: nowrap;
+    min-width: 0;
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    transition: opacity var(--nav-strip-duration) var(--nav-strip-ease), max-width var(--nav-strip-duration) var(--nav-strip-ease);
+}
+
+.nav-strip.expanded .nav-strip-label-toggle,
+body.nav-expanded .nav-strip-label-toggle,
+html.nav-strip-expanded .nav-strip-label-toggle {
+    opacity: 1;
+    max-width: 140px;
+}
+
+.nav-strip-logo {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    min-height: 52px;
+    padding: 0;
+    transition: padding var(--nav-strip-duration) var(--nav-strip-ease);
+}
+
+/* Logo icon column: same width as tab icons so P aligns with SVGs below */
+.nav-strip-logo-icon {
+    width: var(--nav-strip-icon-width);
+    min-width: var(--nav-strip-icon-width);
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+/* P mark inside the icon column (same visual weight as 26px SVGs) */
+.nav-strip-logo-icon::before,
+.nav-strip-logo .nav-strip-logo-icon {
+    /* P is text inside the span; we style the span as the icon cell */
+}
+.nav-strip-logo .nav-strip-logo-icon {
+    width: var(--nav-strip-icon-width);
+    min-width: var(--nav-strip-icon-width);
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: white;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: #000000;
+    letter-spacing: -0.5px;
+    margin: 0;
+}
+
+/* "Palladium Games" text: fades in when expanded, sits on dark strip so use light color */
+.nav-strip-logo-text {
+    white-space: nowrap;
+    opacity: 0;
+    max-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    font-size: 0.875rem;
+    letter-spacing: 0.02em;
+    line-height: 1.2;
+    color: rgba(255, 255, 255, 0.92);
+    transition: opacity var(--nav-strip-duration) var(--nav-strip-ease), max-width var(--nav-strip-duration) var(--nav-strip-ease);
+}
+
+.nav-strip.expanded .nav-strip-logo-text,
+body.nav-expanded .nav-strip-logo-text,
+html.nav-strip-expanded .nav-strip-logo-text {
+    opacity: 1;
+    max-width: 180px;
+}
+
+/* Legacy single-child logo (just "P") for any page not yet updated */
+.nav-strip-logo:not(:has(.nav-strip-logo-icon)) {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    background: white;
+    border-radius: 10px;
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: #000000;
+    letter-spacing: -0.5px;
+    margin: 12px;
+    padding: 0;
+    justify-content: center;
+}
+
+.nav-strip-tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+.nav-strip-tab {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 12px 0;
+    margin: 0 8px;
+    color: rgba(255, 255, 255, 0.65);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, margin var(--nav-strip-duration) var(--nav-strip-ease);
+    border-radius: 8px;
+    min-height: 52px;
+    box-sizing: border-box;
+    border-left: 3px solid transparent;
+}
+
+/* Fixed-width icon column: icons stay in same place (no teleport) */
+.nav-strip-tab-icon {
+    width: var(--nav-strip-icon-width);
+    min-width: var(--nav-strip-icon-width);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Tabs: always flex-start so icon column stays left-aligned */
+.nav-strip:not(.expanded) .nav-strip-tab {
+    margin: 0;
+    min-width: 72px;
+    width: 72px;
+    max-width: 72px;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 10px 0;
+    min-height: 52px;
+    height: 52px;
+}
+
+.nav-strip:not(.expanded) .nav-strip-tab-icon {
+    width: var(--nav-strip-icon-width);
+    min-width: var(--nav-strip-icon-width);
+    flex-shrink: 0;
+    visibility: visible !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+}
+
+.nav-strip:not(.expanded) .nav-strip-tab-icon svg {
+    visibility: visible !important;
+    opacity: 1 !important;
+    flex-shrink: 0;
+    width: 26px !important;
+    height: 26px !important;
+    min-width: 26px;
+    min-height: 26px;
+    stroke: currentColor;
+    color: inherit;
+    display: block;
+}
+
+.nav-strip.expanded .nav-strip-tab,
+body.nav-expanded .nav-strip-tab,
+html.nav-strip-expanded .nav-strip-tab {
+    gap: 8px;
+}
+
+.nav-strip-tab:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+}
+
+.nav-strip-tab.active {
+    background: rgba(255, 255, 255, 0.95);
+    color: #0e1520;
+    border-left-color: transparent;
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.15);
+}
+
+/* Expanded: subtle left accent for active tab */
+.nav-strip.expanded .nav-strip-tab.active {
+    border-left-color: rgba(96, 165, 250, 0.7);
+}
+
+/* When strip is NOT expanded: stronger active highlight (left bar + glow), icon stays visible */
+.nav-strip:not(.expanded) .nav-strip-tab.active {
+    background: rgba(255, 255, 255, 0.95);
+    color: #0e1520;
+    border-left-color: rgba(96, 165, 250, 0.95);
+    border-radius: 8px;
+    box-shadow: 0 0 16px rgba(96, 165, 250, 0.25), inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+}
+
+.nav-strip:not(.expanded) .nav-strip-tab.active .nav-strip-tab-icon svg {
+    stroke: #0e1520;
+    color: #0e1520;
+}
+
+.nav-strip-tab svg {
+    width: 26px;
+    height: 26px;
+    flex-shrink: 0;
+    stroke: currentColor;
+    fill: none;
+    stroke-width: 2;
+    color: inherit;
+}
+
+/* Icon column fixed width so icons don't move */
+.nav-strip-tab .nav-strip-tab-icon {
+    flex-shrink: 0;
+    min-width: var(--nav-strip-icon-width);
+    width: var(--nav-strip-icon-width);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 /* Sidebar Menu */
 .iframe-wrapper {
     display: flex;
-    width: calc(100vw - 80px - 2rem);
+    width: calc(100vw - var(--nav-strip-width) - 1rem);
     height: 100vh;
     overflow: hidden;
-    margin-left: calc(80px + 2rem);
+    margin-left: var(--nav-strip-width);
+    transition: margin-left var(--nav-strip-duration) var(--nav-strip-ease), width var(--nav-strip-duration) var(--nav-strip-ease);
 }
 
 .sidebar-menu {
@@ -294,82 +674,198 @@ body.game-page .sidebar-link svg {
     flex-direction: column;
 }
 
-/* Proxy page: full-bleed embed, no toolbar — Scramjet has its own UI */
-body.proxy-page .iframe-wrapper {
-    margin-left: calc(80px + 2rem);
-    width: calc(100vw - 80px - 2rem);
+/* Browse page: full-bleed embed */
+body.browse-page .iframe-wrapper {
+    margin-left: var(--nav-strip-width);
+    width: calc(100vw - var(--nav-strip-width) - 1rem);
     height: 100vh;
     padding: 1rem;
     box-sizing: border-box;
 }
 
-body.proxy-page .proxy-embed-wrap {
+body.browse-page .browse-embed-wrap {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: #0a0a0b;
+    background: var(--bg-card);
     border-radius: 16px;
     overflow: hidden;
-    box-shadow: 
-        0 0 0 1px rgba(255, 255, 255, 0.06),
-        0 4px 24px rgba(0, 0, 0, 0.4),
-        0 24px 48px -12px rgba(0, 0, 0, 0.35);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--border-color);
 }
 
-body.proxy-page .browser-container {
+body.browse-page .browser-container {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    background: #0a0a0b;
+    background: var(--bg-card);
 }
 
-body.proxy-page .browser-content {
+body.browse-page .browser-content {
     flex: 1;
     min-height: 0;
     position: relative;
     overflow: hidden;
-    background: #0a0a0b;
+    background: var(--bg-secondary);
 }
 
-body.proxy-page .browser-frame {
+body.browse-page .browser-frame {
     position: absolute;
     inset: 0;
     width: 100%;
     height: 100%;
     border: none;
     border-radius: 0 0 16px 16px;
-    background: #0a0a0b;
+    background: var(--bg-card);
 }
 
-body.proxy-page .browser-loading {
+body.browse-page .browser-loading {
     position: absolute;
     inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: #0a0a0b;
+    background: var(--bg-secondary);
     z-index: 10;
 }
 
-body.proxy-page .browser-loading p {
-    color: rgba(255, 255, 255, 0.6);
+body.browse-page .browser-loading p {
+    color: var(--text-secondary);
     font-size: 0.9rem;
     margin-top: 0.75rem;
 }
 
-body.proxy-page .browser-spinner {
-    border-color: rgba(255, 255, 255, 0.12);
-    border-top-color: rgba(255, 255, 255, 0.8);
+body.browse-page .browser-spinner {
+    border-color: var(--border-color);
+    border-top-color: var(--text-primary);
+}
+
+/* Browse toolbar: Chrome-style search / address bar — matches site theme */
+body.browse-page .browse-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+    padding: 10px 16px;
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+}
+
+body.browse-page .browse-toolbar .browser-nav-buttons {
+    display: flex;
+    gap: 2px;
+}
+
+body.browse-page .browse-toolbar .browser-btn {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s, color 0.15s;
+}
+
+body.browse-page .browse-toolbar .browser-btn:hover:not(:disabled) {
+    background: rgba(0, 0, 0, 0.06);
+    color: var(--text-primary);
+}
+
+body.browse-page .browse-toolbar .browser-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+body.browse-page .browse-address-bar {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 24px;
+    padding: 0 16px 0 20px;
+    height: 44px;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s, border-color 0.15s;
+}
+
+body.browse-page .browse-address-bar:focus-within {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05);
+    border-color: var(--text-primary);
+}
+
+body.browse-page .browse-address-icon {
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+body.browse-page .browse-address-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: none;
+    font-size: 15px;
+    color: var(--text-primary);
+    font-family: inherit;
+    min-width: 0;
+}
+
+body.browse-page .browse-address-input::placeholder {
+    color: var(--text-secondary);
+}
+
+body.browse-page .browse-address-go {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 -8px 0 4px;
+    transition: background 0.15s, color 0.15s;
+}
+
+body.browse-page .browse-address-go:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
 }
 
 @media (max-width: 768px) {
-    body.proxy-page .iframe-wrapper {
-        margin-left: 0;
-        width: 100vw;
+    body.browse-page .iframe-wrapper {
+        margin-left: var(--nav-strip-width);
+        width: calc(100vw - var(--nav-strip-width));
         padding: 0.5rem;
+    }
+
+    body.browse-page .browse-toolbar {
+        flex-wrap: wrap;
+        padding: 8px 12px;
+        gap: 8px;
+    }
+
+    body.browse-page .browse-address-bar {
+        order: 3;
+        width: 100%;
+        margin-top: 4px;
+    }
+
+    body.browse-page .browse-address-input {
+        font-size: 16px;
     }
 }
 
@@ -386,21 +882,24 @@ body.proxy-page .browser-spinner {
     padding-top: 1rem;
 }
 
-body:has(.sidebar-menu.open) .page-content,
+body:has(.nav-strip.expanded) .page-content,
+body:has(.nav-strip) .page-content,
 .page-content {
-    margin-left: calc(80px + 2rem);
+    margin-left: var(--nav-strip-width);
+    transition: margin-left var(--nav-strip-duration) var(--nav-strip-ease);
 }
 
 body.homepage .homepage-container {
-    margin-left: calc(80px + 2rem);
-    width: calc(100vw - 80px - 2rem);
+    margin-left: var(--nav-strip-width);
+    width: calc(100vw - var(--nav-strip-width) - 1rem);
     justify-content: flex-start;
-    padding-left: 4rem;
+    padding-left: 2rem;
+    transition: margin-left var(--nav-strip-duration) var(--nav-strip-ease), width var(--nav-strip-duration) var(--nav-strip-ease);
 }
 
-/* Fallback for browsers that don't support :has() */
-.sidebar-menu.open + .page-content {
-    margin-left: 250px;
+/* Fallback for nav-strip */
+body:has(.sidebar-menu) .page-content {
+    margin-left: var(--nav-strip-width);
 }
 
 /* Game Modal */
@@ -1915,8 +2414,8 @@ body.game-page > * {
     align-items: center;
     justify-content: center;
     padding: 2rem;
-    margin-left: calc(80px + 2rem);
-    transition: margin-left 0.3s ease;
+    margin-left: var(--nav-strip-width);
+    transition: margin-left var(--nav-strip-duration) var(--nav-strip-ease);
     overflow: auto;
     background: var(--bg-secondary);
     position: relative;

@@ -4,35 +4,26 @@ This folder contains a [Scramjet](https://docs.titaniumnetwork.org/proxies/scram
 
 ## Run locally
 
-1. Install [Node.js](https://nodejs.org/) 18+ and [pnpm](https://pnpm.io/).
+1. Install [Node.js](https://nodejs.org/) 18+.
 2. From the repo root:
    ```bash
    cd proxy-service
-   pnpm install
-   pnpm start
+   npm install
+   npm start
    ```
 3. The proxy will listen on **http://localhost:8080**.
-4. In the main site’s **proxy.js**, set:
-   ```js
-   const PROXY_SERVICE_BASE = 'http://localhost:8080/';
-   ```
-5. Open the Proxy tab and you’ll get the Scramjet UI (or load `http://localhost:8080` in the iframe).
+4. In the main site’s **browse.js**, set the endpoint (base64) in the config comment at the top; default is `http://localhost:8080/`.
+5. Open the Browse tab and you’ll get the Scramjet UI (or load `http://localhost:8080` in the iframe).
 
 ## Deploy (production)
 
 The proxy is a **Node server**. Deploy only the `proxy-service` folder to a Node host, for example:
 
-- **Railway** – connect the repo, set root directory to `proxy-service`, add start script `pnpm start`.
-- **Render** – new Web Service, root directory `proxy-service`, build `pnpm install`, start `pnpm start`.
-- **Fly.io / VPS** – run `node src/index.js` (or `pnpm start`) and expose port 8080.
+- **Railway** – connect the repo, set root directory to `proxy-service`, add start script `npm start`.
+- **Render** – new Web Service, root directory `proxy-service`, build `npm install`, start `npm start`.
+- **Fly.io / VPS** – run `npm start` (or `node src/index.js`) and expose port 8080.
 
-Then in **proxy.js** (in the main site you deploy to Netlify/Vercel/etc.), set:
-
-```js
-const PROXY_SERVICE_BASE = 'https://your-proxy-url.up.railway.app/';
-```
-
-Use your proxy’s real URL (with trailing slash). The Proxy tab will load that URL in the iframe so all traffic goes through your Scramjet instance.
+Then in **browse.js** (in the main site you deploy to Netlify/Vercel/etc.), set the endpoint via the base64 config at the top to your proxy URL (e.g. `https://your-proxy-url.up.railway.app/`). The Browse tab will load that URL in the iframe so all traffic goes through your Scramjet instance.
 
 ## Optional assets
 
@@ -41,7 +32,7 @@ Use your proxy’s real URL (with trailing slash). The Proxy tab will load that 
 
 ## Port
 
-Override with the `PORT` environment variable (e.g. `PORT=3000 pnpm start`).
+Override with the `PORT` environment variable (e.g. `PORT=3000 npm start`).
 
 ## License
 

@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const searchInput = document.getElementById('homepageSearchInput');
             const query = searchInput.value.trim();
             if (query) {
-                window.location.href = `proxy.html?q=${encodeURIComponent(query)}`;
+                window.location.href = `browse.html?q=${encodeURIComponent(query)}`;
             }
         });
     }
