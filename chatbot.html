@@ -338,6 +338,19 @@
         try {
             var url = new URL(rawHref, window.location.href);
             var path = url.pathname.replace(/^\/+/, '');
+
+            if (sourceTag === 'games-page' && /game-player\.html$/i.test(path)) {
+                var qp = new URLSearchParams(url.search || '');
+                var gameParam = qp.get('game') || '';
+                if (!gameParam) return '';
+                try {
+                    var gameUrl = new URL(gameParam, window.location.href);
+                    path = gameUrl.pathname.replace(/^\/+/, '');
+                } catch (_ignored) {
+                    path = String(gameParam).replace(/^\/+/, '');
+                }
+            }
+
             if (sourceTag === 'games-dir' && path.indexOf('games/') !== 0) path = 'games/' + path;
             if (path.indexOf('games/') !== 0) return '';
             if (!/\.html$/i.test(path)) return '';
@@ -352,13 +365,39 @@
         var doc = new DOMParser().parseFromString(html, 'text/html');
         var anchors = doc.querySelectorAll('a[href]');
         Array.prototype.forEach.call(anchors, function(anchor) {
-            var path = normalizeGamePath(anchor.getAttribute('href') || '', sourceTag);
+            var href = anchor.getAttribute('href') || '';
+            var path = normalizeGamePath(href, sourceTag);
             if (!path) return;
             var file = path.split('/').pop();
-            var rawLabel = (anchor.textContent || '').trim();
-            var title = rawLabel && !/\.html$/i.test(rawLabel) ? rawLabel : slugToTitle(file);
-            map.set(path, { path: path, file: file, title: title });
+            var title = '';
+            var author = 'Author: Unknown';
+
+            if (sourceTag === 'games-page') {
+                try {
+                    var hrefUrl = new URL(href, window.location.href);
+                    var qp = new URLSearchParams(hrefUrl.search || '');
+                    title = (qp.get('title') || '').trim();
+                    var parsedAuthor = (qp.get('author') || '').trim();
+                    if (parsedAuthor) author = parsedAuthor;
+                } catch (_ignored) {}
+            }
+
+            if (!title) {
+                var rawLabel = (anchor.textContent || '').trim();
+                title = rawLabel && !/\.html$/i.test(rawLabel) ? rawLabel : slugToTitle(file);
+            }
+
+            map.set(path, { path: path, file: file, title: title, author: author });
         });
+    }
+
+    function gamePlayerHref(game) {
+        var title = (game && game.title) ? game.title : slugToTitle((game && game.file) || '');
+        var author = (game && game.author) ? game.author : 'Author: Unknown';
+        var path = (game && game.path) ? game.path : '';
+        return '/game-player.html?game=' + encodeURIComponent(path) +
+            '&title=' + encodeURIComponent(title) +
+            '&author=' + encodeURIComponent(author);
     }
 
     function loadGameCatalog() {
@@ -412,7 +451,7 @@
         var max = typeof limit === 'number' ? Math.max(1, limit) : games.length;
         var subset = games.slice(0, max);
         var lines = subset.map(function(game) {
-            return '- [' + game.title + '](' + game.path + ')';
+            return '- [' + game.title + '](' + gamePlayerHref(game) + ')';
         });
         if (subset.length < games.length) {
             lines.push('- ...and ' + (games.length - subset.length) + ' more in `/games`.');
@@ -462,7 +501,7 @@
             return 'I don\'t see **' + guessed + '** in `/games` right now.';
         }
         if (matches.length === 1) {
-            return 'Yes. I found it in `/games`:\n\n- [' + matches[0].title + '](' + matches[0].path + ')';
+            return 'Yes. I found it in `/games`:\n\n- [' + matches[0].title + '](' + gamePlayerHref(matches[0]) + ')';
         }
         return 'I found multiple close matches in `/games`:\n\n' + gamesCatalogMarkdown(matches, 8);
     }
