@@ -654,6 +654,7 @@
         var assistantBubble = addMessage('assistant', '...', false, true);
         var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         var timeout = controller ? setTimeout(function() { controller.abort(); }, RESPONSE_TIMEOUT_MS) : null;
+        var internetContext = '';
 
         try {
             var games = await loadGameCatalog();
@@ -666,7 +667,7 @@
                 return;
             }
 
-            var internetContext = await fetchInternetContext(text);
+            internetContext = await fetchInternetContext(text);
             var messages = buildMessages(text, internetContext, games);
 
             var res = await fetch(apiBase + '/api/chat', {
@@ -686,9 +687,14 @@
             setStatus('Ollama · ' + model, true);
             scheduleMemoryClear();
         } catch (_err) {
-            assistantBubble.className = 'palladium-ai-msg error';
-            setMessage(assistantBubble, 'Could not reach PalladiumAI. Is Ollama running at ' + apiBase + '?', false);
+            assistantBubble.className = 'palladium-ai-msg assistant';
+            var fallbackReply = internetContext
+                ? ('I can\'t reach Ollama right now, but here are internet results from the local proxy:\n\n' + internetContext)
+                : 'I can\'t reach Ollama right now.\n\nI don\'t know based on the available data.';
+            setMessage(assistantBubble, fallbackReply, true);
+            history.push({ role: 'assistant', content: fallbackReply });
             setStatus('Ollama offline — start Ollama', false);
+            scheduleMemoryClear();
         } finally {
             if (timeout) clearTimeout(timeout);
             sendBtn.disabled = false;
