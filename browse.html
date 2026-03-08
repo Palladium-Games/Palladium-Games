@@ -60,7 +60,7 @@
                     <div class="browser-nav-buttons">
                         <button type="button" class="browser-btn" id="browseBack" title="Back" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
                         <button type="button" class="browser-btn" id="browseForward" title="Forward" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-                        <button type="button" class="browser-btn" id="browseReload" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L21 8M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L3 16"/></svg></button>
+                        <button type="button" class="browser-btn" id="browseReload" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></button>
                     </div>
                     <form id="browseForm" class="browse-address-bar">
                         <span class="browse-address-icon" aria-hidden="true">
@@ -69,7 +69,6 @@
                         <input type="text" id="browseAddress" class="browse-address-input" placeholder="Search or enter address" autocomplete="off" spellcheck="false" />
                         <button type="submit" class="browse-address-go" title="Go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
                     </form>
-                    <a href="http://localhost:1337/proxy" target="_blank" rel="noopener" id="browseOpenNew" class="browser-btn" title="Open Palladium Browse in new tab" style="text-decoration:none;color:inherit;">Open in new tab</a>
                 </div>
                 <div class="browser-content">
                     <div id="browseFileWarning" class="browser-loading" style="display:none;background:var(--bg-card);">
@@ -77,7 +76,6 @@
                         <p class="browse-redirect-fallback">Browsers often block the proxy iframe when the parent is file://. Serve the site over HTTP instead:</p>
                         <p class="browse-redirect-fallback" style="margin-top:0.5rem;"><code style="background:var(--bg-secondary);padding:0.25rem 0.5rem;border-radius:4px;">cd /path/to/TITANIUM && npx serve -l 3000</code></p>
                         <p class="browse-redirect-fallback" style="margin-top:0.5rem;">Then open <strong>http://localhost:3000/browse.html</strong></p>
-                        <p style="margin-top:1rem;"><a href="http://localhost:1337/proxy" target="_blank" rel="noopener">Open Palladium Browse in a new tab</a> (works even if this page is <code>file://</code>)</p>
                     </div>
                     <div id="browseLoading" class="browser-loading" aria-live="polite">
                         <div class="browser-spinner" style="width:32px;height:32px;border:3px solid transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
@@ -87,7 +85,7 @@
                         <p class="browse-redirect-msg">Palladium Proxy didn’t load.</p>
                         <p class="browse-redirect-fallback">1. Serve this site over HTTP (not file://): run <code>npx serve -l 3000</code> in the project root and open http://localhost:3000/browse.html</p>
                         <p class="browse-redirect-fallback">2. Start the local proxy server: <code>node palladium-proxy.js</code> (default port: <code>1337</code>)</p>
-                        <p style="margin-top:1rem;"><a href="http://localhost:1337/proxy" target="_blank" rel="noopener" id="browseOpenNewFallback">Open Palladium Browse in a new tab</a> · <button type="button" id="browseRetry" style="margin-left:0.5rem;padding:0.35rem 0.75rem;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;">Retry</button></p>
+                        <p style="margin-top:1rem;"><button type="button" id="browseRetry" style="padding:0.35rem 0.75rem;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;">Retry</button></p>
                     </div>
                     <iframe id="browserFrame" class="browser-frame-inner" title="Palladium Browse" style="position:absolute;inset:0;width:100%;height:100%;"></iframe>
                 </div>
@@ -99,6 +97,10 @@
     <script>
 (function () {
   var BROWSE_BASE = 'http://localhost:1337/proxy';
+  var PROXY_ORIGIN = (function () {
+    try { return new URL(BROWSE_BASE).origin; } catch (e) { return 'http://localhost:1337'; }
+  })();
+  var DEFAULT_FAVICON = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z%22/%3E%3C/svg%3E';
   var frame = document.getElementById('browserFrame');
   var loading = document.getElementById('browseLoading');
   var fallback = document.getElementById('browseFallback');
@@ -108,23 +110,32 @@
   var tabStrip = document.getElementById('browseTabStrip');
   var tabNewBtn = document.getElementById('browseTabNew');
   var loadTimeout;
+  var loadRequestId = 0;
   var tabIdCounter = 1;
   var tabs = [];
   var activeTabId = null;
 
-  function tabLabel(url) {
-    if (!url) return 'New tab';
+  function cleanUrl(raw) {
+    if (!raw || !raw.trim()) return '';
+    var url = raw.trim();
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    return url;
+  }
+
+  function tabLabel(tab) {
+    if (!tab) return 'New tab';
+    if (tab.title && tab.title.trim()) return tab.title.trim();
+    if (!tab.url) return 'New tab';
     try {
-      var u = new URL(url);
-      return u.hostname.replace(/^www\./, '') || url;
-    } catch (e) { return url || 'New tab'; }
+      var u = new URL(tab.url);
+      return u.hostname.replace(/^www\./, '') || tab.url;
+    } catch (e) { return tab.url || 'New tab'; }
   }
 
   function createTab(url) {
     var id = 't' + (tabIdCounter++);
-    var u = (url || 'https://google.com').trim();
-    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
-    tabs.push({ id: id, url: u || 'https://google.com' });
+    var u = cleanUrl(url || 'https://google.com') || 'https://google.com';
+    tabs.push({ id: id, url: u, title: '', favicon: '' });
     return id;
   }
 
@@ -160,7 +171,9 @@
       wrap.setAttribute('role', 'tab');
       wrap.setAttribute('aria-selected', isActive);
       wrap.title = t.url;
-      wrap.innerHTML = '<span class="browse-tab-label">' + escapeHtml(tabLabel(t.url)) + '</span><button type="button" class="browse-tab-close" data-tab-id="' + t.id + '" aria-label="Close tab">&times;</button>';
+      wrap.innerHTML = '<img class="browse-tab-favicon" src="' + escapeAttr(t.favicon || DEFAULT_FAVICON) + '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />' +
+        '<span class="browse-tab-label">' + escapeHtml(tabLabel(t)) + '</span>' +
+        '<button type="button" class="browse-tab-close" data-tab-id="' + t.id + '" aria-label="Close tab">&times;</button>';
       wrap.addEventListener('click', function (e) {
         if (e.target.classList.contains('browse-tab-close')) {
           e.stopPropagation();
@@ -182,6 +195,14 @@
     return div.innerHTML;
   }
 
+  function escapeAttr(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
   function syncAddressBar() {
     var t = tabs.find(function (x) { return x.id === activeTabId; });
     addressInput.value = t ? t.url : '';
@@ -193,46 +214,78 @@
 
   function showLoading() {
     fileWarning.style.display = 'none';
+    frame.style.visibility = 'hidden';
     loading.style.display = 'flex';
     fallback.style.display = 'none';
   }
   function showFallback() {
     fileWarning.style.display = 'none';
+    frame.style.visibility = 'hidden';
     loading.style.display = 'none';
     fallback.style.display = 'flex';
   }
   function hideLoading() {
+    frame.style.visibility = 'visible';
     loading.style.display = 'none';
     fallback.style.display = 'none';
   }
   function showFileWarning() {
+    frame.style.visibility = 'hidden';
     fileWarning.style.display = 'flex';
     loading.style.display = 'none';
     fallback.style.display = 'none';
   }
 
   function buildSrc(url) {
-    if (!url || !url.trim()) return BROWSE_BASE;
-    var u = url.trim();
-    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    var u = cleanUrl(url);
+    if (!u) return BROWSE_BASE;
     return BROWSE_BASE + '?url=' + encodeURIComponent(u);
   }
 
-  function loadCurrentTab() {
+  async function checkProxyHealth() {
+    var controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, 3000) : null;
+    try {
+      var healthUrl = PROXY_ORIGIN + '/health?ts=' + Date.now();
+      var res = await fetch(healthUrl, {
+        method: 'GET',
+        cache: 'no-store',
+        signal: controller ? controller.signal : undefined
+      });
+      return !!(res && res.ok);
+    } catch (_err) {
+      return false;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function loadCurrentTab() {
+    var requestId = ++loadRequestId;
     var t = getCurrentTab();
     if (!t) return;
-    frame.src = buildSrc(t.url);
     showLoading();
     clearTimeout(loadTimeout);
+    var proxyReady = await checkProxyHealth();
+    if (requestId !== loadRequestId) return;
+    if (!proxyReady) {
+      frame.removeAttribute('src');
+      showFallback();
+      return;
+    }
+    frame.src = buildSrc(t.url);
     loadTimeout = setTimeout(function () { showFallback(); }, 10000);
   }
 
   function go() {
     var t = getCurrentTab();
-    var url = addressInput.value.trim();
+    var url = cleanUrl(addressInput.value);
     if (!url) return;
-    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
-    if (t) t.url = url;
+    if (t) {
+      t.url = url;
+      t.title = '';
+      t.favicon = '';
+    }
     else {
       activeTabId = createTab(url);
       renderTabs();
@@ -250,6 +303,52 @@
     showFallback();
   });
 
+  function parseReportedUrl(raw) {
+    if (!raw || typeof raw !== 'string') return '';
+    var value = raw.trim();
+    if (!value) return '';
+    try {
+      var u = new URL(value);
+      if ((u.pathname === '/proxy' || u.pathname === '/') && u.searchParams.get('url')) {
+        return cleanUrl(u.searchParams.get('url'));
+      }
+      if (/^https?:/.test(u.protocol)) return u.href;
+      return '';
+    } catch (e) {
+      return cleanUrl(value);
+    }
+  }
+
+  window.addEventListener('message', function (event) {
+    if (!event || event.origin !== PROXY_ORIGIN) return;
+    var data = event.data || {};
+    if (data.source !== 'palladium-proxy' || data.type !== 'metadata') return;
+    var tab = getCurrentTab();
+    if (!tab) return;
+    var changed = false;
+    var reportedUrl = parseReportedUrl(data.url);
+    var reportedTitle = typeof data.title === 'string' ? data.title.trim() : '';
+    var reportedFavicon = typeof data.favicon === 'string' ? data.favicon.trim() : '';
+
+    if (reportedUrl && reportedUrl !== tab.url) {
+      tab.url = reportedUrl;
+      changed = true;
+    }
+    if (reportedTitle && reportedTitle !== tab.title) {
+      tab.title = reportedTitle;
+      changed = true;
+    }
+    if (reportedFavicon && reportedFavicon !== tab.favicon) {
+      tab.favicon = reportedFavicon;
+      changed = true;
+    }
+
+    if (changed) {
+      renderTabs();
+      syncAddressBar();
+    }
+  });
+
   if (form) {
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -265,17 +364,8 @@
   });
 
   document.getElementById('browseReload').addEventListener('click', function () {
-    if (frame.src) frame.src = frame.src;
-    showLoading();
-    clearTimeout(loadTimeout);
-    loadTimeout = setTimeout(function () { showFallback(); }, 10000);
+    loadCurrentTab();
   });
-  document.getElementById('browseOpenNew').addEventListener('click', function (e) {
-    e.preventDefault();
-    window.open(BROWSE_BASE, '_blank');
-  });
-  var openNewF = document.getElementById('browseOpenNewFallback');
-  if (openNewF) openNewF.addEventListener('click', function (e) { e.preventDefault(); window.open(BROWSE_BASE, '_blank'); });
   document.getElementById('browseRetry').addEventListener('click', function () { loadCurrentTab(); });
 
   document.getElementById('browseBack').setAttribute('aria-label', 'Back (use bar inside frame)');
@@ -292,9 +382,7 @@
   activeTabId = createTab('https://google.com');
   renderTabs();
   syncAddressBar();
-  frame.src = buildSrc(addressInput.value || 'https://google.com');
-  showLoading();
-  loadTimeout = setTimeout(function () { showFallback(); }, 10000);
+  loadCurrentTab();
 })();
     </script>
 </body>

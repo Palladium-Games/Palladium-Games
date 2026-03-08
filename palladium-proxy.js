@@ -8,7 +8,12 @@ const { URL } = require("url");
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || "0.0.0.0";
 const PROXY_BASE = `http://localhost:${PORT}/proxy?url=`;
-const PROXY_URL_PATTERN = /^https?:\/\/[^/]+\/proxy\?url=/i;
+const INTERNAL_PROXY_ORIGIN = process.env.INTERNAL_PROXY_ORIGIN || `http://127.0.0.1:${PORT}`;
+const PROXY_URL_PATTERN = /^https?:\/\/[^/]+\/proxy\?(?:raw=1&)?url=/i;
+const AI_FETCH_TIMEOUT_MS = Number(process.env.AI_FETCH_TIMEOUT_MS || 9000);
+const AI_CONTEXT_MAX_RESULTS = Number(process.env.AI_CONTEXT_MAX_RESULTS || 4);
+const AI_CONTEXT_MAX_CHARS = Number(process.env.AI_CONTEXT_MAX_CHARS || 360);
+const AI_CONTEXT_CACHE_TTL_MS = Number(process.env.AI_CONTEXT_CACHE_TTL_MS || 3 * 60 * 1000);
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -41,9 +46,14 @@ const rewriteOnlyBlockedHeaders = new Set([
 ]);
 
 const cookieJar = new Map();
+const aiContextCache = new Map();
 
 function proxyUrlFor(target) {
   return `${PROXY_BASE}${encodeURIComponent(target)}`;
+}
+
+function rawProxyUrlFor(target) {
+  return `http://localhost:${PORT}/proxy?raw=1&url=${encodeURIComponent(target)}`;
 }
 
 function readBody(req) {
@@ -390,7 +400,7 @@ function buildRequestHeaders(req, targetUrl) {
   return headers;
 }
 
-function buildResponseHeaders(upstream, target, rewriteBody) {
+function buildResponseHeaders(upstream, target, rewriteBody, rawMode) {
   const responseHeaders = {};
 
   upstream.headers.forEach((value, name) => {
@@ -400,7 +410,7 @@ function buildResponseHeaders(upstream, target, rewriteBody) {
     if (rewriteBody && rewriteOnlyBlockedHeaders.has(lower)) return;
     if (lower === "location") {
       const rewritten = safeResolveUrl(value, target);
-      if (rewritten) responseHeaders.location = proxyUrlFor(rewritten);
+      if (rewritten) responseHeaders.location = rawMode ? rawProxyUrlFor(rewritten) : proxyUrlFor(rewritten);
       return;
     }
     if (lower === "set-cookie") return;
@@ -447,9 +457,112 @@ function stripHtmlTags(value) {
   return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function trimSnippet(value, maxChars) {
+  const limit = Number.isFinite(maxChars) ? Math.max(80, Math.floor(maxChars)) : AI_CONTEXT_MAX_CHARS;
+  const text = String(value || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (text.length <= limit) return text;
+  return `${text.slice(0, Math.max(0, limit - 1)).trimEnd()}…`;
+}
+
+function getCachedAiContext(url) {
+  const item = aiContextCache.get(url);
+  if (!item) return null;
+  if (Date.now() - item.ts > AI_CONTEXT_CACHE_TTL_MS) {
+    aiContextCache.delete(url);
+    return null;
+  }
+  return item.value || null;
+}
+
+function setCachedAiContext(url, value) {
+  if (!url || !value) return;
+  aiContextCache.set(url, { ts: Date.now(), value });
+}
+
+function extractTitleFromHtml(html) {
+  const match = String(html || "").match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  if (!match || !match[1]) return "";
+  return trimSnippet(stripHtmlTags(decodeHtmlEntities(match[1])), 140);
+}
+
+function extractSnippetFromHtml(html) {
+  const cleaned = String(html || "")
+    .replace(/<!--[\s\S]*?-->/g, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ");
+  const text = decodeHtmlEntities(stripHtmlTags(cleaned));
+  return trimSnippet(text, AI_CONTEXT_MAX_CHARS);
+}
+
+async function fetchThroughProxy(targetUrl, options = {}) {
+  const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : AI_FETCH_TIMEOUT_MS;
+  const proxyRequestUrl = new URL("/proxy", INTERNAL_PROXY_ORIGIN);
+  proxyRequestUrl.searchParams.set("raw", "1");
+  proxyRequestUrl.searchParams.set("url", targetUrl);
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const headers = { "x-palladium-ai": "1" };
+    if (options.accept) headers.accept = options.accept;
+    return await fetch(proxyRequestUrl, {
+      method: "GET",
+      headers,
+      redirect: "follow",
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function fetchResultContextViaProxy(result) {
+  if (!result || !result.url) return;
+  const targetUrl = extractProxyTarget(result.url) || result.url;
+  const cached = getCachedAiContext(targetUrl);
+  if (cached) {
+    if (!result.title && cached.title) result.title = cached.title;
+    if (!result.snippet && cached.snippet) result.snippet = cached.snippet;
+    return;
+  }
+
+  try {
+    const response = await fetchThroughProxy(targetUrl, {
+      accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+      timeoutMs: AI_FETCH_TIMEOUT_MS,
+    });
+    if (!response.ok) return;
+    const contentType = response.headers.get("content-type") || "";
+    if (!/text\/html|application\/xhtml\+xml/i.test(contentType)) return;
+    const html = await response.text();
+    const title = extractTitleFromHtml(html);
+    const snippet = extractSnippetFromHtml(html);
+    const context = {
+      title: title || "",
+      snippet: snippet || "",
+    };
+    setCachedAiContext(targetUrl, context);
+
+    if ((!result.title || result.title === result.url) && context.title) {
+      result.title = context.title;
+    }
+    if ((!result.snippet || result.snippet.length < 80) && context.snippet) {
+      result.snippet = context.snippet;
+    }
+  } catch {
+    // Graceful fallback: keep search result without page context.
+  }
+}
+
 function normalizeSearchUrl(rawHref) {
   if (!rawHref) return "";
-  const href = decodeHtmlEntities(String(rawHref).trim());
+  let href = decodeHtmlEntities(String(rawHref).trim());
+  const proxied = extractProxyTarget(safeResolveUrl(href, INTERNAL_PROXY_ORIGIN));
+  if (proxied) href = proxied;
   try {
     const absolute = new URL(href, "https://duckduckgo.com");
     if (/duckduckgo\.com$/i.test(absolute.hostname) && absolute.pathname.startsWith("/l/")) {
@@ -503,7 +616,10 @@ function collectRelatedTopics(topics, results, seen, limit) {
 async function fetchDuckDuckGoInstant(query, limit, results, seen) {
   try {
     const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
-    const response = await fetch(url, { method: "GET" });
+    const response = await fetchThroughProxy(url, {
+      accept: "application/json,text/plain,*/*",
+      timeoutMs: AI_FETCH_TIMEOUT_MS,
+    });
     if (!response.ok) return;
     const data = await response.json();
 
@@ -532,7 +648,10 @@ async function fetchDuckDuckGoInstant(query, limit, results, seen) {
 async function fetchDuckDuckGoHtml(query, limit, results, seen) {
   try {
     const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
-    const response = await fetch(url, { method: "GET" });
+    const response = await fetchThroughProxy(url, {
+      accept: "text/html,application/xhtml+xml;q=0.9,*/*;q=0.1",
+      timeoutMs: AI_FETCH_TIMEOUT_MS,
+    });
     if (!response.ok) return;
     const html = await response.text();
     const anchorRe = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
@@ -556,7 +675,14 @@ async function fetchInternetSearchResults(query, limit) {
   if (results.length < limit) {
     await fetchDuckDuckGoHtml(query, limit, results, seen);
   }
-  return results.slice(0, limit);
+  const sliced = results.slice(0, limit);
+  const enrichCount = Math.min(sliced.length, AI_CONTEXT_MAX_RESULTS);
+  await Promise.all(
+    sliced.slice(0, enrichCount).map(async (result) => {
+      await fetchResultContextViaProxy(result);
+    })
+  );
+  return sliced;
 }
 
 function sendJson(res, status, payload) {
@@ -585,7 +711,8 @@ async function handleAiSearch(res, requestUrl) {
     sendJson(res, 200, {
       ok: true,
       query,
-      provider: "duckduckgo",
+      provider: "duckduckgo-via-proxy",
+      routedViaProxy: true,
       results,
     });
   } catch (error) {
@@ -627,6 +754,7 @@ function sendLanding(res) {
 async function handleProxy(req, res, requestUrl) {
   const rawTarget = requestUrl.searchParams.get("url");
   if (!rawTarget) return sendLanding(res);
+  const rawMode = requestUrl.searchParams.get("raw") === "1";
 
   const target = safeResolveUrl(rawTarget, "https://example.com");
   if (!target) {
@@ -659,10 +787,10 @@ async function handleProxy(req, res, requestUrl) {
   const contentType = upstream.headers.get("content-type") || "";
   const isHtml = /text\/html/i.test(contentType);
   const isCss = /text\/css/i.test(contentType);
-  const rewriteBody = isHtml || isCss;
-  const responseHeaders = buildResponseHeaders(upstream, target, rewriteBody);
+  const rewriteBody = !rawMode && (isHtml || isCss);
+  const responseHeaders = buildResponseHeaders(upstream, target, rewriteBody, rawMode);
 
-  if (isHtml) {
+  if (isHtml && !rawMode) {
     const html = await upstream.text();
     const rewritten = rewriteHtml(html, target);
     res.writeHead(upstream.status, responseHeaders);
@@ -670,7 +798,7 @@ async function handleProxy(req, res, requestUrl) {
     return;
   }
 
-  if (isCss) {
+  if (isCss && !rawMode) {
     const css = await upstream.text();
     const rewritten = rewriteCss(css, target);
     res.writeHead(upstream.status, responseHeaders);
@@ -733,7 +861,13 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (requestUrl.pathname === "/health") {
-    res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+    res.writeHead(200, {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "*",
+      "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
+      "x-palladium-proxy": "1",
+    });
     res.end(JSON.stringify({ ok: true }));
     return;
   }

@@ -161,12 +161,13 @@ document.querySelectorAll('.filter-btn').forEach(btn => {
 
 // Snake Game
 const canvas = document.getElementById('gameCanvas');
-const ctx = canvas.getContext('2d');
+const ctx = canvas ? canvas.getContext('2d') : null;
 const startBtn = document.getElementById('startBtn');
 const resetBtn = document.getElementById('resetBtn');
 const scoreElement = document.getElementById('score');
 const highScoreElement = document.getElementById('highScore');
 
+if (canvas && ctx && startBtn && resetBtn && scoreElement && highScoreElement) {
 const gridSize = 20;
 const tileCount = canvas.width / gridSize;
 
@@ -341,6 +342,7 @@ resetBtn.addEventListener('click', () => {
 document.addEventListener('keydown', changeDirection);
 randomFood();
 drawGame();
+}
 
 // Cloaking Toggle Control
 const cloakToggle = document.getElementById('cloakToggle');
