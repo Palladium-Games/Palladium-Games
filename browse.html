@@ -51,16 +51,251 @@
     <script>(function(){var r=localStorage.getItem('navStripExpanded');if(r==='true'){var s=document.getElementById('navStrip');var t=document.getElementById('navStripToggle');if(s)s.classList.add('expanded');document.body.classList.add('nav-expanded');if(t)t.setAttribute('aria-expanded','true');}})();</script>
     <div class="iframe-wrapper">
         <div class="browse-embed-wrap">
-            <iframe id="browserFrame" class="browser-frame-inner" title="Palladium Browse" src="http://localhost:1337/"></iframe>
+            <div class="browser-container">
+                <div class="browse-tab-strip" id="browseTabStrip" role="tablist">
+                    <!-- tabs injected by JS -->
+                    <button type="button" class="browse-tab-new" id="browseTabNew" title="New tab" aria-label="New tab">+</button>
+                </div>
+                <div class="browse-toolbar">
+                    <div class="browser-nav-buttons">
+                        <button type="button" class="browser-btn" id="browseBack" title="Back" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></button>
+                        <button type="button" class="browser-btn" id="browseForward" title="Forward" disabled><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+                        <button type="button" class="browser-btn" id="browseReload" title="Refresh"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L21 8M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L3 16"/></svg></button>
+                    </div>
+                    <form id="browseForm" class="browse-address-bar">
+                        <span class="browse-address-icon" aria-hidden="true">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        </span>
+                        <input type="text" id="browseAddress" class="browse-address-input" placeholder="Search or enter address" autocomplete="off" spellcheck="false" />
+                        <button type="submit" class="browse-address-go" title="Go"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+                    </form>
+                    <a href="http://localhost:1337/proxy" target="_blank" rel="noopener" id="browseOpenNew" class="browser-btn" title="Open Palladium Browse in new tab" style="text-decoration:none;color:inherit;">Open in new tab</a>
+                </div>
+                <div class="browser-content">
+                    <div id="browseFileWarning" class="browser-loading" style="display:none;background:var(--bg-card);">
+                        <p class="browse-redirect-msg">This page was opened as a file (<code>file://</code>).</p>
+                        <p class="browse-redirect-fallback">Browsers often block the proxy iframe when the parent is file://. Serve the site over HTTP instead:</p>
+                        <p class="browse-redirect-fallback" style="margin-top:0.5rem;"><code style="background:var(--bg-secondary);padding:0.25rem 0.5rem;border-radius:4px;">cd /path/to/TITANIUM && npx serve -l 3000</code></p>
+                        <p class="browse-redirect-fallback" style="margin-top:0.5rem;">Then open <strong>http://localhost:3000/browse.html</strong></p>
+                        <p style="margin-top:1rem;"><a href="http://localhost:1337/proxy" target="_blank" rel="noopener">Open Palladium Browse in a new tab</a> (works even if this page is <code>file://</code>)</p>
+                    </div>
+                    <div id="browseLoading" class="browser-loading" aria-live="polite">
+                        <div class="browser-spinner" style="width:32px;height:32px;border:3px solid transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+                        <p>Loading Palladium Proxy…</p>
+                    </div>
+                    <div id="browseFallback" class="browser-loading" style="display:none;background:var(--bg-card);">
+                        <p class="browse-redirect-msg">Palladium Proxy didn’t load.</p>
+                        <p class="browse-redirect-fallback">1. Serve this site over HTTP (not file://): run <code>npx serve -l 3000</code> in the project root and open http://localhost:3000/browse.html</p>
+                        <p class="browse-redirect-fallback">2. Start the local proxy server: <code>node palladium-proxy.js</code> (default port: <code>1337</code>)</p>
+                        <p style="margin-top:1rem;"><a href="http://localhost:1337/proxy" target="_blank" rel="noopener" id="browseOpenNewFallback">Open Palladium Browse in a new tab</a> · <button type="button" id="browseRetry" style="margin-left:0.5rem;padding:0.35rem 0.75rem;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;">Retry</button></p>
+                    </div>
+                    <iframe id="browserFrame" class="browser-frame-inner" title="Palladium Browse" style="position:absolute;inset:0;width:100%;height:100%;"></iframe>
+                </div>
+            </div>
         </div>
     </div>
+    <style>@keyframes spin{to{transform:rotate(360deg);}}</style>
     <script src="nav-strip.js"></script>
     <script>
-      (function () {
-        var BROWSE_BASE = 'http://localhost:1337/';
-        var f = document.getElementById('browserFrame');
-        if (f) f.src = BROWSE_BASE;
-      })();
+(function () {
+  var BROWSE_BASE = 'http://localhost:1337/proxy';
+  var frame = document.getElementById('browserFrame');
+  var loading = document.getElementById('browseLoading');
+  var fallback = document.getElementById('browseFallback');
+  var fileWarning = document.getElementById('browseFileWarning');
+  var addressInput = document.getElementById('browseAddress');
+  var form = document.getElementById('browseForm');
+  var tabStrip = document.getElementById('browseTabStrip');
+  var tabNewBtn = document.getElementById('browseTabNew');
+  var loadTimeout;
+  var tabIdCounter = 1;
+  var tabs = [];
+  var activeTabId = null;
+
+  function tabLabel(url) {
+    if (!url) return 'New tab';
+    try {
+      var u = new URL(url);
+      return u.hostname.replace(/^www\./, '') || url;
+    } catch (e) { return url || 'New tab'; }
+  }
+
+  function createTab(url) {
+    var id = 't' + (tabIdCounter++);
+    var u = (url || 'https://google.com').trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    tabs.push({ id: id, url: u || 'https://google.com' });
+    return id;
+  }
+
+  function removeTab(id) {
+    var idx = tabs.findIndex(function (t) { return t.id === id; });
+    if (idx === -1) return;
+    var wasActive = activeTabId === id;
+    tabs.splice(idx, 1);
+    if (tabs.length === 0) {
+      activeTabId = createTab('https://google.com');
+    } else if (wasActive) {
+      var next = tabs[Math.min(idx, tabs.length - 1)];
+      activeTabId = next.id;
+    }
+    renderTabs();
+    syncAddressBar();
+    loadCurrentTab();
+  }
+
+  function switchTab(id) {
+    activeTabId = id;
+    renderTabs();
+    syncAddressBar();
+    loadCurrentTab();
+  }
+
+  function renderTabs() {
+    var frag = document.createDocumentFragment();
+    tabs.forEach(function (t) {
+      var isActive = t.id === activeTabId;
+      var wrap = document.createElement('div');
+      wrap.className = 'browse-tab' + (isActive ? ' active' : '');
+      wrap.setAttribute('role', 'tab');
+      wrap.setAttribute('aria-selected', isActive);
+      wrap.title = t.url;
+      wrap.innerHTML = '<span class="browse-tab-label">' + escapeHtml(tabLabel(t.url)) + '</span><button type="button" class="browse-tab-close" data-tab-id="' + t.id + '" aria-label="Close tab">&times;</button>';
+      wrap.addEventListener('click', function (e) {
+        if (e.target.classList.contains('browse-tab-close')) {
+          e.stopPropagation();
+          removeTab(e.target.getAttribute('data-tab-id'));
+        } else {
+          switchTab(t.id);
+        }
+      });
+      frag.appendChild(wrap);
+    });
+    while (tabStrip.firstChild) tabStrip.removeChild(tabStrip.firstChild);
+    tabStrip.appendChild(frag);
+    tabStrip.appendChild(tabNewBtn);
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+
+  function syncAddressBar() {
+    var t = tabs.find(function (x) { return x.id === activeTabId; });
+    addressInput.value = t ? t.url : '';
+  }
+
+  function getCurrentTab() {
+    return tabs.find(function (t) { return t.id === activeTabId; });
+  }
+
+  function showLoading() {
+    fileWarning.style.display = 'none';
+    loading.style.display = 'flex';
+    fallback.style.display = 'none';
+  }
+  function showFallback() {
+    fileWarning.style.display = 'none';
+    loading.style.display = 'none';
+    fallback.style.display = 'flex';
+  }
+  function hideLoading() {
+    loading.style.display = 'none';
+    fallback.style.display = 'none';
+  }
+  function showFileWarning() {
+    fileWarning.style.display = 'flex';
+    loading.style.display = 'none';
+    fallback.style.display = 'none';
+  }
+
+  function buildSrc(url) {
+    if (!url || !url.trim()) return BROWSE_BASE;
+    var u = url.trim();
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+    return BROWSE_BASE + '?url=' + encodeURIComponent(u);
+  }
+
+  function loadCurrentTab() {
+    var t = getCurrentTab();
+    if (!t) return;
+    frame.src = buildSrc(t.url);
+    showLoading();
+    clearTimeout(loadTimeout);
+    loadTimeout = setTimeout(function () { showFallback(); }, 10000);
+  }
+
+  function go() {
+    var t = getCurrentTab();
+    var url = addressInput.value.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    if (t) t.url = url;
+    else {
+      activeTabId = createTab(url);
+      renderTabs();
+    }
+    loadCurrentTab();
+  }
+
+  frame.addEventListener('load', function () {
+    clearTimeout(loadTimeout);
+    hideLoading();
+    renderTabs();
+  });
+  frame.addEventListener('error', function () {
+    clearTimeout(loadTimeout);
+    showFallback();
+  });
+
+  if (form) {
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      go();
+    });
+  }
+
+  tabNewBtn.addEventListener('click', function () {
+    activeTabId = createTab('https://google.com');
+    renderTabs();
+    syncAddressBar();
+    loadCurrentTab();
+  });
+
+  document.getElementById('browseReload').addEventListener('click', function () {
+    if (frame.src) frame.src = frame.src;
+    showLoading();
+    clearTimeout(loadTimeout);
+    loadTimeout = setTimeout(function () { showFallback(); }, 10000);
+  });
+  document.getElementById('browseOpenNew').addEventListener('click', function (e) {
+    e.preventDefault();
+    window.open(BROWSE_BASE, '_blank');
+  });
+  var openNewF = document.getElementById('browseOpenNewFallback');
+  if (openNewF) openNewF.addEventListener('click', function (e) { e.preventDefault(); window.open(BROWSE_BASE, '_blank'); });
+  document.getElementById('browseRetry').addEventListener('click', function () { loadCurrentTab(); });
+
+  document.getElementById('browseBack').setAttribute('aria-label', 'Back (use bar inside frame)');
+  document.getElementById('browseForward').setAttribute('aria-label', 'Forward (use bar inside frame)');
+
+  if (window.location.protocol === 'file:') {
+    showFileWarning();
+    activeTabId = createTab('https://google.com');
+    renderTabs();
+    syncAddressBar();
+    return;
+  }
+
+  activeTabId = createTab('https://google.com');
+  renderTabs();
+  syncAddressBar();
+  frame.src = buildSrc(addressInput.value || 'https://google.com');
+  showLoading();
+  loadTimeout = setTimeout(function () { showFallback(); }, 10000);
+})();
     </script>
 </body>
 </html>
