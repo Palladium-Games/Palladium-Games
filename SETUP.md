@@ -1,6 +1,6 @@
-# TITANIUM / Palladium setup: Ollama + Monochrome
+# TITANIUM / Palladium setup: Ollama + Monochrome + Palladium Browse
 
-One-place instructions to **download and hook up** Ollama (for PalladiumAI) and Monochrome (for the Music tab).
+One-place instructions to **download and hook up** Ollama (for PalladiumAI), Monochrome (for the Music tab), and Scramjet (for the Browse tab).
 
 ---
 
@@ -34,7 +34,27 @@ Open the **AI Chatbot** tab to use PalladiumAI.
 
 ---
 
-## 2. Monochrome (Music tab)
+## 2. Palladium Browse (Scramjet)
+
+The **Browse** tab shows **Palladium Browse**, a branded version of [Scramjet](https://github.com/MercuryWorkshop/scramjet) (interception-based web proxy with CAPTCHA support and better compatibility with sites like Google).
+
+### Run locally
+
+From the project root:
+
+```bash
+cd scramjet-repo
+pnpm i
+pnpm rewriter:build
+pnpm build
+pnpm dev
+```
+
+Scramjet runs at **http://localhost:1337**. The Browse tab in Palladium loads this URL in an iframe. Keep the dev server running while using Browse.
+
+---
+
+## 3. Monochrome (Music tab)
 
 ### Option A: Use the public instance (no install)
 
@@ -77,6 +97,7 @@ This script will install Ollama (if missing), pull `llama3.2`, and optionally cl
 | Component   | Install / run                          | Config file        | Hub URL / tab   |
 |------------|----------------------------------------|--------------------|------------------|
 | **Ollama** | `brew install ollama` then `ollama serve` + `ollama pull llama3.2` | `chatbot-config.js` | AI Chatbot tab   |
+| **Palladium Browse** | `cd scramjet-repo && pnpm i && pnpm rewriter:build && pnpm build && pnpm dev` | iframe in `browse.html` points to `http://localhost:1337/` | Browse tab       |
 | **Monochrome** | Use `https://monochrome.tf` or clone + `docker compose up -d` | `music-config.js`   | Music tab        |
 
 More detail: **`CHATBOT_README.md`**.
