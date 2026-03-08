@@ -250,9 +250,46 @@ function injectRuntime(html, currentTarget) {
   document.addEventListener("submit", function (event) {
     var form = event.target;
     if (!form || form.tagName !== "FORM") return;
-    if (form.target && form.target !== "_self") return;
-    var action = form.getAttribute("action") || CURRENT;
-    form.setAttribute("action", proxify(action));
+
+    var targetAttr = (form.getAttribute("target") || "").trim().toLowerCase();
+    if (targetAttr && targetAttr !== "_self" && targetAttr !== "_top") return;
+
+    var rawMethod = String(form.getAttribute("method") || form.method || "GET").toUpperCase();
+    var rawAction = (form.getAttribute("action") || "").trim();
+    var baseAction = rawAction || currentTargetUrl();
+
+    if (rawMethod === "GET") {
+      event.preventDefault();
+      if (event.stopImmediatePropagation) event.stopImmediatePropagation();
+
+      var absoluteAction;
+      try {
+        absoluteAction = new URL(baseAction, currentTargetUrl());
+      } catch (_err) {
+        absoluteAction = new URL(currentTargetUrl());
+      }
+
+      var params = new URLSearchParams(absoluteAction.search || "");
+      try {
+        var formData = new FormData(form);
+        formData.forEach(function (value, key) {
+          if (value == null) return;
+          if (typeof value === "string") {
+            params.append(key, value);
+          } else if (value && value.name) {
+            params.append(key, value.name);
+          }
+        });
+      } catch (_ignored) {}
+
+      absoluteAction.search = params.toString();
+      absoluteAction.hash = "";
+      window.location.href = proxify(absoluteAction.href);
+      queueMetadata();
+      return;
+    }
+
+    form.setAttribute("action", proxify(baseAction));
     queueMetadata();
   }, true);
 
@@ -752,7 +789,25 @@ function sendLanding(res) {
 }
 
 async function handleProxy(req, res, requestUrl) {
-  const rawTarget = requestUrl.searchParams.get("url");
+  let rawTarget = requestUrl.searchParams.get("url");
+  if (!rawTarget) {
+    const refererHeader = Array.isArray(req.headers.referer) ? req.headers.referer[0] : req.headers.referer;
+    const refererTarget = extractRefererTarget(refererHeader);
+    const hasSearchQuery = requestUrl.searchParams.has("q");
+    if (requestUrl.pathname === "/proxy" && hasSearchQuery) {
+      try {
+        const fallbackOrigin = refererTarget ? new URL(refererTarget).origin : "https://www.google.com";
+        const recovered = new URL("/search", fallbackOrigin);
+        requestUrl.searchParams.forEach((value, key) => {
+          if (key === "url" || key === "raw") return;
+          recovered.searchParams.append(key, value);
+        });
+        rawTarget = recovered.href;
+      } catch {
+        // Fall through to landing page behavior below.
+      }
+    }
+  }
   if (!rawTarget) return sendLanding(res);
   const rawMode = requestUrl.searchParams.get("raw") === "1";
 

@@ -348,10 +348,10 @@
             .trim();
     }
 
-    function normalizeGamePath(rawHref, sourceTag) {
+    function normalizeGamePath(rawHref, sourceTag, sourceBase) {
         if (!rawHref) return '';
         try {
-            var url = new URL(rawHref, window.location.href);
+            var url = new URL(rawHref, sourceBase || window.location.href);
             var path = url.pathname.replace(/^\/+/, '');
 
             if (sourceTag === 'games-page' && /game-player\.html$/i.test(path)) {
@@ -369,6 +369,7 @@
             if (sourceTag === 'games-dir' && path.indexOf('games/') !== 0) path = 'games/' + path;
             if (path.indexOf('games/') !== 0) return '';
             if (!/\.html$/i.test(path)) return '';
+            if (/\/?game-player\.html$/i.test(path)) return '';
             return path;
         } catch (_err) {
             return '';
@@ -386,14 +387,17 @@
         }
     }
 
-    function addGamesFromHtml(map, html, sourceTag) {
+    function addGamesFromHtml(map, html, sourceTag, sourceBase) {
         if (!html) return;
         var doc = new DOMParser().parseFromString(html, 'text/html');
-        var anchors = doc.querySelectorAll('a[href]');
+        var anchors = sourceTag === 'games-page'
+            ? doc.querySelectorAll('a.game-card[href*="game-player.html"]')
+            : doc.querySelectorAll('a[href]');
         Array.prototype.forEach.call(anchors, function(anchor) {
             var href = anchor.getAttribute('href') || '';
-            var path = normalizeGamePath(href, sourceTag);
+            var path = normalizeGamePath(href, sourceTag, sourceBase);
             if (!path) return;
+            if (/\/?game-player\.html$/i.test(path)) return;
             var file = path.split('/').pop();
             var title = '';
             var author = 'Author: Unknown';
@@ -402,7 +406,7 @@
             if (sourceTag === 'games-page') {
                 playerHref = normalizeGamePlayerHref(href);
                 try {
-                    var hrefUrl = new URL(href, window.location.href);
+                    var hrefUrl = new URL(href, sourceBase || window.location.href);
                     var qp = new URLSearchParams(hrefUrl.search || '');
                     title = (qp.get('title') || '').trim();
                     var parsedAuthor = (qp.get('author') || '').trim();
@@ -411,8 +415,17 @@
             }
 
             if (!title) {
-                var rawLabel = (anchor.textContent || '').trim();
-                title = rawLabel && !/\.html$/i.test(rawLabel) ? rawLabel : slugToTitle(file);
+                var h3 = anchor.querySelector('.game-info h3');
+                if (h3 && h3.textContent) {
+                    title = h3.textContent.replace(/\s+/g, ' ').trim();
+                }
+            }
+
+            if (!title) {
+                var rawLabel = (anchor.textContent || '').replace(/\s+/g, ' ').trim();
+                title = rawLabel && rawLabel.length <= 80 && !/\.html$/i.test(rawLabel)
+                    ? rawLabel
+                    : slugToTitle(file);
             }
 
             map.set(path, { path: path, file: file, title: title, author: author, playerHref: playerHref });
@@ -429,37 +442,43 @@
             '&author=' + encodeURIComponent(author);
     }
 
+    async function gamePathExists(path) {
+        if (!path) return false;
+        var normalized = path.charAt(0) === '/' ? path : ('/' + path);
+        try {
+            var headRes = await fetch(normalized, { method: 'HEAD', cache: 'no-store' });
+            if (headRes.ok) return true;
+            if (headRes.status !== 405) return false;
+        } catch (_ignoredHead) {}
+
+        try {
+            var getRes = await fetch(normalized, { method: 'GET', cache: 'no-store' });
+            return !!(getRes && getRes.ok);
+        } catch (_ignoredGet) {
+            return false;
+        }
+    }
+
     function loadGameCatalog() {
         if (gamesCatalogPromise) return gamesCatalogPromise;
         gamesCatalogPromise = (async function() {
-            var dirMap = new Map();
             var pageMap = new Map();
-            try {
-                var gamesDir = await fetch('/games/', { cache: 'no-store' });
-                if (gamesDir.ok) {
-                    addGamesFromHtml(dirMap, await gamesDir.text(), 'games-dir');
-                }
-            } catch (_err1) {}
 
             try {
                 var gamesPage = await fetch('/games.html', { cache: 'no-store' });
                 if (gamesPage.ok) {
-                    addGamesFromHtml(pageMap, await gamesPage.text(), 'games-page');
+                    var gamesPageHtml = await gamesPage.text();
+                    var gamesPageBase = gamesPage.url || (window.location.origin + '/games.html');
+                    addGamesFromHtml(pageMap, gamesPageHtml, 'games-page', gamesPageBase);
                 }
             } catch (_err2) {}
 
-            var map = dirMap.size > 0 ? dirMap : pageMap;
-            if (dirMap.size > 0 && pageMap.size > 0) {
-                dirMap.forEach(function(entry, path) {
-                    if (!pageMap.has(path)) return;
-                    var pageEntry = pageMap.get(path);
-                    if ((pageEntry.title || '').trim()) entry.title = pageEntry.title.trim();
-                    if ((pageEntry.author || '').trim()) entry.author = pageEntry.author.trim();
-                    if ((pageEntry.playerHref || '').trim()) entry.playerHref = pageEntry.playerHref.trim();
-                });
-            }
-
-            var list = Array.from(map.values()).sort(function(a, b) {
+            var candidates = Array.from(pageMap.values());
+            var checks = await Promise.all(candidates.map(function(game) {
+                return gamePathExists(game.path);
+            }));
+            var filtered = candidates.filter(function(_g, idx) { return checks[idx]; });
+            var list = (filtered.length ? filtered : candidates).sort(function(a, b) {
                 return a.title.localeCompare(b.title);
             });
             lastLoadedGames = list;
