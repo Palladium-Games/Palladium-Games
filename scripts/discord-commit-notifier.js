@@ -5,6 +5,8 @@ const https = require("https");
 const path = require("path");
 const { execSync } = require("child_process");
 
+const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
+
 function run(command) {
   return execSync(command, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 }
@@ -54,7 +56,7 @@ function githubUsernameFromRemote(remote) {
   }
 }
 
-function postJson(targetUrl, payload) {
+function postJson(targetUrl, payload, extraHeaders = {}) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const url = new URL(targetUrl);
@@ -68,6 +70,7 @@ function postJson(targetUrl, payload) {
         headers: {
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body),
+          ...extraHeaders,
         },
       },
       (res) => {
@@ -80,7 +83,7 @@ function postJson(targetUrl, payload) {
             resolve();
             return;
           }
-          reject(new Error(`Discord webhook failed (${res.statusCode}): ${responseBody}`));
+          reject(new Error(`Discord post failed (${res.statusCode}): ${responseBody}`));
         });
       }
     );
@@ -90,48 +93,40 @@ function postJson(targetUrl, payload) {
   });
 }
 
-function getJson(targetUrl) {
-  return new Promise((resolve, reject) => {
-    const url = new URL(targetUrl);
-    const transport = url.protocol === "https:" ? https : http;
-    const req = transport.request(
-      {
-        method: "GET",
-        hostname: url.hostname,
-        port: url.port || (url.protocol === "https:" ? 443 : 80),
-        path: `${url.pathname}${url.search}`,
-      },
-      (res) => {
-        let responseBody = "";
-        res.on("data", (chunk) => {
-          responseBody += chunk.toString("utf8");
-        });
-        res.on("end", () => {
-          if (!(res.statusCode >= 200 && res.statusCode < 300)) {
-            reject(new Error(`GET failed (${res.statusCode})`));
-            return;
-          }
-          try {
-            resolve(JSON.parse(responseBody || "{}"));
-          } catch (error) {
-            reject(error);
-          }
-        });
-      }
-    );
-    req.on("error", reject);
-    req.end();
+async function postViaBot(token, channelId, embed) {
+  const endpoint = `${DISCORD_API_BASE}/channels/${channelId}/messages`;
+  await postJson(
+    endpoint,
+    { embeds: [embed] },
+    { Authorization: `Bot ${token}` }
+  );
+}
+
+async function postViaWebhook(webhookUrl, botName, embed) {
+  await postJson(webhookUrl, {
+    username: botName,
+    embeds: [embed],
   });
 }
 
 async function main() {
   const BOT_NAME = "Palladium Commits";
+
   const webhookUrl =
     process.argv[2] ||
     process.env.DISCORD_WEBHOOK_URL ||
     tryRun("git config --get discord.webhookUrl");
-  if (!webhookUrl) {
-    console.error("No Discord webhook URL found. Set DISCORD_WEBHOOK_URL or git config discord.webhookUrl.");
+
+  const botToken =
+    process.env.DISCORD_BOT_TOKEN ||
+    tryRun("git config --get discord.botToken");
+
+  const commitChannelId =
+    process.env.DISCORD_COMMIT_CHANNEL_ID ||
+    tryRun("git config --get discord.commitChannelId");
+
+  if (!(botToken && commitChannelId) && !webhookUrl) {
+    console.error("No Discord destination configured. Set bot token + commit channel, or webhook URL.");
     process.exit(1);
   }
 
@@ -190,12 +185,14 @@ async function main() {
     footer: { text: "Palladium Commit Updates" },
   };
 
-  await postJson(webhookUrl, {
-    username: BOT_NAME,
-    embeds: [embed],
-  });
+  if (botToken && commitChannelId) {
+    await postViaBot(botToken, commitChannelId, embed);
+    console.log("Discord commit notification sent via bot token.");
+    return;
+  }
 
-  console.log("Discord commit notification sent.");
+  await postViaWebhook(webhookUrl, BOT_NAME, embed);
+  console.log("Discord commit notification sent via webhook.");
 }
 
 main().catch((error) => {

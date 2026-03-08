@@ -19,3 +19,10 @@ npm-debug.log*
 .env
 .env.local
 *.pem
+
+# Runtime state
+.palladium-links-seen.json
+
+# Discord bot runtime state
+.discord-link-command-state.json
+.discord-community-bot-state.json

@@ -12,7 +12,7 @@ const LINK_CHECK_BOT_NAME = "Palladium Link Checker";
 const LINKS_CACHE_PATH = process.env.LINKS_CACHE_PATH || path.join(__dirname, ".palladium-links-seen.json");
 const LINK_CHECK_TIMEOUT_MS = Number(process.env.LINK_CHECK_TIMEOUT_MS || 10000);
 const LINK_CHECK_BODY_LIMIT = Number(process.env.LINK_CHECK_BODY_LIMIT || 220000);
-const PROXY_RAW_BASE = process.env.LINK_CHECK_PROXY_RAW_BASE || "http://127.0.0.1:1337/proxy?raw=1&url=";
+const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
 
 const FILTER_PROVIDERS = [
   {
@@ -71,6 +71,7 @@ const GENERIC_BLOCK_PATTERNS = [
 ];
 
 const seenLinkOrigins = loadSeenLinkOrigins();
+
 const LINKS_WEBHOOK_URL =
   process.env.DISCORD_LINKS_WEBHOOK_URL ||
   process.env.DISCORD_WEBHOOK_URL ||
@@ -81,6 +82,21 @@ const LINKS_WEBHOOK_URL =
 const LINK_CHECK_WEBHOOK_URL =
   process.env.DISCORD_LINK_CHECK_WEBHOOK_URL ||
   tryReadGitConfig("discord.linkCheckerWebhookUrl") ||
+  "";
+
+const DISCORD_BOT_TOKEN =
+  process.env.DISCORD_BOT_TOKEN ||
+  tryReadGitConfig("discord.botToken") ||
+  "";
+
+const LINKS_CHANNEL_ID =
+  process.env.DISCORD_LINKS_CHANNEL_ID ||
+  tryReadGitConfig("discord.linksChannelId") ||
+  "";
+
+const LINK_CHECK_CHANNEL_ID =
+  process.env.DISCORD_LINK_CHECK_CHANNEL_ID ||
+  tryReadGitConfig("discord.linkCheckerChannelId") ||
   "";
 
 function tryReadGitConfig(key) {
@@ -290,13 +306,11 @@ function collectGenericSignals(status, urlText, contentText) {
   return signals;
 }
 
-async function runNetworkProbe(targetUrl, mode) {
-  const isProxy = mode === "proxy";
-  const fetchUrl = isProxy ? `${PROXY_RAW_BASE}${encodeURIComponent(targetUrl)}` : targetUrl;
+async function runDirectProbe(targetUrl) {
   const result = {
-    mode,
+    mode: "direct",
     requestedUrl: targetUrl,
-    fetchUrl,
+    fetchUrl: targetUrl,
     reachable: false,
     ok: false,
     status: null,
@@ -309,7 +323,7 @@ async function runNetworkProbe(targetUrl, mode) {
   };
 
   try {
-    const response = await fetchWithTimeout(fetchUrl, {
+    const response = await fetchWithTimeout(targetUrl, {
       method: "GET",
       redirect: "follow",
       headers: {
@@ -321,7 +335,7 @@ async function runNetworkProbe(targetUrl, mode) {
     result.reachable = true;
     result.ok = !!response.ok;
     result.status = response.status;
-    result.finalUrl = clampString(response.url || fetchUrl, 320);
+    result.finalUrl = clampString(response.url || targetUrl, 320);
     result.contentType = clampString(response.headers.get("content-type") || "", 180);
 
     const contentType = (response.headers.get("content-type") || "").toLowerCase();
@@ -347,7 +361,7 @@ async function runNetworkProbe(targetUrl, mode) {
   return result;
 }
 
-function summarizeLinkCheck(url, direct, proxy) {
+function summarizeLinkCheck(url, direct) {
   const directHitSet = new Set(direct.providerDetections || []);
   const directSignals = direct.genericSignals || [];
 
@@ -376,23 +390,18 @@ function summarizeLinkCheck(url, direct, proxy) {
     .filter((provider) => provider.status === "detected")
     .map((provider) => provider.name);
 
-  const proxyCanLoad = !!(proxy && proxy.reachable && proxy.ok);
-
   let verdict = "unknown";
   let summaryText = "Could not determine blocker status reliably from this network.";
 
   if (detectedProviderNames.length > 0) {
     verdict = "likely_blocked";
     summaryText = `Possible school filter block page detected (${detectedProviderNames.join(", ")}).`;
-  } else if (direct.reachable && directSignals.length === 0) {
+  } else if (direct.reachable && direct.ok && directSignals.length === 0) {
     verdict = "likely_unblocked";
     summaryText = "No known school-filter signatures detected in direct network response.";
   } else if (direct.reachable) {
     verdict = "unknown";
-    summaryText = "No specific provider matched, but warning signals were found in the response.";
-  } else if (proxyCanLoad) {
-    verdict = "unknown";
-    summaryText = "Direct probe failed, but the Palladium proxy could load this URL.";
+    summaryText = "No specific provider matched, but warning signals or non-OK responses were found.";
   }
 
   return {
@@ -403,29 +412,23 @@ function summarizeLinkCheck(url, direct, proxy) {
       text: summaryText,
       detectedProviders: detectedProviderNames,
       warningSignals: directSignals.slice(0, 6),
-      proxyCanLoad,
+      mode: "direct-only",
     },
     probes: {
       direct,
-      proxy,
     },
     providers: providerResults,
     disclaimers: [
       "This is a best-effort signature/network check and is not an official API verdict from GoGuardian, Securly, or other vendors.",
       "Filter behavior varies by school policy, account, location, and time; results can change between networks.",
-      "Proxy success can differ from direct network filtering, so both are reported separately.",
     ],
     checkedAt: new Date().toISOString(),
   };
 }
 
 async function runLinkCheck(normalizedUrl) {
-  const [directProbe, proxyProbe] = await Promise.all([
-    runNetworkProbe(normalizedUrl, "direct"),
-    runNetworkProbe(normalizedUrl, "proxy"),
-  ]);
-
-  return summarizeLinkCheck(normalizedUrl, directProbe, proxyProbe);
+  const directProbe = await runDirectProbe(normalizedUrl);
+  return summarizeLinkCheck(normalizedUrl, directProbe);
 }
 
 function formatProbeStatus(probe) {
@@ -450,9 +453,28 @@ async function postWebhook(webhookUrl, payload) {
   }
 }
 
-async function sendLinkCheckWebhook(result) {
-  if (!LINK_CHECK_WEBHOOK_URL) return false;
+function canUseBotChannel(channelId) {
+  return !!(DISCORD_BOT_TOKEN && channelId);
+}
 
+async function postBotMessage(channelId, payload) {
+  if (!canUseBotChannel(channelId)) return false;
+  try {
+    const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+async function sendLinkCheckNotification(result) {
   const verdict = result && result.summary ? result.summary.verdict : "unknown";
   const color =
     verdict === "likely_unblocked" ? 0x22c55e :
@@ -471,27 +493,33 @@ async function sendLinkCheckWebhook(result) {
     })
     .join("\n");
 
-  const payload = {
-    username: LINK_CHECK_BOT_NAME,
-    embeds: [
-      {
-        title: "Palladium Link Check",
-        description: `[Open URL](${result.url})`,
-        color,
-        fields: [
-          { name: "Verdict", value: clampString(result.summary.text || "Unknown", 900), inline: false },
-          { name: "Detected Filters", value: detectedProviders.length ? clampString(detectedProviders.join(", "), 900) : "None detected", inline: false },
-          { name: "Direct Probe", value: clampString(formatProbeStatus(result.probes.direct), 900), inline: true },
-          { name: "Proxy Probe", value: clampString(formatProbeStatus(result.probes.proxy), 900), inline: true },
-          { name: "Provider Snapshot", value: clampString(providerLines || "No provider rows.", 950), inline: false },
-        ],
-        footer: { text: "Palladium Link Checker" },
-        timestamp: result.checkedAt || new Date().toISOString(),
-      },
+  const embed = {
+    title: "Palladium Link Check",
+    description: `[Open URL](${result.url})`,
+    color,
+    fields: [
+      { name: "Verdict", value: clampString(result.summary.text || "Unknown", 900), inline: false },
+      { name: "Detected Filters", value: detectedProviders.length ? clampString(detectedProviders.join(", "), 900) : "None detected", inline: false },
+      { name: "Direct Probe", value: clampString(formatProbeStatus(result.probes.direct), 900), inline: false },
+      { name: "Provider Snapshot", value: clampString(providerLines || "No provider rows.", 950), inline: false },
     ],
+    footer: { text: "Palladium Link Checker (direct only)" },
+    timestamp: result.checkedAt || new Date().toISOString(),
   };
 
-  return postWebhook(LINK_CHECK_WEBHOOK_URL, payload);
+  if (canUseBotChannel(LINK_CHECK_CHANNEL_ID)) {
+    const sentViaBot = await postBotMessage(LINK_CHECK_CHANNEL_ID, { embeds: [embed] });
+    if (sentViaBot) return true;
+  }
+
+  if (LINK_CHECK_WEBHOOK_URL) {
+    return postWebhook(LINK_CHECK_WEBHOOK_URL, {
+      username: LINK_CHECK_BOT_NAME,
+      embeds: [embed],
+    });
+  }
+
+  return false;
 }
 
 async function handleLinkCheck(req, res, requestUrl) {
@@ -513,40 +541,49 @@ async function handleLinkCheckDiscord(req, res, requestUrl) {
   }
 
   const result = await runLinkCheck(parsed.normalizedUrl);
-  const sent = await sendLinkCheckWebhook(result);
+  const sent = await sendLinkCheckNotification(result);
 
   sendJson(res, 200, {
     ok: true,
     sent,
     webhookConfigured: !!LINK_CHECK_WEBHOOK_URL,
+    botChannelConfigured: canUseBotChannel(LINK_CHECK_CHANNEL_ID),
     webhookName: LINK_CHECK_BOT_NAME,
     result,
   });
 }
 
-async function sendLinksWebhook(originKey, sourcePage, referrer) {
-  if (!LINKS_WEBHOOK_URL) return false;
-
-  const payload = {
-    username: LINKS_BOT_NAME,
-    content: sourcePage,
-    embeds: [
-      {
-        title: "New Palladium Link",
-        description: `[Open Link](${sourcePage})`,
-        color: 0x22c55e,
-        fields: [
-          { name: "Origin", value: `\`${originKey}\``, inline: true },
-          { name: "Page", value: `\`${sourcePage}\``, inline: false },
-          { name: "Referrer", value: referrer ? clampString(referrer, 400) : "None", inline: false },
-        ],
-        footer: { text: "Palladium Links" },
-        timestamp: new Date().toISOString(),
-      },
+async function sendLinksNotification(originKey, sourcePage, referrer) {
+  const embed = {
+    title: "New Palladium Link",
+    description: `[Open Link](${sourcePage})`,
+    color: 0x22c55e,
+    fields: [
+      { name: "Origin", value: `\`${originKey}\``, inline: true },
+      { name: "Page", value: `\`${sourcePage}\``, inline: false },
+      { name: "Referrer", value: referrer ? clampString(referrer, 400) : "None", inline: false },
     ],
+    footer: { text: "Palladium Links" },
+    timestamp: new Date().toISOString(),
   };
 
-  return postWebhook(LINKS_WEBHOOK_URL, payload);
+  if (canUseBotChannel(LINKS_CHANNEL_ID)) {
+    const sentViaBot = await postBotMessage(LINKS_CHANNEL_ID, {
+      content: sourcePage,
+      embeds: [embed],
+    });
+    if (sentViaBot) return true;
+  }
+
+  if (LINKS_WEBHOOK_URL) {
+    return postWebhook(LINKS_WEBHOOK_URL, {
+      username: LINKS_BOT_NAME,
+      content: sourcePage,
+      embeds: [embed],
+    });
+  }
+
+  return false;
 }
 
 async function handleLinkSignal(req, res) {
@@ -598,7 +635,7 @@ async function handleLinkSignal(req, res) {
   persistSeenLinkOrigins();
 
   const referrer = typeof payload.referrer === "string" ? payload.referrer : "";
-  const sent = await sendLinksWebhook(originKey, sourcePage, referrer);
+  const sent = await sendLinksNotification(originKey, sourcePage, referrer);
 
   sendJson(res, 200, {
     ok: true,
@@ -607,6 +644,7 @@ async function handleLinkSignal(req, res) {
     origin: originKey,
     sourcePage,
     webhookConfigured: !!LINKS_WEBHOOK_URL,
+    botChannelConfigured: canUseBotChannel(LINKS_CHANNEL_ID),
   });
 }
 
@@ -627,7 +665,7 @@ function sendLanding(res) {
   <body>
     <h1>Palladium Apps</h1>
     <p>Link signal endpoint: <code>/link-signal</code></p>
-    <p>Link checker endpoint: <code>/link-check?url=https://example.com</code></p>
+    <p>Link checker endpoint: <code>/link-check?url=https://example.com</code> (direct network only)</p>
     <p>Discord checker endpoint: <code>/link-check-discord?url=https://example.com</code></p>
     <p>Health check: <code>/health</code></p>
   </body>
@@ -659,6 +697,10 @@ const server = http.createServer(async (req, res) => {
       service: "palladium-apps",
       linksWebhookConfigured: !!LINKS_WEBHOOK_URL,
       linkCheckerWebhookConfigured: !!LINK_CHECK_WEBHOOK_URL,
+      botTokenConfigured: !!DISCORD_BOT_TOKEN,
+      linksChannelConfigured: !!LINKS_CHANNEL_ID,
+      linkCheckerChannelConfigured: !!LINK_CHECK_CHANNEL_ID,
+      linkCheckerMode: "direct-only",
       linksTracked: seenLinkOrigins.size,
       linkCheckProviders: FILTER_PROVIDERS.length,
     });

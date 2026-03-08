@@ -92,3 +92,54 @@ Or call the backend endpoint directly:
 ```bash
 curl "http://localhost:1338/link-check-discord?url=https://example.com"
 ```
+
+## Real Bot Mode (No Webhook Required)
+
+You can run these as real Discord bots via Bot token + channel IDs.
+
+### Required local config keys
+
+```bash
+git config discord.botToken "YOUR_BOT_TOKEN"
+```
+
+Commit bot target channel:
+
+```bash
+git config discord.commitChannelId "1480022214303682700"
+```
+
+Link checker target channel:
+
+```bash
+git config discord.linkCheckerChannelId "1480327216826155059"
+```
+
+Link command listener channels (`/link <url>`):
+
+```bash
+git config discord.linkCommandChannelIds "1480327216826155059"
+```
+
+Community bot channels:
+
+```bash
+git config discord.welcomeChannelId "1480334877961355304"
+git config discord.rulesChannelId "1480324913561862184"
+```
+
+### Bot scripts
+
+- Commit posts: `scripts/discord-commit-notifier.js` (auto-runs via post-commit hook)
+- `/link` command listener: `scripts/discord-link-command-bot.js`
+- Welcome + rules community bot: `scripts/discord-community-bot.js`
+
+`./start.sh` now auto-starts the link command bot and community bot when required config is present.
+
+### Application IDs (stored for reference)
+
+```bash
+git config discord.commitApplicationId "1480333781066973224"
+git config discord.linkCheckerApplicationId "1480334007118987456"
+git config discord.communityApplicationId "1480333349297066075"
+```

@@ -29,7 +29,10 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 
 WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-$(git config --get discord.webhookUrl || true)}"
-if [[ -z "$WEBHOOK_URL" ]]; then
+BOT_TOKEN="${DISCORD_BOT_TOKEN:-$(git config --get discord.botToken || true)}"
+COMMIT_CHANNEL_ID="${DISCORD_COMMIT_CHANNEL_ID:-$(git config --get discord.commitChannelId || true)}"
+
+if [[ -z "$WEBHOOK_URL" && ( -z "$BOT_TOKEN" || -z "$COMMIT_CHANNEL_ID" ) ]]; then
   exit 0
 fi
 
@@ -40,8 +43,11 @@ chmod +x "$HOOK_FILE"
 
 echo "Installed .git/hooks/post-commit"
 echo "Usage:"
-echo "  1) Set webhook once:"
-echo "     git config discord.webhookUrl \"https://discord.com/api/webhooks/...\""
-echo "  2) Optional: set GitHub username override:"
-echo "     git config github.username \"your-github-username\""
-echo "  3) Commit as usual; notifications post automatically."
+echo "  Bot mode (recommended):"
+echo "    git config discord.botToken \"YOUR_BOT_TOKEN\""
+echo "    git config discord.commitChannelId \"CHANNEL_ID\""
+echo "  Webhook fallback:"
+echo "    git config discord.webhookUrl \"https://discord.com/api/webhooks/...\""
+echo "  Optional username override:"
+echo "    git config github.username \"your-github-username\""
+echo "  Commit as usual; notifications post automatically."
