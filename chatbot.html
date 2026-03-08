@@ -359,7 +359,8 @@
                 var gameParam = qp.get('game') || '';
                 if (!gameParam) return '';
                 try {
-                    var gameUrl = new URL(gameParam, window.location.href);
+                    var gameParamBase = sourceBase || (window.location.origin + '/');
+                    var gameUrl = new URL(gameParam, gameParamBase);
                     path = gameUrl.pathname.replace(/^\/+/, '');
                 } catch (_ignored) {
                     path = String(gameParam).replace(/^\/+/, '');
