@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 const http = require("http");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 const { URL } = require("url");
 
 const PORT = Number(process.env.PORT || 1337);
@@ -19,7 +21,7 @@ const hopByHopHeaders = new Set([
   "upgrade",
 ]);
 
-const blockedResponseHeaders = new Set([
+const securityBlockedResponseHeaders = new Set([
   "content-security-policy",
   "content-security-policy-report-only",
   "x-frame-options",
@@ -29,7 +31,13 @@ const blockedResponseHeaders = new Set([
   "cross-origin-opener-policy",
   "cross-origin-embedder-policy",
   "cross-origin-resource-policy",
+]);
+
+const rewriteOnlyBlockedHeaders = new Set([
   "content-length",
+  "content-encoding",
+  "etag",
+  "content-md5",
 ]);
 
 const cookieJar = new Map();
@@ -65,6 +73,19 @@ function safeResolveUrl(raw, base) {
     const resolved = new URL(value, base).href;
     if (!/^https?:\/\//i.test(resolved)) return null;
     return resolved;
+  } catch {
+    return null;
+  }
+}
+
+function extractProxyTarget(rawUrl) {
+  if (!rawUrl) return null;
+  try {
+    const parsed = new URL(String(rawUrl));
+    if ((parsed.pathname !== "/" && parsed.pathname !== "/proxy") || !parsed.searchParams.get("url")) {
+      return null;
+    }
+    return safeResolveUrl(parsed.searchParams.get("url"), "https://example.com");
   } catch {
     return null;
   }
@@ -108,16 +129,69 @@ function injectRuntime(html, currentTarget) {
 (function () {
   var BASE = ${JSON.stringify(PROXY_BASE)};
   var CURRENT = ${JSON.stringify(currentTarget)};
+  function parseProxyTarget(raw) {
+    if (!raw) return "";
+    try {
+      var parsed = new URL(String(raw), window.location.href);
+      if ((parsed.pathname === "/proxy" || parsed.pathname === "/") && parsed.searchParams.get("url")) {
+        var target = new URL(parsed.searchParams.get("url"), CURRENT).href;
+        return /^https?:\\/\\//i.test(target) ? target : "";
+      }
+      return "";
+    } catch (_err) {
+      return "";
+    }
+  }
+  function currentTargetUrl() {
+    return parseProxyTarget(window.location.href) || CURRENT;
+  }
+  function toAbsolute(input, baseUrl) {
+    try {
+      return new URL(String(input), baseUrl).href;
+    } catch (_err) {
+      return "";
+    }
+  }
   function proxify(input) {
     if (typeof input === "string" && /^\\/proxy\\?url=/i.test(input)) return input;
     try {
-      var absolute = new URL(String(input), CURRENT).href;
+      var absolute = new URL(String(input), currentTargetUrl()).href;
       if (/^https?:\\/\\/[^/]+\\/proxy\\?url=/i.test(absolute)) return absolute;
       if (!/^https?:\\/\\//i.test(absolute)) return input;
       return BASE + encodeURIComponent(absolute);
     } catch (_err) {
       return input;
     }
+  }
+  function postMetadata() {
+    var targetUrl = currentTargetUrl();
+    var title = (document.title || "").trim();
+    var iconNode = document.querySelector('link[rel~="icon"][href], link[rel="shortcut icon"][href], link[rel="apple-touch-icon"][href]');
+    var iconHref = "";
+    if (iconNode) {
+      iconHref = toAbsolute(iconNode.getAttribute("href"), targetUrl);
+    }
+    if (!iconHref) {
+      iconHref = toAbsolute("/favicon.ico", targetUrl);
+    }
+    var payload = {
+      source: "palladium-proxy",
+      type: "metadata",
+      title: title || targetUrl,
+      url: targetUrl,
+      favicon: iconHref ? proxify(iconHref) : ""
+    };
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage(payload, "*");
+      }
+    } catch (_err) {}
+  }
+
+  var metadataTimer = 0;
+  function queueMetadata() {
+    clearTimeout(metadataTimer);
+    metadataTimer = setTimeout(postMetadata, 60);
   }
 
   var origFetch = window.fetch;
@@ -150,20 +224,56 @@ function injectRuntime(html, currentTarget) {
   };
 
   document.addEventListener("click", function (event) {
+    if (event.defaultPrevented) return;
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     var anchor = event.target && event.target.closest ? event.target.closest("a[href]") : null;
     if (!anchor) return;
+    if (anchor.target && anchor.target !== "_self") return;
+    if (anchor.hasAttribute("download")) return;
     var href = anchor.getAttribute("href");
     if (!href || href[0] === "#" || /^javascript:/i.test(href) || /^mailto:/i.test(href) || /^tel:/i.test(href)) return;
     event.preventDefault();
     window.location.href = proxify(href);
+    queueMetadata();
   }, true);
 
   document.addEventListener("submit", function (event) {
     var form = event.target;
     if (!form || form.tagName !== "FORM") return;
+    if (form.target && form.target !== "_self") return;
     var action = form.getAttribute("action") || CURRENT;
     form.setAttribute("action", proxify(action));
+    queueMetadata();
   }, true);
+
+  var pushState = history.pushState;
+  history.pushState = function () {
+    var result = pushState.apply(this, arguments);
+    queueMetadata();
+    return result;
+  };
+  var replaceState = history.replaceState;
+  history.replaceState = function () {
+    var result = replaceState.apply(this, arguments);
+    queueMetadata();
+    return result;
+  };
+
+  document.addEventListener("DOMContentLoaded", queueMetadata, { once: true });
+  window.addEventListener("load", queueMetadata);
+  window.addEventListener("hashchange", queueMetadata);
+  window.addEventListener("popstate", queueMetadata);
+
+  if (window.MutationObserver) {
+    var titleNode = document.querySelector("title");
+    if (titleNode) {
+      var observer = new MutationObserver(queueMetadata);
+      observer.observe(titleNode, { childList: true, characterData: true, subtree: true });
+    }
+  }
+
+  setInterval(queueMetadata, 1500);
+  queueMetadata();
 })();
 </script>`;
 
@@ -254,19 +364,233 @@ function buildRequestHeaders(req, targetUrl) {
     if (!value) continue;
     const lower = name.toLowerCase();
     if (hopByHopHeaders.has(lower)) continue;
-    if (["host", "origin", "referer", "content-length", "accept-encoding", "cookie"].includes(lower)) continue;
+    if (["host", "origin", "referer", "content-length", "cookie"].includes(lower)) continue;
     headers[lower] = Array.isArray(value) ? value.join(", ") : value;
   }
 
   headers.host = target.host;
-  headers.origin = target.origin;
-  headers.referer = `${target.origin}/`;
-  headers["accept-encoding"] = "identity";
+
+  const incomingReferer = Array.isArray(req.headers.referer) ? req.headers.referer[0] : req.headers.referer;
+  const refererTarget = extractProxyTarget(incomingReferer);
+  if (refererTarget) {
+    headers.referer = refererTarget;
+    try {
+      headers.origin = new URL(refererTarget).origin;
+    } catch {
+      headers.origin = target.origin;
+    }
+  } else {
+    headers.origin = target.origin;
+    headers.referer = `${target.origin}/`;
+  }
 
   const cookieHeader = buildCookieHeader(target.origin);
   if (cookieHeader) headers.cookie = cookieHeader;
 
   return headers;
+}
+
+function buildResponseHeaders(upstream, target, rewriteBody) {
+  const responseHeaders = {};
+
+  upstream.headers.forEach((value, name) => {
+    const lower = name.toLowerCase();
+    if (securityBlockedResponseHeaders.has(lower)) return;
+    if (hopByHopHeaders.has(lower)) return;
+    if (rewriteBody && rewriteOnlyBlockedHeaders.has(lower)) return;
+    if (lower === "location") {
+      const rewritten = safeResolveUrl(value, target);
+      if (rewritten) responseHeaders.location = proxyUrlFor(rewritten);
+      return;
+    }
+    if (lower === "set-cookie") return;
+    responseHeaders[lower] = value;
+  });
+
+  responseHeaders["access-control-allow-origin"] = "*";
+  responseHeaders["access-control-allow-headers"] = "*";
+  responseHeaders["access-control-allow-methods"] = "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS";
+  responseHeaders["timing-allow-origin"] = "*";
+  responseHeaders["x-palladium-proxy"] = "1";
+
+  if (rewriteBody) {
+    delete responseHeaders["content-length"];
+    delete responseHeaders["content-encoding"];
+    delete responseHeaders["etag"];
+  }
+
+  if (typeof upstream.headers.getSetCookie === "function") {
+    const values = upstream.headers.getSetCookie();
+    if (values.length) {
+      responseHeaders["set-cookie"] = values.map((cookie) =>
+        cookie
+          .replace(/;\s*Domain=[^;]+/gi, "")
+          .replace(/;\s*Secure/gi, "")
+      );
+    }
+  }
+
+  return responseHeaders;
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || "")
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&#x2F;/gi, "/");
+}
+
+function stripHtmlTags(value) {
+  return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeSearchUrl(rawHref) {
+  if (!rawHref) return "";
+  const href = decodeHtmlEntities(String(rawHref).trim());
+  try {
+    const absolute = new URL(href, "https://duckduckgo.com");
+    if (/duckduckgo\.com$/i.test(absolute.hostname) && absolute.pathname.startsWith("/l/")) {
+      const target = absolute.searchParams.get("uddg");
+      if (!target) return "";
+      return safeResolveUrl(target, "https://example.com") || "";
+    }
+    if (/duckduckgo\.com$/i.test(absolute.hostname)) return "";
+    return /^https?:$/.test(absolute.protocol) ? absolute.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function addUniqueResult(results, seen, item, limit) {
+  if (!item || !item.url || !item.title) return;
+  if (results.length >= limit) return;
+  if (seen.has(item.url)) return;
+  seen.add(item.url);
+  results.push({
+    title: item.title.trim(),
+    url: item.url.trim(),
+    snippet: (item.snippet || "").trim(),
+  });
+}
+
+function collectRelatedTopics(topics, results, seen, limit) {
+  if (!Array.isArray(topics)) return;
+  for (const topic of topics) {
+    if (results.length >= limit) return;
+    if (!topic) continue;
+    if (Array.isArray(topic.Topics)) {
+      collectRelatedTopics(topic.Topics, results, seen, limit);
+      continue;
+    }
+    const url = safeResolveUrl(topic.FirstURL, "https://example.com");
+    if (!url) continue;
+    addUniqueResult(
+      results,
+      seen,
+      {
+        title: topic.Text || url,
+        url,
+        snippet: "",
+      },
+      limit
+    );
+  }
+}
+
+async function fetchDuckDuckGoInstant(query, limit, results, seen) {
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`;
+    const response = await fetch(url, { method: "GET" });
+    if (!response.ok) return;
+    const data = await response.json();
+
+    if (data.AbstractURL && data.AbstractText) {
+      const abstractUrl = safeResolveUrl(data.AbstractURL, "https://example.com");
+      if (abstractUrl) {
+        addUniqueResult(
+          results,
+          seen,
+          {
+            title: data.Heading || data.AbstractText.slice(0, 120),
+            url: abstractUrl,
+            snippet: data.AbstractText,
+          },
+          limit
+        );
+      }
+    }
+
+    collectRelatedTopics(data.RelatedTopics, results, seen, limit);
+  } catch {
+    // Keep graceful fallback behavior when search provider errors out.
+  }
+}
+
+async function fetchDuckDuckGoHtml(query, limit, results, seen) {
+  try {
+    const url = `https://duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+    const response = await fetch(url, { method: "GET" });
+    if (!response.ok) return;
+    const html = await response.text();
+    const anchorRe = /<a[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+    let match;
+    while ((match = anchorRe.exec(html)) !== null && results.length < limit) {
+      const targetUrl = normalizeSearchUrl(match[1]);
+      if (!targetUrl) continue;
+      const title = stripHtmlTags(decodeHtmlEntities(match[2]));
+      if (!title) continue;
+      addUniqueResult(results, seen, { title, url: targetUrl, snippet: "" }, limit);
+    }
+  } catch {
+    // Keep graceful fallback behavior when search provider errors out.
+  }
+}
+
+async function fetchInternetSearchResults(query, limit) {
+  const results = [];
+  const seen = new Set();
+  await fetchDuckDuckGoInstant(query, limit, results, seen);
+  if (results.length < limit) {
+    await fetchDuckDuckGoHtml(query, limit, results, seen);
+  }
+  return results.slice(0, limit);
+}
+
+function sendJson(res, status, payload) {
+  res.writeHead(status, {
+    "content-type": "application/json; charset=utf-8",
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "*",
+    "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
+    "x-palladium-proxy": "1",
+  });
+  res.end(JSON.stringify(payload));
+}
+
+async function handleAiSearch(res, requestUrl) {
+  const query = (requestUrl.searchParams.get("q") || "").trim();
+  const parsedLimit = Number(requestUrl.searchParams.get("limit") || 5);
+  const limit = Number.isFinite(parsedLimit) ? Math.max(1, Math.min(10, Math.floor(parsedLimit))) : 5;
+
+  if (!query) {
+    sendJson(res, 400, { ok: false, error: "Missing query parameter: q", results: [] });
+    return;
+  }
+
+  try {
+    const results = await fetchInternetSearchResults(query, limit);
+    sendJson(res, 200, {
+      ok: true,
+      query,
+      provider: "duckduckgo",
+      results,
+    });
+  } catch (error) {
+    sendJson(res, 502, { ok: false, query, error: `Search failed: ${error.message}`, results: [] });
+  }
 }
 
 function sendLanding(res) {
@@ -332,36 +656,13 @@ async function handleProxy(req, res, requestUrl) {
 
   storeCookies(new URL(target).origin, upstream);
 
-  const responseHeaders = {};
-  upstream.headers.forEach((value, name) => {
-    const lower = name.toLowerCase();
-    if (blockedResponseHeaders.has(lower)) return;
-    if (hopByHopHeaders.has(lower)) return;
-    if (lower === "location") {
-      const rewritten = safeResolveUrl(value, target);
-      if (rewritten) responseHeaders.location = proxyUrlFor(rewritten);
-      return;
-    }
-    if (lower === "set-cookie") return;
-    responseHeaders[lower] = value;
-  });
-
-  responseHeaders["access-control-allow-origin"] = "*";
-  responseHeaders["x-palladium-proxy"] = "1";
-
-  if (typeof upstream.headers.getSetCookie === "function") {
-    const values = upstream.headers.getSetCookie();
-    if (values.length) {
-      responseHeaders["set-cookie"] = values.map((cookie) =>
-        cookie
-          .replace(/;\s*Domain=[^;]+/gi, "")
-          .replace(/;\s*Secure/gi, "")
-      );
-    }
-  }
-
   const contentType = upstream.headers.get("content-type") || "";
-  if (/text\/html/i.test(contentType)) {
+  const isHtml = /text\/html/i.test(contentType);
+  const isCss = /text\/css/i.test(contentType);
+  const rewriteBody = isHtml || isCss;
+  const responseHeaders = buildResponseHeaders(upstream, target, rewriteBody);
+
+  if (isHtml) {
     const html = await upstream.text();
     const rewritten = rewriteHtml(html, target);
     res.writeHead(upstream.status, responseHeaders);
@@ -369,7 +670,7 @@ async function handleProxy(req, res, requestUrl) {
     return;
   }
 
-  if (/text\/css/i.test(contentType)) {
+  if (isCss) {
     const css = await upstream.text();
     const rewritten = rewriteCss(css, target);
     res.writeHead(upstream.status, responseHeaders);
@@ -377,27 +678,23 @@ async function handleProxy(req, res, requestUrl) {
     return;
   }
 
-  if (/javascript|json|text\//i.test(contentType)) {
-    const text = await upstream.text();
-    res.writeHead(upstream.status, responseHeaders);
-    res.end(text);
+  res.writeHead(upstream.status, responseHeaders);
+
+  const upperMethod = method.toUpperCase();
+  if (upperMethod === "HEAD" || !upstream.body || upstream.status === 204 || upstream.status === 304) {
+    res.end();
     return;
   }
 
-  const array = Buffer.from(await upstream.arrayBuffer());
-  res.writeHead(upstream.status, responseHeaders);
-  res.end(array);
+  try {
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch {
+    if (!res.writableEnded) res.destroy();
+  }
 }
 
 function extractRefererTarget(refererValue) {
-  if (!refererValue) return null;
-  try {
-    const referer = new URL(String(refererValue));
-    if (referer.pathname !== "/" && referer.pathname !== "/proxy") return null;
-    return safeResolveUrl(referer.searchParams.get("url"), "https://example.com");
-  } catch {
-    return null;
-  }
+  return extractProxyTarget(refererValue);
 }
 
 function resolveFallbackTarget(req, requestUrl) {
@@ -420,10 +717,29 @@ function resolveFallbackTarget(req, requestUrl) {
 
 const server = http.createServer(async (req, res) => {
   const requestUrl = new URL(req.url || "/", `http://${req.headers.host || `localhost:${PORT}`}`);
+  const method = (req.method || "GET").toUpperCase();
+
+  if (method === "OPTIONS") {
+    const requestedHeaders = req.headers["access-control-request-headers"];
+    res.writeHead(204, {
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
+      "access-control-allow-headers": requestedHeaders || "*",
+      "access-control-max-age": "86400",
+      "x-palladium-proxy": "1",
+    });
+    res.end();
+    return;
+  }
 
   if (requestUrl.pathname === "/health") {
     res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (requestUrl.pathname === "/ai-search") {
+    await handleAiSearch(res, requestUrl);
     return;
   }
 

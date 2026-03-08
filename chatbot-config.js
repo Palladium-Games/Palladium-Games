@@ -5,6 +5,11 @@
 var CHATBOT_API_URL = 'http://localhost:11434';
 // Model name (Ollama model, e.g. llama3.2, mistral, phi3).
 var CHATBOT_MODEL = 'llama3.2';
+// Optional: internet search endpoint used by PalladiumAI for web context.
+// Default points to the local Palladium proxy.
+var CHATBOT_SEARCH_API_URL = 'http://localhost:1337/ai-search';
+// Set to false to disable web search augmentation.
+var CHATBOT_ENABLE_INTERNET = true;
 // Optional: iframe URL for an external chat UI (used only when CHATBOT_API_URL is empty).
 // var CHATBOT_URL = 'https://your-chat.example.com';
 var CHATBOT_URL = '';

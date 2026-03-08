@@ -44,16 +44,27 @@
         }
         .palladium-ai-header { flex-shrink: 0; padding: 12px 20px; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.03); display: flex; align-items: center; justify-content: space-between; }
         .palladium-ai-header h2 { font-size: 1.1rem; font-weight: 600; color: var(--text-primary); margin: 0; }
+        .palladium-ai-header-meta { display: flex; align-items: center; gap: 8px; }
         .palladium-ai-status { font-size: 0.75rem; color: var(--text-secondary); }
+        .palladium-ai-new-chat { height: 30px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-card); color: var(--text-secondary); font-size: 0.78rem; font-family: inherit; cursor: pointer; }
+        .palladium-ai-new-chat:hover { color: var(--text-primary); border-color: var(--text-secondary); }
         .palladium-ai-messages { flex: 1; min-height: 0; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
         .palladium-ai-msg { max-width: 85%; align-self: flex-start; padding: 10px 14px; border-radius: 12px; font-size: 0.95rem; line-height: 1.5; }
-        .palladium-ai-msg.user { align-self: flex-end; background: #0e1520; color: #e2e8f0; }
+        .palladium-ai-msg.user { align-self: flex-end; background: #0e1520; color: #e2e8f0; white-space: pre-wrap; }
         .palladium-ai-msg.assistant { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
         .palladium-ai-msg.error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .palladium-ai-msg.assistant p { margin: 0.35rem 0; }
+        .palladium-ai-msg.assistant ul,
+        .palladium-ai-msg.assistant ol { margin: 0.35rem 0 0.35rem 1.1rem; padding: 0; }
+        .palladium-ai-msg.assistant pre { margin: 0.35rem 0; padding: 0.55rem 0.7rem; border-radius: 8px; background: #111827; color: #e5e7eb; overflow-x: auto; }
+        .palladium-ai-msg.assistant code { padding: 0.1rem 0.3rem; border-radius: 6px; background: rgba(15, 23, 42, 0.08); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.9em; }
+        .palladium-ai-msg.assistant pre code { padding: 0; background: transparent; }
+        .palladium-ai-msg.assistant a { color: #2563eb; text-decoration: none; }
+        .palladium-ai-msg.assistant a:hover { text-decoration: underline; }
         .palladium-ai-form { flex-shrink: 0; padding: 16px; border-top: 1px solid var(--border-color); background: rgba(0,0,0,0.02); }
         .palladium-ai-form form { display: flex; gap: 10px; align-items: stretch; }
-        .palladium-ai-form input { flex: 1; height: 50px; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 1rem; font-family: inherit; }
-        .palladium-ai-form input:focus { outline: none; border-color: var(--text-primary); }
+        .palladium-ai-form textarea { flex: 1; min-height: 50px; max-height: 180px; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 1rem; font-family: inherit; line-height: 1.4; resize: none; overflow-y: auto; }
+        .palladium-ai-form textarea:focus { outline: none; border-color: var(--text-primary); }
         .palladium-ai-form button { height: 50px; min-width: 50px; padding: 0 20px; background: #0e1520; color: #e2e8f0; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
         .palladium-ai-form button:hover { background: #1e293b; }
         .palladium-ai-form button:disabled { opacity: 0.6; cursor: not-allowed; }
@@ -86,12 +97,15 @@
         <div class="palladium-ai" id="palladiumAi" style="display: none;">
             <div class="palladium-ai-header">
                 <h2>PalladiumAI</h2>
-                <span class="palladium-ai-status" id="palladiumAiStatus">Ollama</span>
+                <div class="palladium-ai-header-meta">
+                    <span class="palladium-ai-status" id="palladiumAiStatus">Ollama</span>
+                    <button type="button" class="palladium-ai-new-chat" id="palladiumAiNewChat">New Chat</button>
+                </div>
             </div>
             <div class="palladium-ai-messages" id="palladiumAiMessages"></div>
             <div class="palladium-ai-form">
                 <form id="palladiumAiForm">
-                    <input type="text" id="palladiumAiInput" placeholder="Message PalladiumAI…" autocomplete="off">
+                    <textarea id="palladiumAiInput" placeholder="Message PalladiumAI…" rows="1"></textarea>
                     <button type="submit" id="palladiumAiSend">Send</button>
                 </form>
             </div>
@@ -103,6 +117,12 @@
     var apiBase = typeof CHATBOT_API_URL !== 'undefined' ? (CHATBOT_API_URL || '').replace(/\/$/, '') : '';
     var model = typeof CHATBOT_MODEL !== 'undefined' ? CHATBOT_MODEL : 'llama3.2';
     var iframeUrl = typeof CHATBOT_URL !== 'undefined' ? CHATBOT_URL : '';
+    var searchApiUrl = typeof CHATBOT_SEARCH_API_URL !== 'undefined'
+        ? CHATBOT_SEARCH_API_URL
+        : 'http://localhost:1337/ai-search';
+    var internetEnabled = typeof CHATBOT_ENABLE_INTERNET !== 'undefined'
+        ? !!CHATBOT_ENABLE_INTERNET
+        : true;
     var frame = document.getElementById('chatbotFrame');
     var placeholder = document.getElementById('chatbotPlaceholder');
     var palladiumAi = document.getElementById('palladiumAi');
@@ -110,16 +130,56 @@
     var form = document.getElementById('palladiumAiForm');
     var input = document.getElementById('palladiumAiInput');
     var sendBtn = document.getElementById('palladiumAiSend');
+    var newChatBtn = document.getElementById('palladiumAiNewChat');
 
-    var SYSTEM_PROMPT = 'You are PalladiumAI for the Palladium Games site. Be helpful, accurate, and concise.';
+    var SYSTEM_PROMPT = [
+        'You are **PalladiumAI**, the assistant for the Palladium Games website.',
+        '',
+        'Website context:',
+        '- Main sections: Home (`index.html`), Games (`games.html`), Browse (`browse.html`), AI Chatbot (`chatbot.html`), Music (`music.html`), TV (`tv.html`), Movies (`movies.html`).',
+        '- Browse uses a local proxy service.',
+        '- Local game availability is determined by `/games` catalog data provided in context.',
+        '',
+        'Behavior rules (strict):',
+        '1. Do **not** invent facts, games, links, features, or statuses.',
+        '2. For game-related answers, only use the provided local `/games` catalog context.',
+        '3. If information is missing or uncertain, say exactly: **"I don\'t know based on the available data."**',
+        '4. If web-search context is provided, use it carefully and call out uncertainty when needed.',
+        '5. Prefer direct, practical answers for users of this website.',
+        '',
+        'Formatting rules:',
+        '- Always respond in markdown.',
+        '- Use short headings and bullet lists when useful.',
+        '- Include clickable links when you can reference local pages or known URLs.',
+        '- Keep answers concise unless the user asks for detail.'
+    ].join('\n');
     var history = [];
     var MAX_HISTORY_MESSAGES = 12;
     var RESPONSE_TIMEOUT_MS = 90000;
     var OLLAMA_KEEP_ALIVE = '30m';
+    var MEMORY_TTL_MS = 20 * 60 * 1000;
+    var gamesCatalogPromise = null;
+    var lastLoadedGames = [];
+    var memoryTimer = null;
 
     function setStatus(text, ok) {
         var el = document.getElementById('palladiumAiStatus');
         if (el) { el.textContent = text; el.style.color = ok ? 'var(--text-secondary)' : '#b91c1c'; }
+    }
+
+    function scheduleMemoryClear() {
+        if (memoryTimer) clearTimeout(memoryTimer);
+        memoryTimer = setTimeout(function() {
+            history = [];
+            messagesEl.innerHTML = '';
+            setStatus('Memory cleared', true);
+        }, MEMORY_TTL_MS);
+    }
+
+    function resizeInput() {
+        if (!input) return;
+        input.style.height = '50px';
+        input.style.height = Math.min(input.scrollHeight, 180) + 'px';
     }
 
     function showMode() {
@@ -140,24 +200,320 @@
         }
     }
 
-    function addMessage(role, content, isError) {
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function toSafeHref(raw) {
+        var value = (raw || '').trim();
+        if (!value) return '';
+        if (/^https?:\/\//i.test(value)) return value;
+        if (/^\/?[A-Za-z0-9_\-./]+(\?.*)?$/i.test(value)) {
+            return value.charAt(0) === '/' ? value : ('/' + value);
+        }
+        return '';
+    }
+
+    function renderInlineMarkdown(text) {
+        var html = text;
+        html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+            var safeHref = toSafeHref(url);
+            if (!safeHref) return escapeHtml(label);
+            return '<a href="' + escapeHtml(safeHref) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+        });
+        html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+        html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+        html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+        return html;
+    }
+
+    function renderMarkdown(markdown) {
+        var codeBlocks = [];
+        var text = String(markdown || '').replace(/\r\n/g, '\n');
+        text = text.replace(/```([\s\S]*?)```/g, function(_, code) {
+            var token = '%%CODEBLOCK_' + codeBlocks.length + '%%';
+            codeBlocks.push('<pre><code>' + escapeHtml(code.trim()) + '</code></pre>');
+            return token;
+        });
+        text = escapeHtml(text);
+
+        var lines = text.split('\n');
+        var htmlParts = [];
+        var inUl = false;
+        var inOl = false;
+
+        function closeLists() {
+            if (inUl) { htmlParts.push('</ul>'); inUl = false; }
+            if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+        }
+
+        for (var i = 0; i < lines.length; i++) {
+            var line = lines[i];
+            var trimmed = line.trim();
+
+            if (!trimmed) {
+                closeLists();
+                continue;
+            }
+            if (/^###\s+/.test(trimmed)) {
+                closeLists();
+                htmlParts.push('<h3>' + renderInlineMarkdown(trimmed.replace(/^###\s+/, '')) + '</h3>');
+                continue;
+            }
+            if (/^##\s+/.test(trimmed)) {
+                closeLists();
+                htmlParts.push('<h2>' + renderInlineMarkdown(trimmed.replace(/^##\s+/, '')) + '</h2>');
+                continue;
+            }
+            if (/^#\s+/.test(trimmed)) {
+                closeLists();
+                htmlParts.push('<h1>' + renderInlineMarkdown(trimmed.replace(/^#\s+/, '')) + '</h1>');
+                continue;
+            }
+            if (/^[-*]\s+/.test(trimmed)) {
+                if (inOl) { htmlParts.push('</ol>'); inOl = false; }
+                if (!inUl) { htmlParts.push('<ul>'); inUl = true; }
+                htmlParts.push('<li>' + renderInlineMarkdown(trimmed.replace(/^[-*]\s+/, '')) + '</li>');
+                continue;
+            }
+            if (/^\d+\.\s+/.test(trimmed)) {
+                if (inUl) { htmlParts.push('</ul>'); inUl = false; }
+                if (!inOl) { htmlParts.push('<ol>'); inOl = true; }
+                htmlParts.push('<li>' + renderInlineMarkdown(trimmed.replace(/^\d+\.\s+/, '')) + '</li>');
+                continue;
+            }
+            closeLists();
+            htmlParts.push('<p>' + renderInlineMarkdown(trimmed) + '</p>');
+        }
+
+        closeLists();
+
+        var html = htmlParts.join('');
+        for (var j = 0; j < codeBlocks.length; j++) {
+            html = html.replace('%%CODEBLOCK_' + j + '%%', codeBlocks[j]);
+        }
+        return html || '<p></p>';
+    }
+
+    function addMessage(role, content, isError, asMarkdown) {
         var div = document.createElement('div');
         div.className = 'palladium-ai-msg ' + (isError ? 'error' : role);
-        div.textContent = content;
+        if (asMarkdown) {
+            div.innerHTML = renderMarkdown(content);
+        } else {
+            div.textContent = content;
+        }
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
         return div;
     }
 
-    function setMessage(div, content) {
+    function setMessage(div, content, asMarkdown) {
         if (!div) return;
-        div.textContent = content;
+        if (asMarkdown) {
+            div.innerHTML = renderMarkdown(content);
+        } else {
+            div.textContent = content;
+        }
         messagesEl.scrollTop = messagesEl.scrollHeight;
     }
 
-    function buildMessages() {
+    function slugToTitle(slug) {
+        var base = String(slug || '').replace(/\.html$/i, '').replace(/[-_]+/g, ' ').trim();
+        if (!base) return 'Unknown Game';
+        var title = base.replace(/\b\w/g, function(ch) { return ch.toUpperCase(); });
+        return title
+            .replace(/\bFnaf\b/g, 'FNAF')
+            .replace(/\bHtml\b/g, '')
+            .trim();
+    }
+
+    function normalizeGamePath(rawHref, sourceTag) {
+        if (!rawHref) return '';
+        try {
+            var url = new URL(rawHref, window.location.href);
+            var path = url.pathname.replace(/^\/+/, '');
+            if (sourceTag === 'games-dir' && path.indexOf('games/') !== 0) path = 'games/' + path;
+            if (path.indexOf('games/') !== 0) return '';
+            if (!/\.html$/i.test(path)) return '';
+            return path;
+        } catch (_err) {
+            return '';
+        }
+    }
+
+    function addGamesFromHtml(map, html, sourceTag) {
+        if (!html) return;
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var anchors = doc.querySelectorAll('a[href]');
+        Array.prototype.forEach.call(anchors, function(anchor) {
+            var path = normalizeGamePath(anchor.getAttribute('href') || '', sourceTag);
+            if (!path) return;
+            var file = path.split('/').pop();
+            var rawLabel = (anchor.textContent || '').trim();
+            var title = rawLabel && !/\.html$/i.test(rawLabel) ? rawLabel : slugToTitle(file);
+            map.set(path, { path: path, file: file, title: title });
+        });
+    }
+
+    function loadGameCatalog() {
+        if (gamesCatalogPromise) return gamesCatalogPromise;
+        gamesCatalogPromise = (async function() {
+            var dirMap = new Map();
+            var pageMap = new Map();
+            try {
+                var gamesDir = await fetch('games/', { cache: 'no-store' });
+                if (gamesDir.ok) {
+                    addGamesFromHtml(dirMap, await gamesDir.text(), 'games-dir');
+                }
+            } catch (_err1) {}
+
+            try {
+                var gamesPage = await fetch('games.html', { cache: 'no-store' });
+                if (gamesPage.ok) {
+                    addGamesFromHtml(pageMap, await gamesPage.text(), 'games-page');
+                }
+            } catch (_err2) {}
+
+            var map = dirMap.size > 0 ? dirMap : pageMap;
+            if (dirMap.size > 0 && pageMap.size > 0) {
+                dirMap.forEach(function(entry, path) {
+                    if (!pageMap.has(path)) return;
+                    var pageTitle = (pageMap.get(path).title || '').trim();
+                    if (pageTitle && pageTitle.length <= 40) {
+                        entry.title = pageTitle;
+                    }
+                });
+            }
+
+            var list = Array.from(map.values()).sort(function(a, b) {
+                return a.title.localeCompare(b.title);
+            });
+            lastLoadedGames = list;
+            return list;
+        })();
+        return gamesCatalogPromise;
+    }
+
+    function normalizeForMatch(value) {
+        return String(value || '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, ' ')
+            .trim();
+    }
+
+    function gamesCatalogMarkdown(games, limit) {
+        if (!games || !games.length) return 'No local games were found in `/games`.';
+        var max = typeof limit === 'number' ? Math.max(1, limit) : games.length;
+        var subset = games.slice(0, max);
+        var lines = subset.map(function(game) {
+            return '- [' + game.title + '](' + game.path + ')';
+        });
+        if (subset.length < games.length) {
+            lines.push('- ...and ' + (games.length - subset.length) + ' more in `/games`.');
+        }
+        return lines.join('\n');
+    }
+
+    function isGamesQuery(text) {
+        return /\b(game|games|fnaf|ragdoll|learn to fly)\b/i.test(text || '');
+    }
+
+    function isGamesListQuery(text) {
+        if (!text) return false;
+        return /\b(what|which|list|show|available|have)\b[\s\S]*\bgames?\b/i.test(text) ||
+            /\bgames?\b[\s\S]*\b(available|have|list)\b/i.test(text);
+    }
+
+    function guessGameNameFromQuestion(text) {
+        if (!text) return '';
+        var m = text.match(/\b(?:do you have|is|play|got|has|have)\s+(.+?)(?:\?|$)/i);
+        if (m && m[1]) return m[1].trim();
+        return '';
+    }
+
+    function findGamesByName(games, query) {
+        var q = normalizeForMatch(query);
+        if (!q) return [];
+        return (games || []).filter(function(game) {
+            var title = normalizeForMatch(game.title);
+            var file = normalizeForMatch(game.file);
+            return title.indexOf(q) !== -1 || file.indexOf(q) !== -1 || q.indexOf(title) !== -1;
+        });
+    }
+
+    function answerLocalGamesQuery(text, games) {
+        if (!isGamesQuery(text)) return '';
+        if (!games || !games.length) return 'I don\'t know based on the available data. I could not read `/games`.';
+
+        if (isGamesListQuery(text)) {
+            return 'Here are the games currently in `/games`:\n\n' + gamesCatalogMarkdown(games);
+        }
+
+        var guessed = guessGameNameFromQuestion(text);
+        if (!guessed) return '';
+        var matches = findGamesByName(games, guessed);
+        if (matches.length === 0) {
+            return 'I don\'t see **' + guessed + '** in `/games` right now.';
+        }
+        if (matches.length === 1) {
+            return 'Yes. I found it in `/games`:\n\n- [' + matches[0].title + '](' + matches[0].path + ')';
+        }
+        return 'I found multiple close matches in `/games`:\n\n' + gamesCatalogMarkdown(matches, 8);
+    }
+
+    function shouldUseInternet(text) {
+        if (!internetEnabled) return false;
+        if (!text) return false;
+        return /\b(latest|today|news|update|updated|price|current|who is|look up|search|internet|recent)\b/i.test(text);
+    }
+
+    async function fetchInternetContext(query) {
+        if (!shouldUseInternet(query)) return '';
+        try {
+            var url = searchApiUrl + '?q=' + encodeURIComponent(query) + '&limit=5';
+            var res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) return '';
+            var data = await res.json();
+            if (!data || !Array.isArray(data.results) || !data.results.length) return '';
+            var lines = data.results.map(function(item, idx) {
+                var t = item.title || item.url || 'Untitled';
+                var u = item.url || '';
+                var s = item.snippet || '';
+                var line = (idx + 1) + '. ' + t + (u ? ' - ' + u : '');
+                if (s) line += '\n   ' + s;
+                return line;
+            });
+            return 'Web search results for "' + query + '":\n' + lines.join('\n');
+        } catch (_err) {
+            return '';
+        }
+    }
+
+    function buildMessages(userText, internetContext, games) {
         var recent = history.slice(-MAX_HISTORY_MESSAGES);
-        return [{ role: 'system', content: SYSTEM_PROMPT }].concat(
+        var messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+
+        if (games && games.length && isGamesQuery(userText)) {
+            messages.push({
+                role: 'system',
+                content: 'Local games catalog from `/games` (authoritative source):\n' + gamesCatalogMarkdown(games)
+            });
+        }
+
+        if (internetContext) {
+            messages.push({
+                role: 'system',
+                content: internetContext + '\nUse this context instead of guessing. If uncertain, say you are unsure.'
+            });
+        }
+
+        return messages.concat(
             recent.map(function(m) {
                 return { role: m.role, content: m.content };
             })
@@ -185,7 +541,7 @@
             var fallbackReply = (fallbackData.message && fallbackData.message.content)
                 ? fallbackData.message.content
                 : (fallbackData.response || 'No reply.');
-            setMessage(assistantBubble, fallbackReply);
+            setMessage(assistantBubble, fallbackReply, true);
             return fallbackReply;
         }
 
@@ -202,7 +558,7 @@
             buffered = lines.pop() || '';
             for (var i = 0; i < lines.length; i++) {
                 reply = parseOllamaLine(lines[i].trim(), reply);
-                if (reply) setMessage(assistantBubble, reply);
+                if (reply) setMessage(assistantBubble, reply, true);
             }
         }
 
@@ -211,53 +567,92 @@
         }
 
         if (!reply) reply = 'No reply.';
-        setMessage(assistantBubble, reply);
+        setMessage(assistantBubble, reply, true);
         return reply;
     }
 
-    form.addEventListener('submit', function(e) {
+    form.addEventListener('submit', async function(e) {
         e.preventDefault();
         var text = (input.value || '').trim();
         if (!text || sendBtn.disabled) return;
 
         input.value = '';
-        addMessage('user', text);
+        addMessage('user', text, false, false);
         sendBtn.disabled = true;
         history.push({ role: 'user', content: text });
         setStatus('Thinking…', true);
+        scheduleMemoryClear();
 
-        var assistantBubble = addMessage('assistant', '...');
+        var assistantBubble = addMessage('assistant', '...', false, true);
         var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         var timeout = controller ? setTimeout(function() { controller.abort(); }, RESPONSE_TIMEOUT_MS) : null;
-        var messages = buildMessages();
 
-        fetch(apiBase + '/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            signal: controller ? controller.signal : undefined,
-            body: JSON.stringify({
-                model: model,
-                messages: messages,
-                stream: true,
-                keep_alive: OLLAMA_KEEP_ALIVE
-            })
-        }).then(function(res) {
+        try {
+            var games = await loadGameCatalog();
+            var localGamesReply = answerLocalGamesQuery(text, games);
+            if (localGamesReply) {
+                setMessage(assistantBubble, localGamesReply, true);
+                history.push({ role: 'assistant', content: localGamesReply });
+                setStatus('Local catalog', true);
+                scheduleMemoryClear();
+                return;
+            }
+
+            var internetContext = await fetchInternetContext(text);
+            var messages = buildMessages(text, internetContext, games);
+
+            var res = await fetch(apiBase + '/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller ? controller.signal : undefined,
+                body: JSON.stringify({
+                    model: model,
+                    messages: messages,
+                    stream: true,
+                    keep_alive: OLLAMA_KEEP_ALIVE
+                })
+            });
             if (!res.ok) throw new Error('API ' + res.status);
-            return readOllamaReply(res, assistantBubble);
-        }).then(function(reply) {
+            var reply = await readOllamaReply(res, assistantBubble);
             history.push({ role: 'assistant', content: reply });
             setStatus('Ollama · ' + model, true);
-        }).catch(function() {
+            scheduleMemoryClear();
+        } catch (_err) {
             assistantBubble.className = 'palladium-ai-msg error';
-            setMessage(assistantBubble, 'Could not reach PalladiumAI. Is Ollama running at ' + apiBase + '?');
+            setMessage(assistantBubble, 'Could not reach PalladiumAI. Is Ollama running at ' + apiBase + '?', false);
             setStatus('Ollama offline — start Ollama', false);
-        }).finally(function() {
+        } finally {
             if (timeout) clearTimeout(timeout);
             sendBtn.disabled = false;
+            resizeInput();
             input.focus();
-        });
+        }
     });
 
+    if (newChatBtn) {
+        newChatBtn.addEventListener('click', function() {
+            history = [];
+            messagesEl.innerHTML = '';
+            setStatus('New chat started', true);
+            if (memoryTimer) clearTimeout(memoryTimer);
+            input.focus();
+        });
+    }
+
+    input.addEventListener('input', resizeInput);
+    input.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            if (typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else {
+                form.dispatchEvent(new Event('submit', { cancelable: true }));
+            }
+        }
+    });
+
+    resizeInput();
+    loadGameCatalog().catch(function() {});
     showMode();
 })();
     </script>
