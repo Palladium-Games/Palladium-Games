@@ -55,10 +55,6 @@
         <div class="game-content-area" id="gameContentArea">
             <div class="game-wrapper game-player-wrapper">
                 <div class="game-player-frame-wrap">
-                    <div id="gamePlayerStatus" class="game-player-status hidden" aria-live="polite">
-                        <p id="gamePlayerStatusText">Loading game...</p>
-                        <button type="button" id="retryProxyBtn" class="game-player-status-btn hidden">Retry proxy</button>
-                    </div>
                     <iframe id="gameFrame" class="game-player-iframe" src="about:blank" title="Game" allowfullscreen></iframe>
                 </div>
                 <div class="game-footer">
@@ -86,8 +82,6 @@
     <script src="nav-strip.js"></script>
     <script>
         (function() {
-            var PROXY_BASE = 'http://localhost:1337/';
-            var PROXY_TIMEOUT_MS = 7000;
             var DEFAULT_GAME = 'games/fnaf-1.html';
             var DEFAULT_TITLE = 'Five Nights at Freddy\'s';
             var DEFAULT_AUTHOR = 'Author: Scott Cawthon';
@@ -96,25 +90,17 @@
             var rawGameSrc = params.get('game') || DEFAULT_GAME;
             var gameTitle = params.get('title') || DEFAULT_TITLE;
             var gameAuthor = params.get('author') || DEFAULT_AUTHOR;
-            var proxyMode = (params.get('proxy') || 'auto').toLowerCase();
 
             var frame = document.getElementById('gameFrame');
             var titleEl = document.getElementById('gameTitle');
             var authorEl = document.getElementById('gameAuthor');
-            var statusEl = document.getElementById('gamePlayerStatus');
-            var statusTextEl = document.getElementById('gamePlayerStatusText');
-            var retryProxyBtn = document.getElementById('retryProxyBtn');
 
             var directGameUrl = resolveGameUrl(rawGameSrc);
-            var proxyGameUrl = buildProxyUrl(directGameUrl);
             var currentLaunchUrl = directGameUrl;
-            var proxyAttemptInFlight = false;
-            var proxyTimeoutHandle = null;
-            var statusHideHandle = null;
-            var loadRequestId = 0;
 
             if (titleEl) titleEl.textContent = gameTitle;
             if (authorEl) authorEl.textContent = gameAuthor;
+            if (frame) frame.src = directGameUrl;
 
             function resolveGameUrl(value) {
                 var raw = (value || '').trim();
@@ -131,164 +117,6 @@
                 } catch (_error) {
                     return new URL(DEFAULT_GAME, window.location.href).href;
                 }
-            }
-
-            function buildProxyUrl(target) {
-                return PROXY_BASE + '?url=' + encodeURIComponent(target);
-            }
-
-            function clearProxyTimeout() {
-                if (proxyTimeoutHandle) {
-                    clearTimeout(proxyTimeoutHandle);
-                    proxyTimeoutHandle = null;
-                }
-            }
-
-            function clearStatusHideTimeout() {
-                if (statusHideHandle) {
-                    clearTimeout(statusHideHandle);
-                    statusHideHandle = null;
-                }
-            }
-
-            function hideStatus() {
-                clearStatusHideTimeout();
-                if (!statusEl) return;
-                statusEl.classList.add('hidden');
-                statusEl.classList.remove('warning', 'error', 'success');
-                if (retryProxyBtn) retryProxyBtn.classList.add('hidden');
-            }
-
-            function showStatus(message, tone, allowRetry) {
-                clearStatusHideTimeout();
-                if (!statusEl || !statusTextEl) return;
-                statusEl.classList.remove('hidden', 'warning', 'error', 'success');
-                if (tone === 'warning' || tone === 'error' || tone === 'success') {
-                    statusEl.classList.add(tone);
-                }
-                statusTextEl.textContent = message;
-                if (retryProxyBtn) {
-                    retryProxyBtn.classList.toggle('hidden', !allowRetry);
-                }
-            }
-
-            function scheduleStatusHide(delayMs) {
-                clearStatusHideTimeout();
-                statusHideHandle = setTimeout(function() {
-                    hideStatus();
-                }, delayMs);
-            }
-
-            function loadDirect(message) {
-                loadRequestId += 1;
-                proxyAttemptInFlight = false;
-                clearProxyTimeout();
-                currentLaunchUrl = directGameUrl;
-                if (message) {
-                    showStatus(message, 'warning', true);
-                } else {
-                    showStatus('Loading game directly...', '', false);
-                }
-                frame.src = directGameUrl;
-            }
-
-            function probeProxyAvailability() {
-                return new Promise(function(resolve, reject) {
-                    var settled = false;
-                    var probeTimeout = setTimeout(function() {
-                        if (settled) return;
-                        settled = true;
-                        reject(new Error('timeout'));
-                    }, 1500);
-
-                    fetch(PROXY_BASE, { mode: 'no-cors', cache: 'no-store' })
-                        .then(function() {
-                            if (settled) return;
-                            settled = true;
-                            clearTimeout(probeTimeout);
-                            resolve();
-                        })
-                        .catch(function(error) {
-                            if (settled) return;
-                            settled = true;
-                            clearTimeout(probeTimeout);
-                            reject(error);
-                        });
-                });
-            }
-
-            function loadThroughProxy(forceProxyOnly) {
-                loadRequestId += 1;
-                var requestId = loadRequestId;
-                proxyAttemptInFlight = false;
-                clearProxyTimeout();
-                showStatus('Connecting through proxy...', '', false);
-                probeProxyAvailability()
-                    .then(function() {
-                        if (requestId !== loadRequestId) return;
-                        proxyAttemptInFlight = true;
-                        currentLaunchUrl = proxyGameUrl;
-                        frame.src = proxyGameUrl;
-                        proxyTimeoutHandle = setTimeout(function() {
-                            if (!proxyAttemptInFlight || requestId !== loadRequestId) return;
-                            proxyAttemptInFlight = false;
-                            if (forceProxyOnly) {
-                                showStatus('Proxy did not respond. Start scramjet-repo and retry.', 'error', true);
-                            } else {
-                                loadDirect('Proxy unavailable. Loaded game directly. Start scramjet-repo to use proxy.');
-                            }
-                        }, PROXY_TIMEOUT_MS);
-                    })
-                    .catch(function() {
-                        if (requestId !== loadRequestId) return;
-                        if (forceProxyOnly) {
-                            showStatus('Proxy is offline. Start scramjet-repo and retry.', 'error', true);
-                        } else {
-                            loadDirect('Proxy unavailable. Loaded game directly. Start scramjet-repo to use proxy.');
-                        }
-                    });
-            }
-
-            frame.addEventListener('load', function() {
-                clearProxyTimeout();
-                if (proxyAttemptInFlight) {
-                    proxyAttemptInFlight = false;
-                    showStatus('Proxy connected.', 'success', false);
-                    scheduleStatusHide(1200);
-                    return;
-                }
-
-                if (!statusEl || statusEl.classList.contains('hidden')) {
-                    return;
-                }
-
-                if (statusEl.classList.contains('warning') || statusEl.classList.contains('error')) {
-                    scheduleStatusHide(3500);
-                } else {
-                    hideStatus();
-                }
-            });
-
-            frame.addEventListener('error', function() {
-                clearProxyTimeout();
-                if (proxyAttemptInFlight) {
-                    proxyAttemptInFlight = false;
-                    if (isForceProxyMode(proxyMode)) {
-                        showStatus('Proxy failed to load. Start scramjet-repo and retry.', 'error', true);
-                    } else {
-                        loadDirect('Proxy failed. Loaded game directly.');
-                    }
-                    return;
-                }
-                showStatus('Unable to load this game.', 'error', false);
-            });
-
-            function isForceProxyMode(mode) {
-                return mode === '1' || mode === 'true' || mode === 'on' || mode === 'proxy';
-            }
-
-            function isDirectOnlyMode(mode) {
-                return mode === '0' || mode === 'false' || mode === 'off' || mode === 'direct';
             }
 
             var fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -340,18 +168,6 @@
                     e.preventDefault();
                     window.open(currentLaunchUrl, '_blank');
                 });
-            }
-
-            if (retryProxyBtn) {
-                retryProxyBtn.addEventListener('click', function() {
-                    loadThroughProxy(false);
-                });
-            }
-
-            if (isDirectOnlyMode(proxyMode)) {
-                loadDirect('');
-            } else {
-                loadThroughProxy(isForceProxyMode(proxyMode));
             }
         })();
     </script>
