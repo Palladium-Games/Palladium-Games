@@ -372,28 +372,40 @@ if (cloakToggle) {
 }
 
 // Game Modal functionality
-let gameModal, gameModalFrame, gameModalTitle, gameCloseBtn, gameFullscreenBtn, gameNewTabBtn;
+let gameModal, gameModalFrame, gameModalTitle, gameModalAuthor, gameCloseBtn, gameFullscreenBtn, gameNewTabBtn;
 let currentGameUrl = '';
 
 // Global handler function for onclick attributes - must be available immediately
 window.handleGameCardClick = function(card) {
-    console.log('handleGameCardClick called!', card);
-    
-    const gameFile = card.getAttribute('data-game');
-    const gameName = card.querySelector('h3')?.textContent || 'Game';
-    const gameUrl = `games/${gameFile}`;
-    
-    console.log('Opening game:', {
-        gameFile,
-        gameName,
-        gameUrl,
-        openGameModal: typeof window.openGameModal
-    });
-    
+    if (!card) return;
+
+    const gameNameFromCard = card.querySelector('h3')?.textContent?.trim() || 'Game';
+    const cardHref = card.getAttribute('href') || '';
+    const dataGame = card.getAttribute('data-game') || '';
+    let gameName = gameNameFromCard;
+    let gameAuthor = 'Author: Unknown';
+    let gameUrl = dataGame ? `games/${dataGame}` : '';
+
+    if (cardHref) {
+        try {
+            const hrefUrl = new URL(cardHref, window.location.href);
+            const params = hrefUrl.searchParams;
+            const hrefGame = params.get('game');
+            const hrefTitle = params.get('title');
+            const hrefAuthor = params.get('author');
+            if (hrefGame) gameUrl = hrefGame;
+            if (hrefTitle) gameName = hrefTitle;
+            if (hrefAuthor) gameAuthor = hrefAuthor;
+        } catch (_err) {}
+    }
+
+    if (!gameUrl && dataGame) {
+        gameUrl = `games/${dataGame}`;
+    }
+
     if (window.openGameModal) {
-        window.openGameModal(gameUrl, gameName);
-    } else {
-        console.error('openGameModal not available, redirecting');
+        window.openGameModal(gameUrl, gameName, gameAuthor);
+    } else if (gameUrl) {
         window.location.href = gameUrl;
     }
 };
@@ -402,19 +414,20 @@ function initGameModal() {
     gameModal = document.getElementById('gameModal');
     gameModalFrame = document.getElementById('gameModalFrame');
     gameModalTitle = document.getElementById('gameModalTitle');
+    gameModalAuthor = document.getElementById('gameModalAuthor');
     gameCloseBtn = document.getElementById('gameCloseBtn');
     gameFullscreenBtn = document.getElementById('gameFullscreenBtn');
     gameNewTabBtn = document.getElementById('gameNewTabBtn');
 
-    function openGameModal(gameUrl, gameName) {
+    function openGameModal(gameUrl, gameName, gameAuthorText) {
         if (!gameModal) {
-            console.error('Game modal not found, redirecting to:', gameUrl);
             window.location.href = gameUrl;
             return;
         }
-        
-        currentGameUrl = gameUrl;
+
+        currentGameUrl = gameUrl || '';
         if (gameModalTitle) gameModalTitle.textContent = gameName || 'Game';
+        if (gameModalAuthor) gameModalAuthor.textContent = gameAuthorText || 'Author: Unknown';
         if (gameModalFrame) gameModalFrame.src = gameUrl;
         gameModal.style.display = 'flex';
         document.body.style.overflow = 'hidden';
@@ -424,6 +437,7 @@ function initGameModal() {
         if (!gameModal) return;
         gameModal.style.display = 'none';
         if (gameModalFrame) gameModalFrame.src = 'about:blank';
+        if (gameModalAuthor) gameModalAuthor.textContent = 'Author: Unknown';
         document.body.style.overflow = '';
         gameModal.classList.remove('fullscreen');
     }
@@ -478,8 +492,7 @@ function initGameModal() {
 // Game card click handlers - attach directly to each card
 function setupGameCardHandlers() {
     const gameCards = document.querySelectorAll('.game-card[data-game]');
-    console.log('Setting up handlers for', gameCards.length, 'game cards');
-    
+
     gameCards.forEach((card, index) => {
         // Make sure card is visible and clickable
         card.style.cursor = 'pointer';
@@ -492,24 +505,18 @@ function setupGameCardHandlers() {
             window.handleGameCardClick(this);
         }, false);
     });
-    
-    console.log('Game card handlers attached to', gameCards.length, 'cards');
 }
 
 // Initialize on DOM ready
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOMContentLoaded fired');
-    
     // Initialize modal first
     initGameModal();
-    console.log('Modal initialized, openGameModal:', typeof window.openGameModal);
-    
+
     // Setup game card handlers immediately
     setupGameCardHandlers();
-    
+
     // Also try again after a short delay in case cards aren't ready
     setTimeout(() => {
-        console.log('Retrying game card handler setup');
         setupGameCardHandlers();
     }, 500);
 });

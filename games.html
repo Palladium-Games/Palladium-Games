@@ -9,6 +9,113 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script>(function(){if(localStorage.getItem('navStripExpanded')==='true')document.documentElement.classList.add('nav-strip-expanded');})();</script>
+    <style>
+        .game-modal {
+            background:
+                radial-gradient(circle at 20% 10%, rgba(148, 191, 239, 0.2), transparent 38%),
+                radial-gradient(circle at 85% 80%, rgba(14, 165, 233, 0.2), transparent 36%),
+                rgba(6, 9, 15, 0.84);
+            backdrop-filter: blur(12px);
+            padding: clamp(0.6rem, 1.6vw, 1.6rem);
+        }
+
+        .game-modal-content {
+            background: linear-gradient(160deg, #f3f8ff 0%, #deecff 52%, #d8e8ff 100%);
+            border: 1px solid rgba(173, 205, 239, 0.7);
+            border-radius: 18px;
+            width: min(96vw, 1600px);
+            height: min(92vh, 1040px);
+            max-width: 1600px;
+            max-height: 1040px;
+            box-shadow: 0 26px 70px rgba(2, 6, 23, 0.5);
+        }
+
+        .game-modal-header {
+            gap: 1rem;
+            padding: 0.9rem 1.1rem 1rem 1.25rem;
+            border-bottom: 1px solid rgba(173, 205, 239, 0.8);
+            background: linear-gradient(180deg, rgba(227, 240, 255, 0.96) 0%, rgba(213, 230, 250, 0.96) 100%);
+        }
+
+        .game-modal-title-wrap {
+            min-width: 0;
+        }
+
+        .game-modal-kicker {
+            margin: 0 0 0.25rem 0;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: #3b82f6;
+        }
+
+        .game-modal-header h3 {
+            font-size: clamp(1.08rem, 2.2vw, 1.6rem);
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .game-modal-author {
+            margin: 0.3rem 0 0;
+            font-size: 0.86rem;
+            font-weight: 500;
+            color: #334155;
+        }
+
+        .game-modal-controls {
+            flex-wrap: nowrap;
+        }
+
+        .game-modal-btn {
+            width: 38px;
+            height: 38px;
+            border: 1px solid rgba(148, 163, 184, 0.45);
+            background: rgba(255, 255, 255, 0.86);
+            border-radius: 10px;
+            color: #334155;
+        }
+
+        .game-modal-btn:hover {
+            background: #ffffff;
+            color: #111827;
+            border-color: #64748b;
+            transform: translateY(-1px);
+        }
+
+        .game-modal-frame {
+            background: #0f172a;
+        }
+
+        @media (max-width: 900px) {
+            .game-modal-content {
+                width: 100%;
+                height: calc(100vh - 0.6rem);
+                border-radius: 12px;
+            }
+
+            .game-modal-header {
+                padding: 0.7rem 0.75rem 0.8rem 0.9rem;
+            }
+
+            .game-modal-kicker {
+                font-size: 0.66rem;
+            }
+
+            .game-modal-author {
+                font-size: 0.78rem;
+            }
+
+            .game-modal-btn {
+                width: 34px;
+                height: 34px;
+            }
+        }
+    </style>
 </head>
 <body>
     <nav class="nav-strip" id="navStrip" aria-label="Main navigation">
@@ -391,7 +498,11 @@
     <div id="gameModal" class="game-modal" style="display: none;">
         <div class="game-modal-content">
             <div class="game-modal-header">
-                <h3 id="gameModalTitle">Game</h3>
+                <div class="game-modal-title-wrap">
+                    <p class="game-modal-kicker">Now Playing</p>
+                    <h3 id="gameModalTitle">Game</h3>
+                    <p class="game-modal-author" id="gameModalAuthor">Author: Unknown</p>
+                </div>
                 <div class="game-modal-controls">
                     <button class="game-modal-btn" id="gameFullscreenBtn" title="Fullscreen">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -416,6 +527,6 @@
     </div>
     
     <script src="nav-strip.js"></script>
-    <script src="script.js?v=3"></script>
+    <script src="script.js?v=4"></script>
 </body>
 </html>
