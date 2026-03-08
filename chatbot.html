@@ -224,7 +224,10 @@
         html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
             var safeHref = toSafeHref(url);
             if (!safeHref) return escapeHtml(label);
-            return '<a href="' + escapeHtml(safeHref) + '" target="_blank" rel="noopener noreferrer">' + label + '</a>';
+            var isExternal = /^https?:\/\//i.test(safeHref);
+            var linkAttrs = isExternal ? ' target="_blank" rel="noopener noreferrer"' : '';
+            var attrHref = safeHref.replace(/"/g, '&quot;');
+            return '<a href="' + attrHref + '"' + linkAttrs + '>' + escapeHtml(label) + '</a>';
         });
         html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
         html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
@@ -360,6 +363,17 @@
         }
     }
 
+    function normalizeGamePlayerHref(rawHref) {
+        if (!rawHref) return '';
+        try {
+            var url = new URL(rawHref, window.location.origin);
+            if (!/game-player\.html$/i.test(url.pathname)) return '';
+            return '/game-player.html' + (url.search || '');
+        } catch (_err) {
+            return '';
+        }
+    }
+
     function addGamesFromHtml(map, html, sourceTag) {
         if (!html) return;
         var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -371,8 +385,10 @@
             var file = path.split('/').pop();
             var title = '';
             var author = 'Author: Unknown';
+            var playerHref = '';
 
             if (sourceTag === 'games-page') {
+                playerHref = normalizeGamePlayerHref(href);
                 try {
                     var hrefUrl = new URL(href, window.location.href);
                     var qp = new URLSearchParams(hrefUrl.search || '');
@@ -387,11 +403,12 @@
                 title = rawLabel && !/\.html$/i.test(rawLabel) ? rawLabel : slugToTitle(file);
             }
 
-            map.set(path, { path: path, file: file, title: title, author: author });
+            map.set(path, { path: path, file: file, title: title, author: author, playerHref: playerHref });
         });
     }
 
     function gamePlayerHref(game) {
+        if (game && game.playerHref) return game.playerHref;
         var title = (game && game.title) ? game.title : slugToTitle((game && game.file) || '');
         var author = (game && game.author) ? game.author : 'Author: Unknown';
         var path = (game && game.path) ? game.path : '';
@@ -423,10 +440,10 @@
             if (dirMap.size > 0 && pageMap.size > 0) {
                 dirMap.forEach(function(entry, path) {
                     if (!pageMap.has(path)) return;
-                    var pageTitle = (pageMap.get(path).title || '').trim();
-                    if (pageTitle && pageTitle.length <= 40) {
-                        entry.title = pageTitle;
-                    }
+                    var pageEntry = pageMap.get(path);
+                    if ((pageEntry.title || '').trim()) entry.title = pageEntry.title.trim();
+                    if ((pageEntry.author || '').trim()) entry.author = pageEntry.author.trim();
+                    if ((pageEntry.playerHref || '').trim()) entry.playerHref = pageEntry.playerHref.trim();
                 });
             }
 
