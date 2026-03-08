@@ -137,15 +137,17 @@
         '',
         'Website context:',
         '- Main sections: Home (`index.html`), Games (`games.html`), Browse (`browse.html`), AI Chatbot (`chatbot.html`), Music (`music.html`), TV (`tv.html`), Movies (`movies.html`).',
-        '- Browse uses a local proxy service.',
+        '- Browse uses a local proxy service at `http://localhost:1337/proxy` for web browsing.',
+        '- AI internet lookups route through `http://localhost:1337/ai-search`.',
         '- Local game availability is determined by `/games` catalog data provided in context.',
         '',
         'Behavior rules (strict):',
         '1. Do **not** invent facts, games, links, features, or statuses.',
         '2. For game-related answers, only use the provided local `/games` catalog context.',
-        '3. If information is missing or uncertain, say exactly: **"I don\'t know based on the available data."**',
-        '4. If web-search context is provided, use it carefully and call out uncertainty when needed.',
-        '5. Prefer direct, practical answers for users of this website.',
+        '3. Do **not** claim Palladium Proxy is whitelist-only or limited to internal pages unless the user provides new evidence.',
+        '4. If information is missing or uncertain, say exactly: **"I don\'t know based on the available data."**',
+        '5. If web-search context is provided, use it carefully and call out uncertainty when needed.',
+        '6. Prefer direct, practical answers for users of this website.',
         '',
         'Formatting rules:',
         '- Always respond in markdown.',
@@ -555,6 +557,40 @@
         return 'I found multiple close matches in `/games`:\n\n' + gamesCatalogMarkdown(matches, 8);
     }
 
+    function isProxyQuery(text) {
+        if (!text) return false;
+        return /\b(proxy|palladium proxy|browse|browsing|web|internet|external sites?)\b/i.test(text);
+    }
+
+    function findLastProxyContext() {
+        for (var i = history.length - 1; i >= 0; i--) {
+            var entry = history[i];
+            if (!entry || typeof entry.content !== 'string') continue;
+            if (/\b(proxy|palladium proxy|browse|ai-search|localhost:1337)\b/i.test(entry.content)) {
+                return entry.content;
+            }
+        }
+        return '';
+    }
+
+    function answerLocalProxyQuery(text) {
+        if (!text) return '';
+        var normalized = text.trim().toLowerCase();
+        var isFollowup = /^what do you mean\??$/.test(normalized) || /^clarify\??$/.test(normalized);
+        var hasProxyContext = isProxyQuery(text) || !!findLastProxyContext();
+        if (!hasProxyContext || (!isFollowup && !isProxyQuery(text))) return '';
+
+        return [
+            'Yes. **Palladium Proxy** is meant for web browsing through this site.',
+            '',
+            '- Use [Browse](/browse.html) to open external websites through the proxy.',
+            '- The AI internet lookup endpoint also routes via proxy: `http://localhost:1337/ai-search`.',
+            '- If browsing fails, check proxy health at `http://localhost:1337/health`.',
+            '',
+            'Some websites may still block proxy traffic, require a CAPTCHA, or disallow iframe/embed loading.'
+        ].join('\n');
+    }
+
     function shouldUseInternet(text) {
         if (!internetEnabled) return false;
         if (!text) return false;
@@ -683,6 +719,15 @@
                 setMessage(assistantBubble, localGamesReply, true);
                 history.push({ role: 'assistant', content: localGamesReply });
                 setStatus('Local catalog', true);
+                scheduleMemoryClear();
+                return;
+            }
+
+            var localProxyReply = answerLocalProxyQuery(text);
+            if (localProxyReply) {
+                setMessage(assistantBubble, localProxyReply, true);
+                history.push({ role: 'assistant', content: localProxyReply });
+                setStatus('Local proxy help', true);
                 scheduleMemoryClear();
                 return;
             }
