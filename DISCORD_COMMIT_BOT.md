@@ -62,3 +62,33 @@ git config --get discord.webhookUrl
 ```bash
 git config --get github.username
 ```
+
+## Separate Link Webhook
+
+Use a second webhook for first-run link pings (`Palladium Links`) from `apps.js`:
+
+```bash
+git config discord.linksWebhookUrl "https://discord.com/api/webhooks/..."
+```
+
+`discord.webhookUrl` remains the commit webhook used by `scripts/discord-commit-notifier.js`.
+
+## Link Checker Webhook Bot
+
+Use a dedicated webhook for blocker checks (separate from commit posts and first-run links):
+
+```bash
+git config discord.linkCheckerWebhookUrl "https://discord.com/api/webhooks/..."
+```
+
+Run a check and post result to Discord:
+
+```bash
+node scripts/link-check-discord.js "https://example.com"
+```
+
+Or call the backend endpoint directly:
+
+```bash
+curl "http://localhost:1338/link-check-discord?url=https://example.com"
+```
