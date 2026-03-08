@@ -213,6 +213,18 @@
         var value = (raw || '').trim();
         if (!value) return '';
         if (/^https?:\/\//i.test(value)) return value;
+        var routeKey = value.toLowerCase().replace(/^\/+/, '').replace(/\/+$/, '');
+        var routeMap = {
+            'home': '/index.html',
+            'index': '/index.html',
+            'games': '/games.html',
+            'browse': '/browse.html',
+            'chatbot': '/chatbot.html',
+            'music': '/music.html',
+            'tv': '/tv.html',
+            'movies': '/movies.html'
+        };
+        if (routeMap[routeKey]) return routeMap[routeKey];
         if (/^\/?[A-Za-z0-9_\-./]+(\?.*)?$/i.test(value)) {
             return value.charAt(0) === '/' ? value : ('/' + value);
         }
