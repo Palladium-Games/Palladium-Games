@@ -118,7 +118,9 @@ async function main() {
     tryRun("git config --get discord.webhookUrl");
 
   const botToken =
+    process.env.DISCORD_COMMIT_BOT_TOKEN ||
     process.env.DISCORD_BOT_TOKEN ||
+    tryRun("git config --get discord.commitBotToken") ||
     tryRun("git config --get discord.botToken");
 
   const commitChannelId =

@@ -84,8 +84,10 @@ const LINK_CHECK_WEBHOOK_URL =
   tryReadGitConfig("discord.linkCheckerWebhookUrl") ||
   "";
 
-const DISCORD_BOT_TOKEN =
+const LINK_BOT_TOKEN =
+  process.env.DISCORD_LINK_BOT_TOKEN ||
   process.env.DISCORD_BOT_TOKEN ||
+  tryReadGitConfig("discord.linkBotToken") ||
   tryReadGitConfig("discord.botToken") ||
   "";
 
@@ -454,7 +456,7 @@ async function postWebhook(webhookUrl, payload) {
 }
 
 function canUseBotChannel(channelId) {
-  return !!(DISCORD_BOT_TOKEN && channelId);
+  return !!(LINK_BOT_TOKEN && channelId);
 }
 
 async function postBotMessage(channelId, payload) {
@@ -463,7 +465,7 @@ async function postBotMessage(channelId, payload) {
     const response = await fetch(`${DISCORD_API_BASE}/channels/${channelId}/messages`, {
       method: "POST",
       headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
+        Authorization: `Bot ${LINK_BOT_TOKEN}`,
         "content-type": "application/json",
       },
       body: JSON.stringify(payload),
@@ -697,7 +699,7 @@ const server = http.createServer(async (req, res) => {
       service: "palladium-apps",
       linksWebhookConfigured: !!LINKS_WEBHOOK_URL,
       linkCheckerWebhookConfigured: !!LINK_CHECK_WEBHOOK_URL,
-      botTokenConfigured: !!DISCORD_BOT_TOKEN,
+      linkBotTokenConfigured: !!LINK_BOT_TOKEN,
       linksChannelConfigured: !!LINKS_CHANNEL_ID,
       linkCheckerChannelConfigured: !!LINK_CHECK_CHANNEL_ID,
       linkCheckerMode: "direct-only",

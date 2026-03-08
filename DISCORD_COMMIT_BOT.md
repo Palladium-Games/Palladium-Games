@@ -143,3 +143,16 @@ git config discord.commitApplicationId "1480333781066973224"
 git config discord.linkCheckerApplicationId "1480334007118987456"
 git config discord.communityApplicationId "1480333349297066075"
 ```
+
+### Separate bot tokens (recommended)
+
+If each bot is a different Discord application, set dedicated tokens:
+
+```bash
+git config discord.commitBotToken "COMMIT_BOT_TOKEN"
+git config discord.linkBotToken "LINK_BOT_TOKEN"
+git config discord.communityBotToken "COMMUNITY_BOT_TOKEN"
+```
+
+Fallback behavior:
+- If bot-specific token is missing, scripts fall back to `discord.botToken`.

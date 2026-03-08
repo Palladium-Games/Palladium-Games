@@ -29,7 +29,7 @@ if [[ -z "$REPO_ROOT" ]]; then
 fi
 
 WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-$(git config --get discord.webhookUrl || true)}"
-BOT_TOKEN="${DISCORD_BOT_TOKEN:-$(git config --get discord.botToken || true)}"
+BOT_TOKEN="${DISCORD_COMMIT_BOT_TOKEN:-${DISCORD_BOT_TOKEN:-$(git config --get discord.commitBotToken || git config --get discord.botToken || true)}}"
 COMMIT_CHANNEL_ID="${DISCORD_COMMIT_CHANNEL_ID:-$(git config --get discord.commitChannelId || true)}"
 
 if [[ -z "$WEBHOOK_URL" && ( -z "$BOT_TOKEN" || -z "$COMMIT_CHANNEL_ID" ) ]]; then

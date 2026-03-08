@@ -131,15 +131,20 @@ else
   echo "Palladium apps failed to start. Run manually: node apps.js"
 fi
 
-BOT_TOKEN_VALUE="${DISCORD_BOT_TOKEN:-$(read_git_config discord.botToken)}"
+GLOBAL_BOT_TOKEN_VALUE="${DISCORD_BOT_TOKEN:-$(read_git_config discord.botToken)}"
+LINK_BOT_TOKEN_VALUE="${DISCORD_LINK_BOT_TOKEN:-$(read_git_config discord.linkBotToken)}"
+if [[ -z "$LINK_BOT_TOKEN_VALUE" ]]; then
+  LINK_BOT_TOKEN_VALUE="$GLOBAL_BOT_TOKEN_VALUE"
+fi
+
 LINK_CMD_CHANNELS_VALUE="${DISCORD_LINK_COMMAND_CHANNEL_IDS:-$(read_git_config discord.linkCommandChannelIds)}"
 if [[ -z "$LINK_CMD_CHANNELS_VALUE" ]]; then
   LINK_CMD_CHANNELS_VALUE="$(read_git_config discord.linkCheckerChannelId)"
 fi
 
-if [[ -f "$REPO_ROOT/scripts/discord-link-command-bot.js" && -n "$BOT_TOKEN_VALUE" && -n "$LINK_CMD_CHANNELS_VALUE" ]]; then
+if [[ -f "$REPO_ROOT/scripts/discord-link-command-bot.js" && -n "$LINK_BOT_TOKEN_VALUE" && -n "$LINK_CMD_CHANNELS_VALUE" ]]; then
   echo "Starting link command bot ..."
-  DISCORD_BOT_TOKEN="$BOT_TOKEN_VALUE" \
+  DISCORD_BOT_TOKEN="$LINK_BOT_TOKEN_VALUE" \
   DISCORD_LINK_COMMAND_CHANNEL_IDS="$LINK_CMD_CHANNELS_VALUE" \
   node "$REPO_ROOT/scripts/discord-link-command-bot.js" &>/tmp/palladium-link-command-bot.log &
   LINK_COMMAND_BOT_PID=$!
@@ -151,12 +156,12 @@ if [[ -f "$REPO_ROOT/scripts/discord-link-command-bot.js" && -n "$BOT_TOKEN_VALU
     echo "Link command bot failed to start. See /tmp/palladium-link-command-bot.log"
   fi
 else
-  echo "Link command bot not started (set discord.botToken + discord.linkCommandChannelIds)."
+  echo "Link command bot not started (set discord.linkBotToken + discord.linkCommandChannelIds)."
 fi
 
 COMMUNITY_BOT_TOKEN_VALUE="${DISCORD_COMMUNITY_BOT_TOKEN:-$(read_git_config discord.communityBotToken)}"
 if [[ -z "$COMMUNITY_BOT_TOKEN_VALUE" ]]; then
-  COMMUNITY_BOT_TOKEN_VALUE="$BOT_TOKEN_VALUE"
+  COMMUNITY_BOT_TOKEN_VALUE="$GLOBAL_BOT_TOKEN_VALUE"
 fi
 WELCOME_CHANNEL_VALUE="${DISCORD_WELCOME_CHANNEL_ID:-$(read_git_config discord.welcomeChannelId)}"
 RULES_CHANNEL_VALUE="${DISCORD_RULES_CHANNEL_ID:-$(read_git_config discord.rulesChannelId)}"
