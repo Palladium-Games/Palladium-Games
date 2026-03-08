@@ -51,10 +51,10 @@
         .palladium-ai-msg.assistant { background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); }
         .palladium-ai-msg.error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
         .palladium-ai-form { flex-shrink: 0; padding: 16px; border-top: 1px solid var(--border-color); background: rgba(0,0,0,0.02); }
-        .palladium-ai-form form { display: flex; gap: 10px; align-items: flex-end; }
-        .palladium-ai-form input { flex: 1; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 1rem; font-family: inherit; }
+        .palladium-ai-form form { display: flex; gap: 10px; align-items: stretch; }
+        .palladium-ai-form input { flex: 1; height: 50px; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: 10px; font-size: 1rem; font-family: inherit; }
         .palladium-ai-form input:focus { outline: none; border-color: var(--text-primary); }
-        .palladium-ai-form button { padding: 12px 20px; background: #0e1520; color: #e2e8f0; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: inherit; }
+        .palladium-ai-form button { height: 50px; min-width: 50px; padding: 0 20px; background: #0e1520; color: #e2e8f0; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
         .palladium-ai-form button:hover { background: #1e293b; }
         .palladium-ai-form button:disabled { opacity: 0.6; cursor: not-allowed; }
     </style>
@@ -111,8 +111,11 @@
     var input = document.getElementById('palladiumAiInput');
     var sendBtn = document.getElementById('palladiumAiSend');
 
-    var SYSTEM_PROMPT = 'You are PalladiumAI, a helpful AI assistant for Palladium Games. Be concise and friendly.';
+    var SYSTEM_PROMPT = 'You are PalladiumAI for the Palladium Games site. Be helpful, accurate, and concise.';
     var history = [];
+    var MAX_HISTORY_MESSAGES = 12;
+    var RESPONSE_TIMEOUT_MS = 90000;
+    var OLLAMA_KEEP_ALIVE = '30m';
 
     function setStatus(text, ok) {
         var el = document.getElementById('palladiumAiStatus');
@@ -143,32 +146,115 @@
         div.textContent = content;
         messagesEl.appendChild(div);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        return div;
+    }
+
+    function setMessage(div, content) {
+        if (!div) return;
+        div.textContent = content;
+        messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function buildMessages() {
+        var recent = history.slice(-MAX_HISTORY_MESSAGES);
+        return [{ role: 'system', content: SYSTEM_PROMPT }].concat(
+            recent.map(function(m) {
+                return { role: m.role, content: m.content };
+            })
+        );
+    }
+
+    function parseOllamaLine(line, currentText) {
+        var text = currentText || '';
+        if (!line) return text;
+        try {
+            var data = JSON.parse(line);
+            if (data && data.message && typeof data.message.content === 'string') {
+                return text + data.message.content;
+            }
+            if (data && typeof data.response === 'string') {
+                return text + data.response;
+            }
+        } catch (_err) {}
+        return text;
+    }
+
+    async function readOllamaReply(response, assistantBubble) {
+        if (!response.body || !response.body.getReader) {
+            var fallbackData = await response.json();
+            var fallbackReply = (fallbackData.message && fallbackData.message.content)
+                ? fallbackData.message.content
+                : (fallbackData.response || 'No reply.');
+            setMessage(assistantBubble, fallbackReply);
+            return fallbackReply;
+        }
+
+        var reader = response.body.getReader();
+        var decoder = new TextDecoder();
+        var buffered = '';
+        var reply = '';
+
+        while (true) {
+            var read = await reader.read();
+            if (read.done) break;
+            buffered += decoder.decode(read.value, { stream: true });
+            var lines = buffered.split('\n');
+            buffered = lines.pop() || '';
+            for (var i = 0; i < lines.length; i++) {
+                reply = parseOllamaLine(lines[i].trim(), reply);
+                if (reply) setMessage(assistantBubble, reply);
+            }
+        }
+
+        if (buffered.trim()) {
+            reply = parseOllamaLine(buffered.trim(), reply);
+        }
+
+        if (!reply) reply = 'No reply.';
+        setMessage(assistantBubble, reply);
+        return reply;
     }
 
     form.addEventListener('submit', function(e) {
         e.preventDefault();
         var text = (input.value || '').trim();
         if (!text || sendBtn.disabled) return;
+
         input.value = '';
-        history.push({ role: 'user', content: text });
         addMessage('user', text);
         sendBtn.disabled = true;
-        var messages = [{ role: 'system', content: SYSTEM_PROMPT }].concat(history.map(function(m) { return { role: m.role, content: m.content }; }));
+        history.push({ role: 'user', content: text });
+        setStatus('Thinking…', true);
+
+        var assistantBubble = addMessage('assistant', '...');
+        var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timeout = controller ? setTimeout(function() { controller.abort(); }, RESPONSE_TIMEOUT_MS) : null;
+        var messages = buildMessages();
+
         fetch(apiBase + '/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ model: model, messages: messages, stream: false })
+            signal: controller ? controller.signal : undefined,
+            body: JSON.stringify({
+                model: model,
+                messages: messages,
+                stream: true,
+                keep_alive: OLLAMA_KEEP_ALIVE
+            })
         }).then(function(res) {
             if (!res.ok) throw new Error('API ' + res.status);
-            return res.json();
-        }).then(function(data) {
-            var reply = (data.message && data.message.content) ? data.message.content : (data.response || 'No reply.');
+            return readOllamaReply(res, assistantBubble);
+        }).then(function(reply) {
             history.push({ role: 'assistant', content: reply });
-            addMessage('assistant', reply);
-        }).catch(function(err) {
-            addMessage('assistant', 'Could not reach PalladiumAI. Is Ollama running at ' + apiBase + '?', true);
+            setStatus('Ollama · ' + model, true);
+        }).catch(function() {
+            assistantBubble.className = 'palladium-ai-msg error';
+            setMessage(assistantBubble, 'Could not reach PalladiumAI. Is Ollama running at ' + apiBase + '?');
+            setStatus('Ollama offline — start Ollama', false);
         }).finally(function() {
+            if (timeout) clearTimeout(timeout);
             sendBtn.disabled = false;
+            input.focus();
         });
     });
 
