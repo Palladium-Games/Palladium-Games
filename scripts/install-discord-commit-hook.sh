@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
+
+WEBHOOK_URL="${1:-}"
+
+if [[ -n "$WEBHOOK_URL" ]]; then
+  git config discord.webhookUrl "$WEBHOOK_URL"
+  echo "Saved webhook URL to local git config: discord.webhookUrl"
+fi
+
+HOOK_FILE="$REPO_ROOT/.git/hooks/post-commit"
+cat >"$HOOK_FILE" <<'HOOK'
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [[ -z "$REPO_ROOT" ]]; then
+  exit 0
+fi
+
+WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-$(git config --get discord.webhookUrl || true)}"
+if [[ -z "$WEBHOOK_URL" ]]; then
+  exit 0
+fi
+
+node "$REPO_ROOT/scripts/discord-commit-notifier.js" "$WEBHOOK_URL" >/tmp/palladium-discord-hook.log 2>&1 || true
+HOOK
+
+chmod +x "$HOOK_FILE"
+
+echo "Installed .git/hooks/post-commit"
+echo "Usage:"
+echo "  1) Set webhook once:"
+echo "     git config discord.webhookUrl \"https://discord.com/api/webhooks/...\""
+echo "  2) Commit as usual; notifications post automatically."
