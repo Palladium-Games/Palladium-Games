@@ -6,10 +6,16 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
 WEBHOOK_URL="${1:-}"
+GITHUB_USERNAME_VALUE="${2:-}"
 
 if [[ -n "$WEBHOOK_URL" ]]; then
   git config discord.webhookUrl "$WEBHOOK_URL"
   echo "Saved webhook URL to local git config: discord.webhookUrl"
+fi
+
+if [[ -n "$GITHUB_USERNAME_VALUE" ]]; then
+  git config github.username "$GITHUB_USERNAME_VALUE"
+  echo "Saved GitHub username to local git config: github.username"
 fi
 
 HOOK_FILE="$REPO_ROOT/.git/hooks/post-commit"
@@ -36,4 +42,6 @@ echo "Installed .git/hooks/post-commit"
 echo "Usage:"
 echo "  1) Set webhook once:"
 echo "     git config discord.webhookUrl \"https://discord.com/api/webhooks/...\""
-echo "  2) Commit as usual; notifications post automatically."
+echo "  2) Optional: set GitHub username override:"
+echo "     git config github.username \"your-github-username\""
+echo "  3) Commit as usual; notifications post automatically."

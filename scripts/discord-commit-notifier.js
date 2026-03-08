@@ -41,6 +41,19 @@ function buildCommitUrl(remote, fullHash) {
   return "";
 }
 
+function githubUsernameFromRemote(remote) {
+  const base = remoteToHttps(remote);
+  if (!base) return "";
+  try {
+    const parsed = new URL(base);
+    if (!/github\.com$/i.test(parsed.hostname)) return "";
+    const parts = parsed.pathname.replace(/^\/+/, "").split("/");
+    return parts[0] || "";
+  } catch {
+    return "";
+  }
+}
+
 function postJson(targetUrl, payload) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
@@ -77,7 +90,42 @@ function postJson(targetUrl, payload) {
   });
 }
 
+function getJson(targetUrl) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(targetUrl);
+    const transport = url.protocol === "https:" ? https : http;
+    const req = transport.request(
+      {
+        method: "GET",
+        hostname: url.hostname,
+        port: url.port || (url.protocol === "https:" ? 443 : 80),
+        path: `${url.pathname}${url.search}`,
+      },
+      (res) => {
+        let responseBody = "";
+        res.on("data", (chunk) => {
+          responseBody += chunk.toString("utf8");
+        });
+        res.on("end", () => {
+          if (!(res.statusCode >= 200 && res.statusCode < 300)) {
+            reject(new Error(`GET failed (${res.statusCode})`));
+            return;
+          }
+          try {
+            resolve(JSON.parse(responseBody || "{}"));
+          } catch (error) {
+            reject(error);
+          }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
 async function main() {
+  const BOT_NAME = "Palladium Commits";
   const webhookUrl =
     process.argv[2] ||
     process.env.DISCORD_WEBHOOK_URL ||
@@ -88,14 +136,16 @@ async function main() {
   }
 
   const repoRoot = tryRun("git rev-parse --show-toplevel");
-  const repoName = repoRoot ? path.basename(repoRoot) : "Repository";
+  const detectedRepoName = repoRoot ? path.basename(repoRoot) : "Repository";
+  const projectName =
+    process.env.DISCORD_PROJECT_NAME ||
+    tryRun("git config --get discord.projectName") ||
+    (detectedRepoName.toUpperCase() === "TITANIUM" ? "PALLADIUM" : detectedRepoName);
   const branch = tryRun("git rev-parse --abbrev-ref HEAD", "unknown");
   const hash = tryRun("git rev-parse HEAD", "");
   const shortHash = tryRun("git rev-parse --short HEAD", "");
   const subject = tryRun("git log -1 --pretty=%s", "Commit");
   const body = tryRun("git log -1 --pretty=%b", "");
-  const authorName = tryRun("git log -1 --pretty=%an", "unknown");
-  const authorEmail = tryRun("git log -1 --pretty=%ae", "");
   const authoredAt = tryRun("git log -1 --date=iso-strict --pretty=%cI", new Date().toISOString());
   const changedFiles = tryRun("git show --name-only --pretty= --diff-filter=ACDMRT HEAD", "")
     .split("\n")
@@ -115,14 +165,23 @@ async function main() {
     ? `[\`${shortHash}\`](${commitUrl}) ${subject}`
     : `\`${shortHash}\` ${subject}`;
 
+  let githubUsername =
+    process.argv[3] ||
+    process.env.GITHUB_USERNAME ||
+    tryRun("git config --get github.username");
+  if (!githubUsername) {
+    githubUsername = githubUsernameFromRemote(remote);
+  }
+  if (!githubUsername) githubUsername = "PALLADIUM";
+
   const embed = {
-    title: `New Commit in ${repoName}`,
+    title: `New Commit in ${projectName}`,
     description: clamp(description, 300),
     url: commitUrl || undefined,
     color: 0x3b82f6,
     fields: [
       { name: "Branch", value: `\`${branch}\``, inline: true },
-      { name: "Author", value: clamp(`${authorName} <${authorEmail}>`, 200), inline: true },
+      { name: "Posted By", value: clamp(githubUsername, 200), inline: true },
       { name: "Files Changed", value: `${changedFiles.length}`, inline: true },
       { name: "Commit Message", value: clamp(body || subject, 1000), inline: false },
       { name: "File List", value: filesFieldValue, inline: false },
@@ -132,7 +191,7 @@ async function main() {
   };
 
   await postJson(webhookUrl, {
-    username: "Palladium Commit Bot",
+    username: BOT_NAME,
     embeds: [embed],
   });
 

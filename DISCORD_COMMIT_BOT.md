@@ -23,6 +23,12 @@ You can also set the webhook later:
 git config discord.webhookUrl "https://discord.com/api/webhooks/..."
 ```
 
+Optional: force a specific GitHub username for posts:
+
+```bash
+git config github.username "your-github-username"
+```
+
 ## 3) Commit normally
 
 Every `git commit` triggers `.git/hooks/post-commit`, which runs:
@@ -34,7 +40,7 @@ node scripts/discord-commit-notifier.js
 The bot posts:
 - repository + branch
 - commit hash + message
-- author
+- GitHub username (not Git real name/email)
 - changed files
 
 ## Override options
@@ -49,4 +55,10 @@ DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/..." git commit -m "..."
 
 ```bash
 git config --get discord.webhookUrl
+```
+
+- Optional GitHub username config:
+
+```bash
+git config --get github.username
 ```
