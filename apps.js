@@ -16,11 +16,6 @@ const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/ap
 
 const FILTER_PROVIDERS = [
   {
-    id: "goguardian",
-    name: "GoGuardian",
-    patterns: [/goguardian/i, /blocked by goguardian/i, /firewall\.goguardian\.com/i],
-  },
-  {
     id: "securly",
     name: "Securly",
     patterns: [/securly/i, /blocked by securly/i, /securly\.com\/blocked/i, /securly filter/i],
@@ -31,19 +26,14 @@ const FILTER_PROVIDERS = [
     patterns: [/lightspeed systems/i, /lightspeedsystems\.com/i, /relay\.lightspeedsystems\.com/i, /lightspeed filter/i],
   },
   {
-    id: "iboss",
-    name: "iboss",
-    patterns: [/iboss/i, /ibosscloud/i, /iboss filter/i],
+    id: "goguardian",
+    name: "GoGuardian",
+    patterns: [/goguardian/i, /blocked by goguardian/i, /firewall\.goguardian\.com/i],
   },
   {
-    id: "umbrella",
-    name: "Cisco Umbrella",
-    patterns: [/cisco umbrella/i, /blocked by umbrella/i, /opendns/i, /policy\.umbrella\.com/i],
-  },
-  {
-    id: "fortiguard",
-    name: "FortiGuard",
-    patterns: [/fortiguard/i, /fortinet/i, /web filter notification/i],
+    id: "palo_alto",
+    name: "Palo Alto",
+    patterns: [/palo alto/i, /paloaltonetworks/i, /url filtering/i, /pan-db/i],
   },
   {
     id: "contentkeeper",
@@ -51,9 +41,39 @@ const FILTER_PROVIDERS = [
     patterns: [/contentkeeper/i, /ckauth/i, /ck\/blocked/i],
   },
   {
+    id: "fortiguard",
+    name: "FortiGuard",
+    patterns: [/fortiguard/i, /fortinet/i, /web filter notification/i],
+  },
+  {
+    id: "blocksi",
+    name: "Blocksi",
+    patterns: [/blocksi/i, /blocked by blocksi/i],
+  },
+  {
     id: "linewize",
     name: "Linewize",
     patterns: [/linewize/i, /qoria/i, /family zone/i],
+  },
+  {
+    id: "cisco_talos",
+    name: "Cisco Talos",
+    patterns: [/cisco talos/i, /talos intelligence/i, /talos\.cisco\.com/i],
+  },
+  {
+    id: "aristotle",
+    name: "Aristotle",
+    patterns: [/aristotle/i, /aristotlek12/i, /aristotle filter/i],
+  },
+  {
+    id: "lanschool",
+    name: "LanSchool",
+    patterns: [/lanschool/i, /lenovosoftware\/lanschool/i],
+  },
+  {
+    id: "deledao",
+    name: "Deledao",
+    patterns: [/deledao/i, /deledao education/i],
   },
 ];
 
