@@ -3,6 +3,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
 const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://localhost:1338").replace(/\/$/, "");
@@ -34,6 +35,17 @@ if (!CHANNEL_IDS.length) {
 const state = loadState();
 if (!state.lastMessageIds || typeof state.lastMessageIds !== "object") state.lastMessageIds = {};
 if (!state.bootstrapped || typeof state.bootstrapped !== "object") state.bootstrapped = {};
+
+const presence = startDiscordPresence({
+  token: BOT_TOKEN,
+  intents: 0,
+  status: "online",
+  logPrefix: "Palladium Links",
+  activity: {
+    name: "/link requests",
+    type: 3,
+  },
+});
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -281,7 +293,19 @@ async function mainLoop() {
   }
 }
 
+function shutdown(code) {
+  try {
+    presence.stop();
+  } catch {
+    // Ignore shutdown errors.
+  }
+  process.exit(code);
+}
+
+process.on("SIGINT", () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
+
 mainLoop().catch((error) => {
   console.error(error && error.message ? error.message : String(error));
-  process.exit(1);
+  shutdown(1);
 });

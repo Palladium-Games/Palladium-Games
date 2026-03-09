@@ -24,7 +24,7 @@ model_exists() {
 
 read_git_config() {
   local key="$1"
-  git config --get "$key" 2>/dev/null || true
+  git config --get "$key" 2>/dev/null | tr -d "\r" || true
 }
 
 cleanup() {

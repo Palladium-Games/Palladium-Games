@@ -3,12 +3,15 @@
 const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
+const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
-const POLL_MS = Number(process.env.DISCORD_COMMUNITY_POLL_MS || 20000);
+const POLL_MS = Number(process.env.DISCORD_COMMUNITY_POLL_MS || 5000);
 const RULES_CHECK_MS = Number(process.env.DISCORD_RULES_CHECK_MS || 5 * 60 * 1000);
+const ROLE_CACHE_MS = Number(process.env.DISCORD_ROLE_CACHE_MS || 10 * 60 * 1000);
 const STATE_PATH = process.env.DISCORD_COMMUNITY_STATE_PATH || path.join(__dirname, "..", ".discord-community-bot-state.json");
-const RULES_MARKER = "[PALLADIUM_RULES_V1]";
+const RULES_EMBED_TITLE = "Palladium Rules";
+const RULES_SIGNATURE = "palladium-rules-v1";
 
 const BOT_TOKEN =
   process.env.DISCORD_COMMUNITY_BOT_TOKEN ||
@@ -26,6 +29,16 @@ const RULES_CHANNEL_ID =
   process.env.DISCORD_RULES_CHANNEL_ID ||
   tryReadGitConfig("discord.rulesChannelId") ||
   "";
+
+const CONFIGURED_COMMAND_CHANNEL_IDS = unique(
+  parseChannelIds(
+    process.env.DISCORD_COMMUNITY_COMMAND_CHANNEL_IDS ||
+      tryReadGitConfig("discord.communityCommandChannelIds") ||
+      ""
+  )
+);
+
+let COMMAND_CHANNEL_IDS = [...CONFIGURED_COMMAND_CHANNEL_IDS];
 
 let GUILD_ID =
   process.env.DISCORD_GUILD_ID ||
@@ -59,9 +72,26 @@ const state = loadState();
 if (!Array.isArray(state.knownMemberIds)) state.knownMemberIds = [];
 if (typeof state.bootstrapped !== "boolean") state.bootstrapped = false;
 if (typeof state.lastRulesCheck !== "number") state.lastRulesCheck = 0;
+if (typeof state.rulesMessageId !== "string") state.rulesMessageId = "";
+if (!state.commandLastMessageIds || typeof state.commandLastMessageIds !== "object") state.commandLastMessageIds = {};
+if (!state.commandBootstrapped || typeof state.commandBootstrapped !== "object") state.commandBootstrapped = {};
 
 let botUser = null;
 let memberPollingEnabled = true;
+let guildRolesById = new Map();
+let guildRolesFetchedAt = 0;
+let guildInfo = null;
+
+const presence = startDiscordPresence({
+  token: BOT_TOKEN,
+  intents: 0,
+  status: "online",
+  logPrefix: "Palladium Community",
+  activity: {
+    name: "server rules",
+    type: 3,
+  },
+});
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -74,6 +104,17 @@ function tryReadGitConfig(key) {
   } catch {
     return "";
   }
+}
+
+function parseChannelIds(raw) {
+  return String(raw || "")
+    .split(/[\s,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function unique(items) {
+  return Array.from(new Set(items.map((v) => String(v).trim()).filter(Boolean)));
 }
 
 function loadState() {
@@ -113,10 +154,39 @@ function sortSnowflakeAsc(values) {
   });
 }
 
+function sortMessagesAsc(messages) {
+  return [...messages].sort((a, b) => {
+    try {
+      const aid = BigInt(String((a && a.id) || "0"));
+      const bid = BigInt(String((b && b.id) || "0"));
+      if (aid < bid) return -1;
+      if (aid > bid) return 1;
+      return 0;
+    } catch {
+      const aid = String((a && a.id) || "");
+      const bid = String((b && b.id) || "");
+      return aid.localeCompare(bid);
+    }
+  });
+}
+
 function limitKnownMembers(ids, max = 15000) {
   if (ids.length <= max) return ids;
   const sorted = sortSnowflakeAsc(ids);
   return sorted.slice(sorted.length - max);
+}
+
+function parsePermissionBits(raw) {
+  try {
+    return BigInt(String(raw || "0"));
+  } catch {
+    return 0n;
+  }
+}
+
+function hasPermission(permissionBits, mask) {
+  const bits = parsePermissionBits(permissionBits);
+  return (bits & mask) === mask;
 }
 
 async function discordRequest(method, route, body) {
@@ -190,6 +260,59 @@ async function fetchAllMembers(guildId) {
   return members;
 }
 
+async function fetchGuildInfo() {
+  if (guildInfo && guildInfo.id) return guildInfo;
+  guildInfo = await discordRequest("GET", `/guilds/${GUILD_ID}`);
+  return guildInfo;
+}
+
+async function fetchGuildRoles() {
+  const now = Date.now();
+  if (guildRolesById.size > 0 && now - guildRolesFetchedAt < ROLE_CACHE_MS) {
+    return guildRolesById;
+  }
+
+  const roles = await discordRequest("GET", `/guilds/${GUILD_ID}/roles`);
+  const map = new Map();
+  const list = Array.isArray(roles) ? roles : [];
+  for (const role of list) {
+    if (!role || !role.id) continue;
+    map.set(String(role.id), role);
+  }
+
+  guildRolesById = map;
+  guildRolesFetchedAt = now;
+  return guildRolesById;
+}
+
+async function fetchGuildMember(userId) {
+  if (!userId) return null;
+  try {
+    return await discordRequest("GET", `/guilds/${GUILD_ID}/members/${userId}`);
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    if (message.includes("failed (404)") || isAccessDeniedError(error)) return null;
+    throw error;
+  }
+}
+
+async function resolveCommandChannels() {
+  if (COMMAND_CHANNEL_IDS.length) return COMMAND_CHANNEL_IDS;
+
+  const defaults = [RULES_CHANNEL_ID, WELCOME_CHANNEL_ID];
+  try {
+    const channels = await discordRequest("GET", `/guilds/${GUILD_ID}/channels`);
+    const textChannels = (Array.isArray(channels) ? channels : [])
+      .filter((channel) => channel && (channel.type === 0 || channel.type === 5) && channel.id)
+      .map((channel) => String(channel.id));
+    COMMAND_CHANNEL_IDS = unique([...defaults, ...textChannels]).slice(0, 30);
+    return COMMAND_CHANNEL_IDS;
+  } catch {
+    COMMAND_CHANNEL_IDS = unique(defaults);
+    return COMMAND_CHANNEL_IDS;
+  }
+}
+
 function isAccessDeniedError(error) {
   const message = String(error && error.message ? error.message : error);
   return (
@@ -203,6 +326,78 @@ function extractMemberId(member) {
   return String(member.user.id);
 }
 
+function normalizeRules() {
+  const lines = String(RULES_TEXT || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (!lines.length) {
+    return ["Be respectful to everyone.", "Follow Discord Terms of Service."];
+  }
+
+  return lines.map((line) => line.replace(/^[-*\d.)\s]+/, "").trim()).filter(Boolean);
+}
+
+function buildRulesEmbed() {
+  const normalizedRules = normalizeRules().slice(0, 20);
+  const fields = normalizedRules.map((rule, index) => ({
+    name: `Rule ${index + 1}`,
+    value: `- ${rule}`,
+    inline: false,
+  }));
+
+  return {
+    title: RULES_EMBED_TITLE,
+    description: "Please read and follow these rules to keep Palladium fun, safe, and organized for everyone.",
+    color: 0x60a5fa,
+    fields,
+    footer: {
+      text: `Palladium Community • ${RULES_SIGNATURE}`,
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+function isRulesMessage(message) {
+  if (!message || typeof message !== "object") return false;
+
+  const content = String(message.content || "");
+  if (content.includes("[PALLADIUM_RULES_V1]")) return true;
+
+  const embeds = Array.isArray(message.embeds) ? message.embeds : [];
+  for (const embed of embeds) {
+    const title = String((embed && embed.title) || "");
+    const footerText = String((embed && embed.footer && embed.footer.text) || "").toLowerCase();
+    if (title === RULES_EMBED_TITLE) return true;
+    if (footerText.includes(RULES_SIGNATURE)) return true;
+  }
+
+  return false;
+}
+
+async function getMessageById(channelId, messageId) {
+  if (!channelId || !messageId) return null;
+  try {
+    return await discordRequest("GET", `/channels/${channelId}/messages/${messageId}`);
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    if (message.includes("failed (404)")) return null;
+    throw error;
+  }
+}
+
+async function deleteMessage(channelId, messageId) {
+  if (!channelId || !messageId) return;
+  try {
+    await discordRequest("DELETE", `/channels/${channelId}/messages/${messageId}`);
+  } catch (error) {
+    const msg = String(error && error.message ? error.message : error);
+    if (msg.includes("failed (404)")) return;
+    console.warn(`Unable to delete message ${messageId}: ${msg}`);
+  }
+}
+
 async function postWelcome(memberId) {
   if (!memberId) return;
   await discordRequest("POST", `/channels/${WELCOME_CHANNEL_ID}/messages`, {
@@ -210,24 +405,180 @@ async function postWelcome(memberId) {
   });
 }
 
-async function ensureRulesMessage() {
-  const now = Date.now();
-  if (now - state.lastRulesCheck < RULES_CHECK_MS) return;
+async function postRulesMessage(requestedById) {
+  const content = requestedById
+    ? `Rules refreshed by <@${requestedById}>.`
+    : "Please read these rules before participating in the server.";
 
-  const messages = await discordRequest("GET", `/channels/${RULES_CHANNEL_ID}/messages?limit=50`);
-  const list = Array.isArray(messages) ? messages : [];
-  const markerPresent = list.some((message) => {
-    const content = String(message && message.content ? message.content : "");
-    return content.includes(RULES_MARKER);
+  return await discordRequest("POST", `/channels/${RULES_CHANNEL_ID}/messages`, {
+    content,
+    embeds: [buildRulesEmbed()],
   });
+}
 
-  if (!markerPresent) {
-    await discordRequest("POST", `/channels/${RULES_CHANNEL_ID}/messages`, {
-      content: `${RULES_MARKER}\n**Palladium Rules**\n${RULES_TEXT}`,
-    });
+async function ensureRulesMessage(options = {}) {
+  const forceRepost = !!options.forceRepost;
+  const requestedById = options.requestedById ? String(options.requestedById) : "";
+  const now = Date.now();
+
+  if (!forceRepost && now - state.lastRulesCheck < RULES_CHECK_MS) {
+    return { posted: false, messageId: state.rulesMessageId || "" };
+  }
+
+  let existing = null;
+  if (state.rulesMessageId) {
+    existing = await getMessageById(RULES_CHANNEL_ID, state.rulesMessageId);
+    if (existing && !isRulesMessage(existing)) {
+      existing = null;
+      state.rulesMessageId = "";
+      saveState();
+    }
+  }
+
+  const recentMessages = await discordRequest("GET", `/channels/${RULES_CHANNEL_ID}/messages?limit=100`);
+  const list = Array.isArray(recentMessages) ? recentMessages : [];
+
+  const rulesMessages = sortMessagesAsc(
+    list.filter((message) => {
+      if (!isRulesMessage(message)) return false;
+      if (!message || !message.id) return false;
+      return true;
+    })
+  );
+
+  if (!existing && rulesMessages.length) {
+    existing = rulesMessages[rulesMessages.length - 1];
+    state.rulesMessageId = String(existing.id);
+    saveState();
+  }
+
+  if (!forceRepost && existing) {
+    state.lastRulesCheck = now;
+    saveState();
+    return { posted: false, messageId: String(existing.id) };
+  }
+
+  for (const message of rulesMessages) {
+    if (!message || !message.id) continue;
+    await deleteMessage(RULES_CHANNEL_ID, String(message.id));
+  }
+
+  const posted = await postRulesMessage(requestedById);
+  if (posted && posted.id) {
+    state.rulesMessageId = String(posted.id);
   }
 
   state.lastRulesCheck = now;
+  saveState();
+
+  return { posted: true, messageId: state.rulesMessageId || "" };
+}
+
+function isRulesCommand(content) {
+  const text = String(content || "").trim();
+  if (!text) return false;
+  return /^\/(rules)\b/i.test(text) || /^!(rules)\b/i.test(text);
+}
+
+async function isAdminMessage(message) {
+  if (!message || !message.author || !message.author.id) return false;
+
+  const ADMINISTRATOR = 0x00000008n;
+  const MANAGE_GUILD = 0x00000020n;
+  const MANAGE_MESSAGES = 0x00002000n;
+
+  const hasModerationBits = (bits) =>
+    hasPermission(bits, ADMINISTRATOR) ||
+    hasPermission(bits, MANAGE_GUILD) ||
+    hasPermission(bits, MANAGE_MESSAGES);
+
+  if (message.member && typeof message.member.permissions !== "undefined") {
+    if (hasModerationBits(message.member.permissions)) return true;
+  }
+
+  let memberRoles = message && message.member && Array.isArray(message.member.roles)
+    ? message.member.roles.map((id) => String(id))
+    : [];
+
+  if (!memberRoles.length) {
+    const freshMember = await fetchGuildMember(message.author.id);
+    if (freshMember && Array.isArray(freshMember.roles)) {
+      memberRoles = freshMember.roles.map((id) => String(id));
+      if (typeof freshMember.permissions !== "undefined" && hasModerationBits(freshMember.permissions)) {
+        return true;
+      }
+    }
+  }
+
+  if (memberRoles.length) {
+    try {
+      const rolesById = await fetchGuildRoles();
+      for (const roleId of memberRoles) {
+        const role = rolesById.get(roleId);
+        if (!role) continue;
+        if (hasModerationBits(role.permissions)) return true;
+      }
+    } catch {
+      // Keep going to owner fallback.
+    }
+  }
+
+  try {
+    const guild = await fetchGuildInfo();
+    if (guild && guild.owner_id && String(guild.owner_id) === String(message.author.id)) return true;
+  } catch {
+    // Ignore owner lookup failure.
+  }
+
+  return false;
+}
+
+async function pollCommandChannel(channelId) {
+  const lastMessageId = state.commandLastMessageIds[channelId] || "";
+  const route = `/channels/${channelId}/messages?limit=50${lastMessageId ? `&after=${lastMessageId}` : ""}`;
+  const messages = await discordRequest("GET", route);
+  const list = Array.isArray(messages) ? messages : [];
+
+  if (!state.commandBootstrapped[channelId]) {
+    if (list.length) {
+      const newest = sortMessagesAsc(list).at(-1);
+      if (newest && newest.id) state.commandLastMessageIds[channelId] = String(newest.id);
+    }
+    state.commandBootstrapped[channelId] = true;
+    saveState();
+    return;
+  }
+
+  if (!list.length) return;
+
+  const ordered = sortMessagesAsc(list);
+  for (const message of ordered) {
+    if (!message || !message.id) continue;
+
+    state.commandLastMessageIds[channelId] = String(message.id);
+
+    const isBotAuthor = !!(message.author && message.author.bot);
+    if (isBotAuthor) continue;
+
+    if (!isRulesCommand(message.content || "")) continue;
+
+    const isAdmin = await isAdminMessage(message);
+    if (!isAdmin) {
+      await discordRequest("POST", `/channels/${channelId}/messages`, {
+        content: `<@${message.author.id}> only admins can run /rules.`,
+      });
+      continue;
+    }
+
+    await ensureRulesMessage({ forceRepost: true, requestedById: message.author.id });
+
+    if (String(channelId) !== String(RULES_CHANNEL_ID)) {
+      await discordRequest("POST", `/channels/${channelId}/messages`, {
+        content: `Rules were reposted in <#${RULES_CHANNEL_ID}>.`,
+      });
+    }
+  }
+
   saveState();
 }
 
@@ -258,11 +609,13 @@ async function initialize() {
   }
 
   await ensureRulesMessage();
+  await resolveCommandChannels();
 
   console.log(
     `Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}` +
     (memberPollingEnabled ? "" : " (rules-only mode)")
   );
+  console.log(`Community /rules command channels: ${COMMAND_CHANNEL_IDS.join(", ")}`);
 }
 
 async function pollLoop() {
@@ -283,6 +636,16 @@ async function pollLoop() {
       }
 
       await ensureRulesMessage();
+
+      const commandChannels = await resolveCommandChannels();
+      for (const channelId of commandChannels) {
+        try {
+          await pollCommandChannel(channelId);
+        } catch (error) {
+          const msg = error && error.message ? error.message : String(error);
+          console.error(`Community command poll error in ${channelId}: ${msg}`);
+        }
+      }
     } catch (error) {
       const msg = error && error.message ? error.message : String(error);
       if (memberPollingEnabled && isAccessDeniedError(error)) {
@@ -300,9 +663,21 @@ async function pollLoop() {
   }
 }
 
+function shutdown(code) {
+  try {
+    presence.stop();
+  } catch {
+    // Ignore shutdown errors.
+  }
+  process.exit(code);
+}
+
+process.on("SIGINT", () => shutdown(0));
+process.on("SIGTERM", () => shutdown(0));
+
 initialize()
   .then(pollLoop)
   .catch((error) => {
     console.error(error && error.message ? error.message : String(error));
-    process.exit(1);
+    shutdown(1);
   });
