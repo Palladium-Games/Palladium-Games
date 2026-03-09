@@ -14,6 +14,7 @@ FALLBACK_MODEL="${FALLBACK_MODEL:-qwen3.5:0.8b}"
 OLLAMA_PID=""
 PROXY_PID=""
 APPS_PID=""
+COMMIT_PRESENCE_PID=""
 LINK_COMMAND_BOT_PID=""
 COMMUNITY_BOT_PID=""
 
@@ -33,6 +34,10 @@ cleanup() {
   if [[ -n "$COMMUNITY_BOT_PID" ]] && kill -0 "$COMMUNITY_BOT_PID" 2>/dev/null; then
     kill "$COMMUNITY_BOT_PID" 2>/dev/null || true
     echo "  Community bot stopped."
+  fi
+  if [[ -n "$COMMIT_PRESENCE_PID" ]] && kill -0 "$COMMIT_PRESENCE_PID" 2>/dev/null; then
+    kill "$COMMIT_PRESENCE_PID" 2>/dev/null || true
+    echo "  Commit presence bot stopped."
   fi
   if [[ -n "$LINK_COMMAND_BOT_PID" ]] && kill -0 "$LINK_COMMAND_BOT_PID" 2>/dev/null; then
     kill "$LINK_COMMAND_BOT_PID" 2>/dev/null || true
@@ -132,6 +137,27 @@ else
 fi
 
 GLOBAL_BOT_TOKEN_VALUE="${DISCORD_BOT_TOKEN:-$(read_git_config discord.botToken)}"
+COMMIT_BOT_TOKEN_VALUE="${DISCORD_COMMIT_BOT_TOKEN:-$(read_git_config discord.commitBotToken)}"
+if [[ -z "$COMMIT_BOT_TOKEN_VALUE" ]]; then
+  COMMIT_BOT_TOKEN_VALUE="$GLOBAL_BOT_TOKEN_VALUE"
+fi
+
+if [[ -f "$REPO_ROOT/scripts/discord-commit-presence.js" && -n "$COMMIT_BOT_TOKEN_VALUE" ]]; then
+  echo "Starting commit presence bot ..."
+  DISCORD_COMMIT_BOT_TOKEN="$COMMIT_BOT_TOKEN_VALUE" \
+  node "$REPO_ROOT/scripts/discord-commit-presence.js" &>/tmp/palladium-commit-presence.log &
+  COMMIT_PRESENCE_PID=$!
+  sleep 1
+  if kill -0 "$COMMIT_PRESENCE_PID" 2>/dev/null; then
+    echo "Commit presence bot started (PID $COMMIT_PRESENCE_PID)."
+  else
+    COMMIT_PRESENCE_PID=""
+    echo "Commit presence bot failed to start. See /tmp/palladium-commit-presence.log"
+  fi
+else
+  echo "Commit presence bot not started (set discord.commitBotToken)."
+fi
+
 LINK_BOT_TOKEN_VALUE="${DISCORD_LINK_BOT_TOKEN:-$(read_git_config discord.linkBotToken)}"
 if [[ -z "$LINK_BOT_TOKEN_VALUE" ]]; then
   LINK_BOT_TOKEN_VALUE="$GLOBAL_BOT_TOKEN_VALUE"
@@ -190,6 +216,9 @@ echo "  Site:   http://localhost:3000"
 echo "  AI:     http://localhost:11434 (Ollama)"
 echo "  Proxy:  http://localhost:1337 (Palladium Browse)"
 echo "  Apps:   http://localhost:1338 (Palladium Links)"
+if [[ -n "$COMMIT_PRESENCE_PID" ]]; then
+  echo "  Bot:    Commit presence bot running"
+fi
 if [[ -n "$LINK_COMMAND_BOT_PID" ]]; then
   echo "  Bot:    Link command bot running"
 fi

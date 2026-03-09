@@ -9,6 +9,7 @@ const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/ap
 const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://localhost:1338").replace(/\/$/, "");
 const POLL_MS = Number(process.env.DISCORD_LINK_POLL_MS || 3500);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
+const LINK_COMMAND_NAME = "link";
 
 const BOT_TOKEN =
   process.env.DISCORD_BOT_TOKEN ||
@@ -36,16 +37,8 @@ const state = loadState();
 if (!state.lastMessageIds || typeof state.lastMessageIds !== "object") state.lastMessageIds = {};
 if (!state.bootstrapped || typeof state.bootstrapped !== "object") state.bootstrapped = {};
 
-const presence = startDiscordPresence({
-  token: BOT_TOKEN,
-  intents: 0,
-  status: "online",
-  logPrefix: "Palladium Links",
-  activity: {
-    name: "/link requests",
-    type: 3,
-  },
-});
+let appId = "";
+let guildIds = [];
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -54,7 +47,7 @@ function tryReadGitConfig(key) {
       cwd: path.join(__dirname, ".."),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    }).replace(/\r/g, "").trim();
   } catch {
     return "";
   }
@@ -65,6 +58,10 @@ function parseChannelIds(raw) {
     .split(/[\s,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function unique(values) {
+  return Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)));
 }
 
 function loadState() {
@@ -130,14 +127,23 @@ async function discordRequest(method, route, body) {
   }
 }
 
-function parseLinkCommand(content) {
-  const text = String(content || "").trim();
-  if (!text) return "";
+async function interactionCallback(interactionId, interactionToken, body) {
+  const response = await fetch(`${DISCORD_API_BASE}/interactions/${interactionId}/${interactionToken}/callback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
 
-  const match = text.match(/^\/link\s+(.+)$/i);
-  if (!match) return "";
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Interaction callback failed (${response.status}): ${text}`);
+  }
+}
 
-  let candidate = match[1].trim();
+function normalizeUrl(candidateRaw) {
+  let candidate = String(candidateRaw || "").trim();
   if (!candidate) return "";
 
   if (candidate.startsWith("<") && candidate.endsWith(">")) {
@@ -153,6 +159,22 @@ function parseLinkCommand(content) {
   } catch {
     return "";
   }
+}
+
+function parseLinkCommand(content) {
+  const text = String(content || "").trim();
+  if (!text) return "";
+
+  const match = text.match(/^\/link\s+(.+)$/i);
+  if (!match) return "";
+
+  return normalizeUrl(match[1]);
+}
+
+function getSlashOptionValue(interactionData, name) {
+  const options = interactionData && Array.isArray(interactionData.options) ? interactionData.options : [];
+  const item = options.find((option) => option && option.name === name);
+  return item && typeof item.value !== "undefined" ? item.value : "";
 }
 
 async function runLinkCheck(url) {
@@ -185,15 +207,11 @@ function verdictColor(result) {
   return 0xf59e0b;
 }
 
-async function postResult(channelId, message, url, result, errorText) {
-  const requesterId = message && message.author ? message.author.id : "";
-  const requesterMention = requesterId ? `<@${requesterId}>` : "Someone";
-
+function buildResultPayload(requesterMention, url, result, errorText) {
   if (errorText) {
-    await discordRequest("POST", `/channels/${channelId}/messages`, {
+    return {
       content: `${requesterMention} requested link check for ${url}\nResult: ${errorText}`,
-    });
-    return;
+    };
   }
 
   const summaryText = (result && result.summary && result.summary.text) || "No summary returned.";
@@ -203,7 +221,7 @@ async function postResult(channelId, message, url, result, errorText) {
     ? (directProbe.reachable ? `${directProbe.ok ? "ok" : "not-ok"} (HTTP ${directProbe.status})` : `unreachable${directProbe.error ? ` (${directProbe.error})` : ""}`)
     : "unknown";
 
-  await discordRequest("POST", `/channels/${channelId}/messages`, {
+  return {
     content: `${requesterMention} requested link check for ${url}`,
     embeds: [
       {
@@ -219,7 +237,14 @@ async function postResult(channelId, message, url, result, errorText) {
         timestamp: new Date().toISOString(),
       },
     ],
-  });
+  };
+}
+
+async function postResult(channelId, message, url, result, errorText) {
+  const requesterId = message && message.author ? message.author.id : "";
+  const requesterMention = requesterId ? `<@${requesterId}>` : "Someone";
+  const payload = buildResultPayload(requesterMention, url, result, errorText);
+  await discordRequest("POST", `/channels/${channelId}/messages`, payload);
 }
 
 function sortBySnowflakeAsc(messages) {
@@ -278,7 +303,157 @@ async function pollChannel(channelId) {
   saveState();
 }
 
+async function resolveGuildIds() {
+  const ids = [];
+  for (const channelId of CHANNEL_IDS) {
+    try {
+      const channel = await discordRequest("GET", `/channels/${channelId}`);
+      if (channel && channel.guild_id) {
+        ids.push(String(channel.guild_id));
+      }
+    } catch (error) {
+      const msg = error && error.message ? error.message : String(error);
+      console.warn(`Unable to resolve guild for channel ${channelId}: ${msg}`);
+    }
+  }
+  guildIds = unique(ids);
+  return guildIds;
+}
+
+function buildSlashCommandPayload() {
+  return {
+    name: LINK_COMMAND_NAME,
+    description: "Check if a link is reachable and likely blocked/unblocked.",
+    options: [
+      {
+        type: 3,
+        name: "url",
+        description: "URL to check",
+        required: true,
+      },
+    ],
+  };
+}
+
+async function upsertGuildCommand(guildId, commandPayload) {
+  const commands = await discordRequest("GET", `/applications/${appId}/guilds/${guildId}/commands`);
+  const list = Array.isArray(commands) ? commands : [];
+  const existing = list.find((cmd) => cmd && cmd.name === LINK_COMMAND_NAME);
+
+  if (!existing || !existing.id) {
+    await discordRequest("POST", `/applications/${appId}/guilds/${guildId}/commands`, commandPayload);
+    return;
+  }
+
+  await discordRequest("PATCH", `/applications/${appId}/guilds/${guildId}/commands/${existing.id}`, commandPayload);
+}
+
+async function ensureSlashCommands() {
+  if (!appId) {
+    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
+    appId = appInfo && appInfo.id ? String(appInfo.id) : "";
+  }
+
+  const resolvedGuildIds = guildIds.length ? guildIds : await resolveGuildIds();
+  if (!resolvedGuildIds.length || !appId) return;
+
+  const payload = buildSlashCommandPayload();
+  for (const guildId of resolvedGuildIds) {
+    try {
+      await upsertGuildCommand(guildId, payload);
+      console.log(`Registered /${LINK_COMMAND_NAME} in guild ${guildId}`);
+    } catch (error) {
+      const msg = error && error.message ? error.message : String(error);
+      console.warn(`Failed to register /${LINK_COMMAND_NAME} in guild ${guildId}: ${msg}`);
+    }
+  }
+}
+
+function interactionUserId(interaction) {
+  if (interaction && interaction.member && interaction.member.user && interaction.member.user.id) {
+    return String(interaction.member.user.id);
+  }
+  if (interaction && interaction.user && interaction.user.id) {
+    return String(interaction.user.id);
+  }
+  return "";
+}
+
+async function handleSlashLinkInteraction(interaction) {
+  const channelId = String(interaction && interaction.channel_id ? interaction.channel_id : "");
+  if (!channelId) return;
+
+  if (!CHANNEL_IDS.includes(channelId)) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "This command is not enabled in this channel.",
+      },
+    });
+    return;
+  }
+
+  const rawUrl = getSlashOptionValue(interaction.data, "url");
+  const url = normalizeUrl(rawUrl);
+
+  if (!url) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "Please provide a valid http(s) URL.",
+      },
+    });
+    return;
+  }
+
+  const requesterId = interactionUserId(interaction);
+  const requesterMention = requesterId ? `<@${requesterId}>` : "Someone";
+
+  try {
+    const result = await runLinkCheck(url);
+    const payload = buildResultPayload(requesterMention, url, result, "");
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: payload,
+    });
+  } catch (error) {
+    const msg = error && error.message ? error.message : "Unknown error";
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: `${requesterMention} link check failed for ${url}: ${msg}`,
+      },
+    });
+  }
+}
+
+async function handleGatewayDispatch(eventType, eventData) {
+  if (eventType !== "INTERACTION_CREATE") return;
+  if (!eventData || eventData.type !== 2 || !eventData.data) return;
+  if (String(eventData.data.name || "").toLowerCase() !== LINK_COMMAND_NAME) return;
+  await handleSlashLinkInteraction(eventData);
+}
+
+const presence = startDiscordPresence({
+  token: BOT_TOKEN,
+  intents: 1,
+  status: "online",
+  logPrefix: "Palladium Links",
+  activity: {
+    name: "/link requests",
+    type: 3,
+  },
+  onReady: async () => {
+    await ensureSlashCommands();
+  },
+  onDispatch: handleGatewayDispatch,
+});
+
 async function mainLoop() {
+  await ensureSlashCommands();
   console.log(`Palladium link command bot running for channels: ${CHANNEL_IDS.join(", ")}`);
   while (true) {
     for (const channelId of CHANNEL_IDS) {

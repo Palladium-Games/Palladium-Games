@@ -12,6 +12,7 @@ const ROLE_CACHE_MS = Number(process.env.DISCORD_ROLE_CACHE_MS || 10 * 60 * 1000
 const STATE_PATH = process.env.DISCORD_COMMUNITY_STATE_PATH || path.join(__dirname, "..", ".discord-community-bot-state.json");
 const RULES_EMBED_TITLE = "Palladium Rules";
 const RULES_SIGNATURE = "palladium-rules-v1";
+const RULES_COMMAND_NAME = "rules";
 
 const BOT_TOKEN =
   process.env.DISCORD_COMMUNITY_BOT_TOKEN ||
@@ -81,17 +82,7 @@ let memberPollingEnabled = true;
 let guildRolesById = new Map();
 let guildRolesFetchedAt = 0;
 let guildInfo = null;
-
-const presence = startDiscordPresence({
-  token: BOT_TOKEN,
-  intents: 0,
-  status: "online",
-  logPrefix: "Palladium Community",
-  activity: {
-    name: "server rules",
-    type: 3,
-  },
-});
+let appId = "";
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -100,7 +91,7 @@ function tryReadGitConfig(key) {
       cwd: path.join(__dirname, ".."),
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
+    }).replace(/\r/g, "").trim();
   } catch {
     return "";
   }
@@ -113,8 +104,8 @@ function parseChannelIds(raw) {
     .filter(Boolean);
 }
 
-function unique(items) {
-  return Array.from(new Set(items.map((v) => String(v).trim()).filter(Boolean)));
+function unique(values) {
+  return Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)));
 }
 
 function loadState() {
@@ -189,6 +180,17 @@ function hasPermission(permissionBits, mask) {
   return (bits & mask) === mask;
 }
 
+function hasModeratorPermissions(bits) {
+  const ADMINISTRATOR = 0x00000008n;
+  const MANAGE_GUILD = 0x00000020n;
+  const MANAGE_MESSAGES = 0x00002000n;
+  return (
+    hasPermission(bits, ADMINISTRATOR) ||
+    hasPermission(bits, MANAGE_GUILD) ||
+    hasPermission(bits, MANAGE_MESSAGES)
+  );
+}
+
 async function discordRequest(method, route, body) {
   while (true) {
     const response = await fetch(`${DISCORD_API_BASE}${route}`, {
@@ -226,6 +228,21 @@ async function discordRequest(method, route, body) {
     } catch {
       return {};
     }
+  }
+}
+
+async function interactionCallback(interactionId, interactionToken, body) {
+  const response = await fetch(`${DISCORD_API_BASE}/interactions/${interactionId}/${interactionToken}/callback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Interaction callback failed (${response.status}): ${text}`);
   }
 }
 
@@ -311,6 +328,38 @@ async function resolveCommandChannels() {
     COMMAND_CHANNEL_IDS = unique(defaults);
     return COMMAND_CHANNEL_IDS;
   }
+}
+
+function buildRulesCommandPayload() {
+  return {
+    name: RULES_COMMAND_NAME,
+    description: "Repost the server rules in the rules channel (admin/mod only)",
+  };
+}
+
+async function upsertRulesCommand() {
+  if (!GUILD_ID) return;
+
+  if (!appId) {
+    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
+    appId = appInfo && appInfo.id ? String(appInfo.id) : "";
+  }
+
+  if (!appId) return;
+
+  const commands = await discordRequest("GET", `/applications/${appId}/guilds/${GUILD_ID}/commands`);
+  const list = Array.isArray(commands) ? commands : [];
+  const existing = list.find((cmd) => cmd && cmd.name === RULES_COMMAND_NAME);
+  const payload = buildRulesCommandPayload();
+
+  if (!existing || !existing.id) {
+    await discordRequest("POST", `/applications/${appId}/guilds/${GUILD_ID}/commands`, payload);
+    console.log(`Registered /${RULES_COMMAND_NAME} in guild ${GUILD_ID}`);
+    return;
+  }
+
+  await discordRequest("PATCH", `/applications/${appId}/guilds/${GUILD_ID}/commands/${existing.id}`, payload);
+  console.log(`Updated /${RULES_COMMAND_NAME} in guild ${GUILD_ID}`);
 }
 
 function isAccessDeniedError(error) {
@@ -480,57 +529,64 @@ function isRulesCommand(content) {
   return /^\/(rules)\b/i.test(text) || /^!(rules)\b/i.test(text);
 }
 
-async function isAdminMessage(message) {
-  if (!message || !message.author || !message.author.id) return false;
+function interactionUserId(interaction) {
+  if (interaction && interaction.member && interaction.member.user && interaction.member.user.id) {
+    return String(interaction.member.user.id);
+  }
+  if (interaction && interaction.user && interaction.user.id) {
+    return String(interaction.user.id);
+  }
+  return "";
+}
 
-  const ADMINISTRATOR = 0x00000008n;
-  const MANAGE_GUILD = 0x00000020n;
-  const MANAGE_MESSAGES = 0x00002000n;
+async function isAdminByUserId(userId, permissionBitsFromPayload) {
+  if (!userId) return false;
 
-  const hasModerationBits = (bits) =>
-    hasPermission(bits, ADMINISTRATOR) ||
-    hasPermission(bits, MANAGE_GUILD) ||
-    hasPermission(bits, MANAGE_MESSAGES);
-
-  if (message.member && typeof message.member.permissions !== "undefined") {
-    if (hasModerationBits(message.member.permissions)) return true;
+  if (typeof permissionBitsFromPayload !== "undefined" && hasModeratorPermissions(permissionBitsFromPayload)) {
+    return true;
   }
 
-  let memberRoles = message && message.member && Array.isArray(message.member.roles)
-    ? message.member.roles.map((id) => String(id))
-    : [];
-
-  if (!memberRoles.length) {
-    const freshMember = await fetchGuildMember(message.author.id);
-    if (freshMember && Array.isArray(freshMember.roles)) {
-      memberRoles = freshMember.roles.map((id) => String(id));
-      if (typeof freshMember.permissions !== "undefined" && hasModerationBits(freshMember.permissions)) {
-        return true;
-      }
+  const freshMember = await fetchGuildMember(userId);
+  if (freshMember) {
+    if (typeof freshMember.permissions !== "undefined" && hasModeratorPermissions(freshMember.permissions)) {
+      return true;
     }
-  }
 
-  if (memberRoles.length) {
-    try {
-      const rolesById = await fetchGuildRoles();
-      for (const roleId of memberRoles) {
-        const role = rolesById.get(roleId);
-        if (!role) continue;
-        if (hasModerationBits(role.permissions)) return true;
+    const memberRoles = Array.isArray(freshMember.roles) ? freshMember.roles.map((id) => String(id)) : [];
+    if (memberRoles.length) {
+      try {
+        const rolesById = await fetchGuildRoles();
+        for (const roleId of memberRoles) {
+          const role = rolesById.get(roleId);
+          if (!role) continue;
+          if (hasModeratorPermissions(role.permissions)) return true;
+        }
+      } catch {
+        // Continue to owner check.
       }
-    } catch {
-      // Keep going to owner fallback.
     }
   }
 
   try {
     const guild = await fetchGuildInfo();
-    if (guild && guild.owner_id && String(guild.owner_id) === String(message.author.id)) return true;
+    if (guild && guild.owner_id && String(guild.owner_id) === String(userId)) return true;
   } catch {
-    // Ignore owner lookup failure.
+    // Ignore owner check failures.
   }
 
   return false;
+}
+
+async function isAdminMessage(message) {
+  if (!message || !message.author || !message.author.id) return false;
+  const permissionBits = message && message.member ? message.member.permissions : undefined;
+  return await isAdminByUserId(String(message.author.id), permissionBits);
+}
+
+async function isAdminInteraction(interaction) {
+  const userId = interactionUserId(interaction);
+  const permissionBits = interaction && interaction.member ? interaction.member.permissions : undefined;
+  return await isAdminByUserId(userId, permissionBits);
 }
 
 async function pollCommandChannel(channelId) {
@@ -565,7 +621,7 @@ async function pollCommandChannel(channelId) {
     const isAdmin = await isAdminMessage(message);
     if (!isAdmin) {
       await discordRequest("POST", `/channels/${channelId}/messages`, {
-        content: `<@${message.author.id}> only admins can run /rules.`,
+        content: `<@${message.author.id}> only admins/moderators can run /rules.`,
       });
       continue;
     }
@@ -582,8 +638,70 @@ async function pollCommandChannel(channelId) {
   saveState();
 }
 
+async function handleRulesSlashInteraction(interaction) {
+  const channelId = String(interaction && interaction.channel_id ? interaction.channel_id : "");
+  const commandChannels = await resolveCommandChannels();
+
+  if (channelId && commandChannels.length && !commandChannels.includes(channelId)) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "This command is not enabled in this channel.",
+      },
+    });
+    return;
+  }
+
+  const isAdmin = await isAdminInteraction(interaction);
+  if (!isAdmin) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "Only admins/moderators can run /rules.",
+      },
+    });
+    return;
+  }
+
+  const userId = interactionUserId(interaction);
+  await ensureRulesMessage({ forceRepost: true, requestedById: userId });
+
+  await interactionCallback(interaction.id, interaction.token, {
+    type: 4,
+    data: {
+      flags: 64,
+      content: `Rules were reposted in <#${RULES_CHANNEL_ID}>.`,
+    },
+  });
+}
+
+async function handleGatewayDispatch(eventType, eventData) {
+  if (eventType !== "INTERACTION_CREATE") return;
+  if (!eventData || eventData.type !== 2 || !eventData.data) return;
+  if (String(eventData.data.name || "").toLowerCase() !== RULES_COMMAND_NAME) return;
+  await handleRulesSlashInteraction(eventData);
+}
+
+const presence = startDiscordPresence({
+  token: BOT_TOKEN,
+  intents: 1,
+  status: "online",
+  logPrefix: "Palladium Community",
+  activity: {
+    name: "server rules",
+    type: 3,
+  },
+  onReady: async () => {
+    await upsertRulesCommand();
+  },
+  onDispatch: handleGatewayDispatch,
+});
+
 async function initialize() {
   await resolveGuildId();
+  await resolveCommandChannels();
   botUser = await discordRequest("GET", "/users/@me");
 
   try {
@@ -609,7 +727,7 @@ async function initialize() {
   }
 
   await ensureRulesMessage();
-  await resolveCommandChannels();
+  await upsertRulesCommand();
 
   console.log(
     `Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}` +

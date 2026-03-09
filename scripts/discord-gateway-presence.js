@@ -20,6 +20,8 @@ function startDiscordPresence(options = {}) {
   const logPrefix = String(options.logPrefix || "Discord");
   const gatewayUrl = String(options.gatewayUrl || DEFAULT_GATEWAY);
   const activity = options.activity && typeof options.activity === "object" ? options.activity : null;
+  const onDispatch = typeof options.onDispatch === "function" ? options.onDispatch : null;
+  const onReady = typeof options.onReady === "function" ? options.onReady : null;
 
   const WebSocketImpl = resolveWebSocketClass();
   if (!token || !WebSocketImpl) {
@@ -124,6 +126,19 @@ function startDiscordPresence(options = {}) {
       const username = user && user.username ? user.username : "bot";
       console.log(`${logPrefix}: gateway presence online as ${username}`);
       readyLogged = true;
+      if (onReady) {
+        Promise.resolve(onReady(packet.d || {})).catch((error) => {
+          const msg = error && error.message ? error.message : String(error);
+          console.warn(`${logPrefix}: onReady handler error: ${msg}`);
+        });
+      }
+    }
+
+    if (packet.op === 0 && packet.t && onDispatch) {
+      Promise.resolve(onDispatch(packet.t, packet.d || {})).catch((error) => {
+        const msg = error && error.message ? error.message : String(error);
+        console.warn(`${logPrefix}: dispatch handler error for ${packet.t}: ${msg}`);
+      });
     }
   }
 
