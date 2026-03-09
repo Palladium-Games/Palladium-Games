@@ -61,6 +61,7 @@ if (typeof state.bootstrapped !== "boolean") state.bootstrapped = false;
 if (typeof state.lastRulesCheck !== "number") state.lastRulesCheck = 0;
 
 let botUser = null;
+let memberPollingEnabled = true;
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -189,6 +190,14 @@ async function fetchAllMembers(guildId) {
   return members;
 }
 
+function isAccessDeniedError(error) {
+  const message = String(error && error.message ? error.message : error);
+  return (
+    message.includes("failed (403)") &&
+    (message.includes("50001") || message.toLowerCase().includes("missing access"))
+  );
+}
+
 function extractMemberId(member) {
   if (!member || !member.user || !member.user.id) return "";
   return String(member.user.id);
@@ -226,39 +235,65 @@ async function initialize() {
   await resolveGuildId();
   botUser = await discordRequest("GET", "/users/@me");
 
-  const members = await fetchAllMembers(GUILD_ID);
-  const ids = members.map(extractMemberId).filter(Boolean);
+  try {
+    const members = await fetchAllMembers(GUILD_ID);
+    const ids = members.map(extractMemberId).filter(Boolean);
 
-  if (!state.bootstrapped) {
-    state.knownMemberIds = limitKnownMembers(Array.from(new Set(ids)));
+    if (!state.bootstrapped) {
+      state.knownMemberIds = limitKnownMembers(Array.from(new Set(ids)));
+      state.bootstrapped = true;
+      saveState();
+    }
+  } catch (error) {
+    if (!isAccessDeniedError(error)) {
+      throw error;
+    }
+    memberPollingEnabled = false;
     state.bootstrapped = true;
     saveState();
+    console.warn(
+      "Community bot cannot list guild members (Missing Access). " +
+      "Welcome messages are disabled until Server Members Intent/permissions are fixed."
+    );
   }
 
   await ensureRulesMessage();
 
-  console.log(`Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}`);
+  console.log(
+    `Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}` +
+    (memberPollingEnabled ? "" : " (rules-only mode)")
+  );
 }
 
 async function pollLoop() {
   while (true) {
     try {
-      const members = await fetchAllMembers(GUILD_ID);
-      const currentIds = members.map(extractMemberId).filter(Boolean);
-      const knownSet = new Set(state.knownMemberIds.map(String));
+      if (memberPollingEnabled) {
+        const members = await fetchAllMembers(GUILD_ID);
+        const currentIds = members.map(extractMemberId).filter(Boolean);
+        const knownSet = new Set(state.knownMemberIds.map(String));
 
-      const newMembers = currentIds.filter((id) => !knownSet.has(String(id)));
-      for (const memberId of sortSnowflakeAsc(newMembers)) {
-        await postWelcome(memberId);
+        const newMembers = currentIds.filter((id) => !knownSet.has(String(id)));
+        for (const memberId of sortSnowflakeAsc(newMembers)) {
+          await postWelcome(memberId);
+        }
+
+        state.knownMemberIds = limitKnownMembers(Array.from(new Set(currentIds.map(String))));
+        saveState();
       }
-
-      state.knownMemberIds = limitKnownMembers(Array.from(new Set(currentIds.map(String))));
-      saveState();
 
       await ensureRulesMessage();
     } catch (error) {
       const msg = error && error.message ? error.message : String(error);
-      console.error(`Community bot poll error: ${msg}`);
+      if (memberPollingEnabled && isAccessDeniedError(error)) {
+        memberPollingEnabled = false;
+        console.warn(
+          "Community bot lost member-list access (Missing Access). " +
+          "Continuing in rules-only mode."
+        );
+      } else {
+        console.error(`Community bot poll error: ${msg}`);
+      }
     }
 
     await sleep(POLL_MS);
