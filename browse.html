@@ -75,7 +75,7 @@
                         <p class="browse-redirect-msg">This page was opened as a file (<code>file://</code>).</p>
                         <p class="browse-redirect-fallback">Browsers often block the proxy iframe when the parent is file://. Serve the site over HTTP instead:</p>
                         <p class="browse-redirect-fallback" style="margin-top:0.5rem;"><code style="background:var(--bg-secondary);padding:0.25rem 0.5rem;border-radius:4px;">cd /path/to/PALLADIUM && npx serve -l 3000</code></p>
-                        <p class="browse-redirect-fallback" style="margin-top:0.5rem;">Then open <strong>http://localhost:3000/browse.html</strong></p>
+                        <p class="browse-redirect-fallback" style="margin-top:0.5rem;">Then open <strong>http://YOUR_SERVER_IP:3000/browse.html</strong></p>
                     </div>
                     <div id="browseLoading" class="browser-loading" aria-live="polite">
                         <div class="browser-spinner" style="width:32px;height:32px;border:3px solid transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
@@ -83,7 +83,7 @@
                     </div>
                     <div id="browseFallback" class="browser-loading" style="display:none;background:var(--bg-card);">
                         <p class="browse-redirect-msg">Palladium Proxy didn’t load.</p>
-                        <p class="browse-redirect-fallback">1. Serve this site over HTTP (not file://): run <code>npx serve -l 3000</code> in the project root and open http://localhost:3000/browse.html</p>
+                        <p class="browse-redirect-fallback">1. Serve this site over HTTP (not file://): run <code>npx serve -l 3000</code> in the project root and open http://YOUR_SERVER_IP:3000/browse.html</p>
                         <p class="browse-redirect-fallback">2. Start the local proxy server: <code>node palladium-proxy.js</code> (default port: <code>1337</code>)</p>
                         <p style="margin-top:1rem;"><button type="button" id="browseRetry" style="padding:0.35rem 0.75rem;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-secondary);cursor:pointer;">Retry</button></p>
                     </div>
@@ -96,9 +96,20 @@
     <script src="nav-strip.js"></script>
     <script>
 (function () {
-  var BROWSE_BASE = 'http://localhost:1337/proxy';
+  var BROWSE_BASE = (function () {
+    if (typeof window.PALLADIUM_PROXY_BASE === "string" && window.PALLADIUM_PROXY_BASE.trim()) {
+      return window.PALLADIUM_PROXY_BASE.trim();
+    }
+    var protocol = (window.location && window.location.protocol) ? window.location.protocol : "http:";
+    var hostname = (window.location && window.location.hostname) ? window.location.hostname : "localhost";
+    return protocol + "//" + hostname + ":1337/proxy";
+  })();
   var PROXY_ORIGIN = (function () {
-    try { return new URL(BROWSE_BASE).origin; } catch (e) { return 'http://localhost:1337'; }
+    try { return new URL(BROWSE_BASE).origin; } catch (e) {
+      var protocol = (window.location && window.location.protocol) ? window.location.protocol : "http:";
+      var hostname = (window.location && window.location.hostname) ? window.location.hostname : "localhost";
+      return protocol + "//" + hostname + ":1337";
+    }
   })();
   var DEFAULT_FAVICON = 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236b7280%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Ccircle cx=%2212%22 cy=%2212%22 r=%2210%22/%3E%3Cpath d=%22M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z%22/%3E%3C/svg%3E';
   var frame = document.getElementById('browserFrame');

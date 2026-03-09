@@ -3,6 +3,8 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { Readable } = require("stream");
+const { pipeline } = require("stream/promises");
 const { execSync } = require("child_process");
 
 const PORT = Number(process.env.APPS_PORT || 1338);
@@ -13,6 +15,7 @@ const LINKS_CACHE_PATH = process.env.LINKS_CACHE_PATH || path.join(__dirname, ".
 const LINK_CHECK_TIMEOUT_MS = Number(process.env.LINK_CHECK_TIMEOUT_MS || 10000);
 const LINK_CHECK_BODY_LIMIT = Number(process.env.LINK_CHECK_BODY_LIMIT || 220000);
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
 
 const FILTER_PROVIDERS = [
   {
@@ -670,6 +673,74 @@ async function handleLinkSignal(req, res) {
   });
 }
 
+async function handleOllamaProxy(req, res, requestUrl) {
+  const method = (req.method || "GET").toUpperCase();
+  if (!["GET", "HEAD", "POST"].includes(method)) {
+    sendJson(res, 405, { ok: false, error: "Method not allowed for Ollama proxy" });
+    return;
+  }
+
+  const upstreamPath = requestUrl.pathname.replace(/^\/ollama/, "") + (requestUrl.search || "");
+  if (!upstreamPath.startsWith("/api/")) {
+    sendJson(res, 404, { ok: false, error: "Ollama endpoint not found" });
+    return;
+  }
+
+  const upstreamUrl = new URL(upstreamPath, OLLAMA_BASE_URL);
+  const headers = {};
+  for (const [name, value] of Object.entries(req.headers || {})) {
+    if (!value) continue;
+    const lower = name.toLowerCase();
+    if (["host", "content-length", "connection", "origin", "referer"].includes(lower)) continue;
+    headers[lower] = Array.isArray(value) ? value.join(", ") : value;
+  }
+
+  let body;
+  if (method !== "GET" && method !== "HEAD") {
+    body = await readBody(req);
+  }
+
+  let upstream;
+  try {
+    upstream = await fetch(upstreamUrl, {
+      method,
+      headers,
+      body: body && body.length ? body : undefined,
+      redirect: "manual",
+    });
+  } catch (error) {
+    sendJson(res, 502, { ok: false, error: "Ollama proxy failed: " + error.message });
+    return;
+  }
+
+  const outHeaders = {
+    "access-control-allow-origin": "*",
+    "access-control-allow-headers": "*",
+    "access-control-allow-methods": "GET,HEAD,POST,OPTIONS",
+    "x-palladium-apps": "1",
+    "x-palladium-ollama-proxy": "1",
+  };
+
+  upstream.headers.forEach((value, name) => {
+    const lower = name.toLowerCase();
+    if (["content-length", "transfer-encoding", "connection"].includes(lower)) return;
+    outHeaders[lower] = value;
+  });
+
+  res.writeHead(upstream.status, outHeaders);
+
+  if (method === "HEAD" || !upstream.body || upstream.status === 204 || upstream.status === 304) {
+    res.end();
+    return;
+  }
+
+  try {
+    await pipeline(Readable.fromWeb(upstream.body), res);
+  } catch {
+    if (!res.writableEnded) res.destroy();
+  }
+}
+
 function sendLanding(res) {
   const html = `<!doctype html>
 <html>
@@ -689,6 +760,7 @@ function sendLanding(res) {
     <p>Link signal endpoint: <code>/link-signal</code></p>
     <p>Link checker endpoint: <code>/link-check?url=https://example.com</code> (direct network only)</p>
     <p>Discord checker endpoint: <code>/link-check-discord?url=https://example.com</code></p>
+    <p>Ollama proxy endpoint: <code>/ollama/api/tags</code> and <code>/ollama/api/chat</code></p>
     <p>Health check: <code>/health</code></p>
   </body>
 </html>`;
@@ -713,6 +785,11 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (requestUrl.pathname.startsWith("/ollama/api/")) {
+    await handleOllamaProxy(req, res, requestUrl);
+    return;
+  }
+
   if (requestUrl.pathname === "/health") {
     sendJson(res, 200, {
       ok: true,
@@ -723,6 +800,7 @@ const server = http.createServer(async (req, res) => {
       linksChannelConfigured: !!LINKS_CHANNEL_ID,
       linkCheckerChannelConfigured: !!LINK_CHECK_CHANNEL_ID,
       linkCheckerMode: "direct-only",
+      ollamaProxyBase: "/ollama",
       linksTracked: seenLinkOrigins.size,
       linkCheckProviders: FILTER_PROVIDERS.length,
     });
@@ -759,5 +837,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Palladium apps listening on http://localhost:${PORT}`);
+  console.log(`Palladium apps listening on ${HOST}:${PORT}`);
 });

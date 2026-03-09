@@ -92,7 +92,7 @@
         <iframe id="chatbotFrame" title="AI Chatbot" style="display: none;"></iframe>
         <div class="chatbot-placeholder" id="chatbotPlaceholder" style="display: none;">
             <h2>PalladiumAI</h2>
-            <p>Run <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> locally and set <code>CHATBOT_API_URL</code> in <code>chatbot-config.js</code> (e.g. <code>http://localhost:11434</code>). See <code>CHATBOT_README.md</code>.</p>
+            <p>Run <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a> and set <code>CHATBOT_API_URL</code> in <code>chatbot-config.js</code> (e.g. <code>http://YOUR_SERVER_IP:1338/ollama</code>). See <code>CHATBOT_README.md</code>.</p>
         </div>
         <div class="palladium-ai" id="palladiumAi" style="display: none;">
             <div class="palladium-ai-header">
@@ -115,14 +115,22 @@
     <script>
 (function() {
     var apiBase = typeof CHATBOT_API_URL !== 'undefined' ? (CHATBOT_API_URL || '').replace(/\/$/, '') : '';
-    var model = typeof CHATBOT_MODEL !== 'undefined' ? CHATBOT_MODEL : 'llama3.2';
+    var model = typeof CHATBOT_MODEL !== 'undefined' ? CHATBOT_MODEL : 'qwen3.5:0.8b';
     var iframeUrl = typeof CHATBOT_URL !== 'undefined' ? CHATBOT_URL : '';
     var searchApiUrl = typeof CHATBOT_SEARCH_API_URL !== 'undefined'
         ? CHATBOT_SEARCH_API_URL
-        : 'http://localhost:1337/ai-search';
+        : ((window.location.protocol || "http:") + "//" + (window.location.hostname || "localhost") + ":1337/ai-search");
     var internetEnabled = typeof CHATBOT_ENABLE_INTERNET !== 'undefined'
         ? !!CHATBOT_ENABLE_INTERNET
         : true;
+    var proxyOrigin = (function() {
+        try { return new URL(searchApiUrl).origin; }
+        catch (_err) {
+            var protocol = (window.location && window.location.protocol) ? window.location.protocol : 'http:';
+            var hostname = (window.location && window.location.hostname) ? window.location.hostname : '127.0.0.1';
+            return protocol + '//' + hostname + ':1337';
+        }
+    })();
     var frame = document.getElementById('chatbotFrame');
     var placeholder = document.getElementById('chatbotPlaceholder');
     var palladiumAi = document.getElementById('palladiumAi');
@@ -137,8 +145,8 @@
         '',
         'Website context:',
         '- Main sections: Home (`index.html`), Games (`games.html`), Browse (`browse.html`), AI Chatbot (`chatbot.html`), Music (`music.html`), TV (`tv.html`), Movies (`movies.html`).',
-        '- Browse uses a local proxy service at `http://localhost:1337/proxy` for web browsing.',
-        '- AI internet lookups route through `http://localhost:1337/ai-search`.',
+        '- Browse uses a local proxy service at `' + proxyOrigin + '/proxy` for web browsing.',
+        '- AI internet lookups route through `' + proxyOrigin + '/ai-search`.',
         '- Local game availability is determined by `/games` catalog data provided in context.',
         '',
         'Behavior rules (strict):',
@@ -566,7 +574,7 @@
         for (var i = history.length - 1; i >= 0; i--) {
             var entry = history[i];
             if (!entry || typeof entry.content !== 'string') continue;
-            if (/\b(proxy|palladium proxy|browse|ai-search|localhost:1337)\b/i.test(entry.content)) {
+            if (/\b(proxy|palladium proxy|browse|ai-search|health)\b/i.test(entry.content)) {
                 return entry.content;
             }
         }
@@ -584,8 +592,8 @@
             'Yes. **Palladium Proxy** is meant for web browsing through this site.',
             '',
             '- Use [Browse](/browse.html) to open external websites through the proxy.',
-            '- The AI internet lookup endpoint also routes via proxy: `http://localhost:1337/ai-search`.',
-            '- If browsing fails, check proxy health at `http://localhost:1337/health`.',
+            '- The AI internet lookup endpoint also routes via proxy: `' + proxyOrigin + '/ai-search`.',
+            '- If browsing fails, check proxy health at `' + proxyOrigin + '/health`.',
             '',
             'Some websites may still block proxy traffic, require a CAPTCHA, or disallow iframe/embed loading.'
         ].join('\n');

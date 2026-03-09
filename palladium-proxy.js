@@ -1,19 +1,25 @@
 #!/usr/bin/env node
 
+const fs = require("fs");
 const http = require("http");
+const path = require("path");
 const { Readable } = require("stream");
 const { pipeline } = require("stream/promises");
 const { URL } = require("url");
+const { execSync } = require("child_process");
 
 const PORT = Number(process.env.PORT || 1337);
 const HOST = process.env.HOST || "0.0.0.0";
-const PROXY_BASE = `http://localhost:${PORT}/proxy?url=`;
+const PUBLIC_PROXY_ORIGIN = (process.env.PUBLIC_PROXY_ORIGIN || "").replace(/\/+$/, "");
+const PROXY_BASE = `${PUBLIC_PROXY_ORIGIN}/proxy?url=`;
 const INTERNAL_PROXY_ORIGIN = process.env.INTERNAL_PROXY_ORIGIN || `http://127.0.0.1:${PORT}`;
 const PROXY_URL_PATTERN = /^https?:\/\/[^/]+\/proxy\?(?:raw=1&)?url=/i;
 const AI_FETCH_TIMEOUT_MS = Number(process.env.AI_FETCH_TIMEOUT_MS || 9000);
 const AI_CONTEXT_MAX_RESULTS = Number(process.env.AI_CONTEXT_MAX_RESULTS || 4);
 const AI_CONTEXT_MAX_CHARS = Number(process.env.AI_CONTEXT_MAX_CHARS || 360);
 const AI_CONTEXT_CACHE_TTL_MS = Number(process.env.AI_CONTEXT_CACHE_TTL_MS || 3 * 60 * 1000);
+const LINKS_BOT_NAME = "Palladium Links";
+const LINKS_CACHE_PATH = process.env.LINKS_CACHE_PATH || path.join(__dirname, ".palladium-links-seen.json");
 
 const hopByHopHeaders = new Set([
   "connection",
@@ -47,13 +53,53 @@ const rewriteOnlyBlockedHeaders = new Set([
 
 const cookieJar = new Map();
 const aiContextCache = new Map();
+const seenLinkOrigins = loadSeenLinkOrigins();
+const LINKS_WEBHOOK_URL =
+  process.env.DISCORD_LINKS_WEBHOOK_URL ||
+  process.env.DISCORD_WEBHOOK_URL ||
+  tryReadGitConfig("discord.linksWebhookUrl") ||
+  tryReadGitConfig("discord.webhookUrl") ||
+  "";
+
+function tryReadGitConfig(key) {
+  if (!key) return "";
+  try {
+    return execSync("git config --get " + key, {
+      cwd: __dirname,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return "";
+  }
+}
+
+function loadSeenLinkOrigins() {
+  try {
+    if (!fs.existsSync(LINKS_CACHE_PATH)) return new Set();
+    const parsed = JSON.parse(fs.readFileSync(LINKS_CACHE_PATH, "utf8"));
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(parsed.map((value) => String(value || "").trim().toLowerCase()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function persistSeenLinkOrigins() {
+  try {
+    const list = Array.from(seenLinkOrigins).sort();
+    fs.writeFileSync(LINKS_CACHE_PATH, JSON.stringify(list, null, 2));
+  } catch {
+    // Non-fatal: in-memory dedupe still works while process is running.
+  }
+}
 
 function proxyUrlFor(target) {
   return `${PROXY_BASE}${encodeURIComponent(target)}`;
 }
 
 function rawProxyUrlFor(target) {
-  return `http://localhost:${PORT}/proxy?raw=1&url=${encodeURIComponent(target)}`;
+  return `${PUBLIC_PROXY_ORIGIN}/proxy?raw=1&url=${encodeURIComponent(target)}`;
 }
 
 function readBody(req) {
@@ -91,7 +137,7 @@ function safeResolveUrl(raw, base) {
 function extractProxyTarget(rawUrl) {
   if (!rawUrl) return null;
   try {
-    const parsed = new URL(String(rawUrl));
+    const parsed = new URL(String(rawUrl), INTERNAL_PROXY_ORIGIN);
     if ((parsed.pathname !== "/" && parsed.pathname !== "/proxy") || !parsed.searchParams.get("url")) {
       return null;
     }
@@ -139,6 +185,42 @@ function injectRuntime(html, currentTarget) {
 (function () {
   var BASE = ${JSON.stringify(PROXY_BASE)};
   var CURRENT = ${JSON.stringify(currentTarget)};
+  var URL_ATTRS = { href: 1, src: 1, action: 1, formaction: 1, poster: 1, data: 1 };
+  var PROXY_PREFIX_RE = /^https?:\\/\\/[^/]+\\/(?:proxy)?\\?(?:raw=1&)?url=/i;
+  function shouldSkipValue(value) {
+    var v = String(value || "").trim();
+    return !v || v.charAt(0) === "#" || /^javascript:/i.test(v) || /^mailto:/i.test(v) || /^tel:/i.test(v);
+  }
+  function proxifyAttrValue(attrName, value, baseUrl) {
+    if (!value || !URL_ATTRS[String(attrName || "").toLowerCase()]) return value;
+    if (shouldSkipValue(value)) return value;
+    if (PROXY_PREFIX_RE.test(String(value))) return value;
+    try {
+      var absolute = new URL(String(value), baseUrl || currentTargetUrl()).href;
+      if (!/^https?:\\/\\//i.test(absolute)) return value;
+      return BASE + encodeURIComponent(absolute);
+    } catch (_err) {
+      return value;
+    }
+  }
+  function patchUrlProperty(proto, propertyName) {
+    if (!proto || !propertyName) return;
+    var descriptor = Object.getOwnPropertyDescriptor(proto, propertyName);
+    if (!descriptor || !descriptor.get || !descriptor.set || descriptor.configurable === false) return;
+    try {
+      Object.defineProperty(proto, propertyName, {
+        configurable: true,
+        enumerable: descriptor.enumerable,
+        get: function () {
+          return descriptor.get.call(this);
+        },
+        set: function (value) {
+          var next = proxifyAttrValue(propertyName, value, currentTargetUrl());
+          return descriptor.set.call(this, next);
+        }
+      });
+    } catch (_err) {}
+  }
   function parseProxyTarget(raw) {
     if (!raw) return "";
     try {
@@ -166,7 +248,7 @@ function injectRuntime(html, currentTarget) {
     if (typeof input === "string" && /^\\/proxy\\?url=/i.test(input)) return input;
     try {
       var absolute = new URL(String(input), currentTargetUrl()).href;
-      if (/^https?:\\/\\/[^/]+\\/proxy\\?url=/i.test(absolute)) return absolute;
+      if (PROXY_PREFIX_RE.test(absolute)) return absolute;
       if (!/^https?:\\/\\//i.test(absolute)) return input;
       return BASE + encodeURIComponent(absolute);
     } catch (_err) {
@@ -221,6 +303,44 @@ function injectRuntime(html, currentTarget) {
     };
   }
 
+  if (navigator && navigator.sendBeacon) {
+    var oldSendBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = function (url, data) {
+      return oldSendBeacon(proxify(url), data);
+    };
+  }
+
+  if (window.EventSource) {
+    var NativeEventSource = window.EventSource;
+    window.EventSource = function (url, config) {
+      return new NativeEventSource(proxify(url), config);
+    };
+    window.EventSource.prototype = NativeEventSource.prototype;
+  }
+
+  if (window.Worker) {
+    var NativeWorker = window.Worker;
+    window.Worker = function (url, options) {
+      return new NativeWorker(proxify(url), options);
+    };
+    window.Worker.prototype = NativeWorker.prototype;
+  }
+
+  if (window.SharedWorker) {
+    var NativeSharedWorker = window.SharedWorker;
+    window.SharedWorker = function (url, options) {
+      return new NativeSharedWorker(proxify(url), options);
+    };
+    window.SharedWorker.prototype = NativeSharedWorker.prototype;
+  }
+
+  if (navigator && navigator.serviceWorker && navigator.serviceWorker.register) {
+    var oldRegister = navigator.serviceWorker.register.bind(navigator.serviceWorker);
+    navigator.serviceWorker.register = function (scriptURL, options) {
+      return oldRegister(proxify(scriptURL), options);
+    };
+  }
+
   var xhrOpen = XMLHttpRequest.prototype.open;
   XMLHttpRequest.prototype.open = function (method, url) {
     arguments[1] = proxify(url);
@@ -232,6 +352,40 @@ function injectRuntime(html, currentTarget) {
     if (!url) return oldOpen.call(window, url, target, features);
     return oldOpen.call(window, proxify(url), target, features);
   };
+
+  var oldAssign = window.location.assign ? window.location.assign.bind(window.location) : null;
+  if (oldAssign) {
+    window.location.assign = function (url) {
+      return oldAssign(proxify(url));
+    };
+  }
+
+  var oldReplace = window.location.replace ? window.location.replace.bind(window.location) : null;
+  if (oldReplace) {
+    window.location.replace = function (url) {
+      return oldReplace(proxify(url));
+    };
+  }
+
+  var oldSetAttribute = Element.prototype.setAttribute;
+  Element.prototype.setAttribute = function (name, value) {
+    var attr = String(name || "").toLowerCase();
+    if (URL_ATTRS[attr]) {
+      value = proxifyAttrValue(attr, value, currentTargetUrl());
+    }
+    return oldSetAttribute.call(this, name, value);
+  };
+
+  patchUrlProperty(window.HTMLAnchorElement && window.HTMLAnchorElement.prototype, "href");
+  patchUrlProperty(window.HTMLLinkElement && window.HTMLLinkElement.prototype, "href");
+  patchUrlProperty(window.HTMLScriptElement && window.HTMLScriptElement.prototype, "src");
+  patchUrlProperty(window.HTMLImageElement && window.HTMLImageElement.prototype, "src");
+  patchUrlProperty(window.HTMLIFrameElement && window.HTMLIFrameElement.prototype, "src");
+  patchUrlProperty(window.HTMLMediaElement && window.HTMLMediaElement.prototype, "src");
+  patchUrlProperty(window.HTMLSourceElement && window.HTMLSourceElement.prototype, "src");
+  patchUrlProperty(window.HTMLTrackElement && window.HTMLTrackElement.prototype, "src");
+  patchUrlProperty(window.HTMLFormElement && window.HTMLFormElement.prototype, "action");
+  patchUrlProperty(window.HTMLObjectElement && window.HTMLObjectElement.prototype, "data");
 
   document.addEventListener("click", function (event) {
     if (event.defaultPrevented) return;
@@ -317,6 +471,47 @@ function injectRuntime(html, currentTarget) {
       var observer = new MutationObserver(queueMetadata);
       observer.observe(titleNode, { childList: true, characterData: true, subtree: true });
     }
+
+    var urlObserver = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        var mutation = mutations[i];
+        if (mutation.type === "attributes" && mutation.attributeName) {
+          var attr = String(mutation.attributeName).toLowerCase();
+          if (URL_ATTRS[attr]) {
+            var node = mutation.target;
+            var raw = node.getAttribute(attr);
+            var next = proxifyAttrValue(attr, raw, currentTargetUrl());
+            if (next && next !== raw) node.setAttribute(attr, next);
+          }
+        }
+
+        if (mutation.type === "childList") {
+          var added = mutation.addedNodes || [];
+          for (var j = 0; j < added.length; j++) {
+            var nodeItem = added[j];
+            if (!nodeItem || nodeItem.nodeType !== 1 || !nodeItem.querySelectorAll) continue;
+            var elements = [nodeItem].concat(Array.prototype.slice.call(nodeItem.querySelectorAll("[href],[src],[action],[formaction],[poster],[data]")));
+            for (var k = 0; k < elements.length; k++) {
+              var el = elements[k];
+              for (var name in URL_ATTRS) {
+                if (!Object.prototype.hasOwnProperty.call(URL_ATTRS, name)) continue;
+                var rawValue = el.getAttribute && el.getAttribute(name);
+                if (!rawValue) continue;
+                var nextValue = proxifyAttrValue(name, rawValue, currentTargetUrl());
+                if (nextValue && nextValue !== rawValue) el.setAttribute(name, nextValue);
+              }
+            }
+          }
+        }
+      }
+    });
+
+    urlObserver.observe(document.documentElement || document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["href", "src", "action", "formaction", "poster", "data"]
+    });
   }
 
   setInterval(queueMetadata, 1500);
@@ -343,13 +538,28 @@ function rewriteHtml(html, baseUrl) {
   );
 
   let rewritten = withInlineScriptsProtected.replace(
-    /\b(href|src|action|poster)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi,
+    /\b(href|src|action|poster|formaction|data)\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/gi,
     (full, attr, quoted, dbl, sgl, bare) => {
       const raw = dbl || sgl || bare || "";
       if (PROXY_URL_PATTERN.test(raw) || /^\/proxy\?url=/i.test(raw)) return full;
       const absolute = safeResolveUrl(raw, baseUrl);
       if (!absolute) return full;
       return `${attr}="${proxyUrlFor(absolute)}"`;
+    }
+  );
+
+  rewritten = rewritten.replace(
+    /(<meta\b[^>]*http-equiv\s*=\s*["']?refresh["']?[^>]*content\s*=\s*["'])([^"']+)(["'][^>]*>)/gi,
+    (full, prefix, contentValue, suffix) => {
+      const nextContent = String(contentValue).replace(
+        /(url\s*=\s*)([^;]+)/i,
+        (segment, urlPrefix, rawUrl) => {
+          const absolute = safeResolveUrl(rawUrl.trim(), baseUrl);
+          if (!absolute) return segment;
+          return `${urlPrefix}${proxyUrlFor(absolute)}`;
+        }
+      );
+      return `${prefix}${nextContent}${suffix}`;
     }
   );
 
@@ -733,6 +943,114 @@ function sendJson(res, status, payload) {
   res.end(JSON.stringify(payload));
 }
 
+async function sendLinksWebhook(originKey, sourcePage, referrer, userAgent) {
+  if (!LINKS_WEBHOOK_URL) return false;
+
+  try {
+    const payload = {
+      username: LINKS_BOT_NAME,
+      content: sourcePage,
+      embeds: [
+        {
+          title: "New Palladium Link",
+          description: `[Open Link](${sourcePage})`,
+          color: 0x22c55e,
+          fields: [
+            { name: "Origin", value: `\`${originKey}\``, inline: true },
+            { name: "Page", value: `\`${sourcePage}\``, inline: false },
+            { name: "Referrer", value: referrer ? clampString(referrer, 400) : "None", inline: false },
+          ],
+          footer: { text: "Palladium Links" },
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    };
+
+    const response = await fetch(LINKS_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    return response.ok || response.status === 204;
+  } catch (_err) {
+    return false;
+  }
+}
+
+function clampString(value, maxChars) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const max = Number.isFinite(maxChars) ? Math.max(16, Math.floor(maxChars)) : 280;
+  if (text.length <= max) return text;
+  return `${text.slice(0, Math.max(0, max - 1)).trimEnd()}…`;
+}
+
+async function handleLinkSignal(req, res) {
+  if ((req.method || "GET").toUpperCase() !== "POST") {
+    sendJson(res, 405, { ok: false, error: "Use POST for /link-signal" });
+    return;
+  }
+
+  const signalHeader = Array.isArray(req.headers["x-palladium-link-signal"])
+    ? req.headers["x-palladium-link-signal"][0]
+    : req.headers["x-palladium-link-signal"];
+  if (String(signalHeader || "") !== "1") {
+    sendJson(res, 400, { ok: false, error: "Missing x-palladium-link-signal header" });
+    return;
+  }
+
+  let payload = {};
+  try {
+    const body = await readBody(req);
+    payload = body.length ? JSON.parse(body.toString("utf8")) : {};
+  } catch {
+    sendJson(res, 400, { ok: false, error: "Invalid JSON body" });
+    return;
+  }
+
+  const rawHref = typeof payload.href === "string" ? payload.href : "";
+  const rawOrigin = typeof payload.origin === "string" ? payload.origin : "";
+  const sourcePage =
+    safeResolveUrl(rawHref, rawOrigin || "https://example.com") ||
+    safeResolveUrl(rawOrigin, "https://example.com");
+  if (!sourcePage) {
+    sendJson(res, 400, { ok: false, error: "Missing valid href/origin" });
+    return;
+  }
+
+  let originKey = "";
+  try {
+    originKey = new URL(sourcePage).origin.toLowerCase();
+  } catch {
+    originKey = sourcePage;
+  }
+
+  if (seenLinkOrigins.has(originKey)) {
+    sendJson(res, 200, { ok: true, duplicate: true, sent: false, origin: originKey });
+    return;
+  }
+
+  seenLinkOrigins.add(originKey);
+  persistSeenLinkOrigins();
+
+  const referrer = typeof payload.referrer === "string" ? payload.referrer : "";
+  const userAgent = Array.isArray(req.headers["user-agent"])
+    ? req.headers["user-agent"].join(" ")
+    : req.headers["user-agent"] || "";
+  const sent = await sendLinksWebhook(originKey, sourcePage, referrer, userAgent);
+
+  sendJson(res, 200, {
+    ok: true,
+    duplicate: false,
+    sent,
+    origin: originKey,
+    sourcePage,
+    webhookConfigured: !!LINKS_WEBHOOK_URL,
+    userAgent: clampString(userAgent, 180),
+  });
+}
+
 async function handleAiSearch(res, requestUrl) {
   const query = (requestUrl.searchParams.get("q") || "").trim();
   const parsedLimit = Number(requestUrl.searchParams.get("limit") || 5);
@@ -923,12 +1241,17 @@ const server = http.createServer(async (req, res) => {
       "access-control-allow-methods": "GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS",
       "x-palladium-proxy": "1",
     });
-    res.end(JSON.stringify({ ok: true }));
+    res.end(JSON.stringify({ ok: true, linksWebhookConfigured: !!LINKS_WEBHOOK_URL, linksTracked: seenLinkOrigins.size }));
     return;
   }
 
   if (requestUrl.pathname === "/ai-search") {
     await handleAiSearch(res, requestUrl);
+    return;
+  }
+
+  if (requestUrl.pathname === "/link-signal") {
+    await handleLinkSignal(req, res);
     return;
   }
 
@@ -971,5 +1294,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Palladium proxy listening on http://localhost:${PORT}/proxy`);
+  const advertisedOrigin = PUBLIC_PROXY_ORIGIN || `http://localhost:${PORT}`;
+  console.log(`Palladium proxy listening on ${HOST}:${PORT} (browse at ${advertisedOrigin}/proxy)`);
 });

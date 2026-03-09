@@ -17,6 +17,7 @@ APPS_PID=""
 COMMIT_PRESENCE_PID=""
 LINK_COMMAND_BOT_PID=""
 COMMUNITY_BOT_PID=""
+SITE_PID=""
 
 model_exists() {
   local model="$1"
@@ -31,6 +32,10 @@ read_git_config() {
 cleanup() {
   echo ""
   echo "Shutting down..."
+  if [[ -n "$SITE_PID" ]] && kill -0 "$SITE_PID" 2>/dev/null; then
+    kill "$SITE_PID" 2>/dev/null || true
+    echo "  Web server stopped."
+  fi
   if [[ -n "$COMMUNITY_BOT_PID" ]] && kill -0 "$COMMUNITY_BOT_PID" 2>/dev/null; then
     kill "$COMMUNITY_BOT_PID" 2>/dev/null || true
     echo "  Community bot stopped."
@@ -229,4 +234,12 @@ echo ""
 echo "Press Ctrl+C to stop the site and any services started by this script."
 echo ""
 
-exec npx serve -l 3000 .
+if command -v python3 &>/dev/null; then
+  python3 -m http.server 3000 --bind 0.0.0.0 &
+  SITE_PID=$!
+else
+  npx serve -l tcp://0.0.0.0:3000 . &
+  SITE_PID=$!
+fi
+
+wait "$SITE_PID"
