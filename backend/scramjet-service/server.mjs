@@ -96,7 +96,8 @@ const server = createServer(async (req, res) => {
       transport: {
         bare: BARE_PREFIX,
         wisp: "/wisp/",
-        baremod: "/baremod/index.js",
+        baremod: "/baremod/index.mjs",
+        baremux: "/baremux/index.mjs",
         epoxy: "/epoxy/index.js"
       },
       limits: {
@@ -116,6 +117,16 @@ const server = createServer(async (req, res) => {
   }
 
   if (await tryServeStatic(req, res, requestUrl.pathname, "/scram/", SCRAM_ROOT, true)) {
+    return;
+  }
+
+  if (
+    await tryServeAlias(req, res, requestUrl.pathname, SCRAM_ROOT, {
+      "/scramjet.all.js": "scramjet.all.js",
+      "/scramjet.sync.js": "scramjet.sync.js",
+      "/scramjet.wasm.wasm": "scramjet.wasm.wasm"
+    })
+  ) {
     return;
   }
 
@@ -220,6 +231,15 @@ async function tryServeClient(req, res, pathname) {
     return false;
   }
   return tryServeStatic(req, res, pathname, "/", CLIENT_ROOT, false);
+}
+
+async function tryServeAlias(req, res, pathname, root, aliases) {
+  const alias = aliases[pathname];
+  if (!alias) {
+    return false;
+  }
+
+  return tryServeStatic(req, res, `/${alias}`, "/", root, true);
 }
 
 async function tryServeStatic(req, res, pathname, prefix, root, immutable) {
