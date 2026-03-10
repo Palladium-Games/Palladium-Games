@@ -1,4 +1,4 @@
-const DEFAULT_HOME = "https://duckduckgo.com/";
+const DEFAULT_HOME = "https://www.bing.com/";
 const NEW_TAB_LABEL = "New Tab";
 
 const tabsStrip = document.getElementById("tabs-strip");
@@ -108,6 +108,8 @@ function createTab() {
     favicon: "",
     lastObservedFrameUrl: "",
     metaRequestId: 0,
+    lastAutoRetryUrl: "",
+    searchFallbackUsedForUrl: "",
     ui: null
   };
 
@@ -116,6 +118,7 @@ function createTab() {
   tab.frame.classList.add("is-hidden");
   tab.frame.addEventListener("load", () => {
     updateFromFrameLocation(tab);
+    detectProxyErrorPage(tab);
   });
   frameHost.appendChild(tab.frame);
 
@@ -261,7 +264,7 @@ function normalizeInput(raw) {
   }
 
   if (value.includes(" ") || !value.includes(".")) {
-    return `https://duckduckgo.com/?q=${encodeURIComponent(value)}`;
+    return `https://www.bing.com/search?q=${encodeURIComponent(value)}`;
   }
 
   return `https://${value}`;
@@ -401,6 +404,79 @@ function defaultFaviconForHost(hostname) {
     return "data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=";
   }
   return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(hostname)}&sz=64`;
+}
+
+function detectProxyErrorPage(tab) {
+  let doc;
+  try {
+    doc = tab.frame.contentDocument;
+  } catch {
+    return;
+  }
+
+  if (!doc) {
+    return;
+  }
+
+  const title = (doc.title || "").toLowerCase();
+  const bodyText = (doc.body?.innerText || "").toLowerCase();
+  const looksLikeProxyError =
+    title.includes("error processing your request") ||
+    bodyText.includes("error processing your request") ||
+    (bodyText.includes("failed to load") && bodyText.includes("internal server error"));
+
+  if (!looksLikeProxyError) {
+    if (tab.lastAutoRetryUrl === tab.url) {
+      tab.lastAutoRetryUrl = "";
+    }
+    return;
+  }
+
+  if (tab.lastAutoRetryUrl !== tab.url) {
+    tab.lastAutoRetryUrl = tab.url;
+    setStatus(`Retrying ${tab.url}...`, true);
+    window.setTimeout(() => {
+      void navigate(tab.url, tab);
+    }, 120);
+    return;
+  }
+
+  if (isSearchProviderUrl(tab.url) && tab.searchFallbackUsedForUrl !== tab.url) {
+    tab.searchFallbackUsedForUrl = tab.url;
+    const fallback = toBingSearchOrHome(tab.url);
+    setStatus("Search provider failed in this network. Switching to Bing fallback...", true);
+    void navigate(fallback, tab);
+    return;
+  }
+
+  setStatus(`Failed to load ${tab.url}`, true);
+}
+
+function isSearchProviderUrl(value) {
+  try {
+    const url = new URL(value);
+    return (
+      url.hostname === "duckduckgo.com" ||
+      url.hostname === "www.duckduckgo.com" ||
+      url.hostname === "google.com" ||
+      url.hostname === "www.google.com"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function toBingSearchOrHome(value) {
+  try {
+    const url = new URL(value);
+    const q = url.searchParams.get("q");
+    if (q && q.trim()) {
+      return `https://www.bing.com/search?q=${encodeURIComponent(q)}`;
+    }
+    return DEFAULT_HOME;
+  } catch {
+    return DEFAULT_HOME;
+  }
 }
 
 function setStatus(text, isError = false) {
