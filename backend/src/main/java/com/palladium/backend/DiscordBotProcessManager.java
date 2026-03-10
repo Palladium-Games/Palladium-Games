@@ -48,6 +48,7 @@ final class DiscordBotProcessManager implements AutoCloseable {
         }
 
         Path botsDir = config.discordBotsDir().toAbsolutePath().normalize();
+        SidecarProvisioner.ensureDiscordBots(botsDir);
         validateBotsDirectory(botsDir);
 
         Map<String, Process> started = new LinkedHashMap<>();

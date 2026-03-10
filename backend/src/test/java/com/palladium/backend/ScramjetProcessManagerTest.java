@@ -2,12 +2,14 @@ package com.palladium.backend;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -20,11 +22,21 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Tests for {@link ScramjetProcessManager}.
  */
 class ScramjetProcessManagerTest {
+    @TempDir
+    Path tempDir;
 
     @Test
     void commandForUsesNodeAndServerEntry() {
         List<String> command = ScramjetProcessManager.commandFor("node");
         assertEquals(List.of("node", "server.mjs"), command);
+    }
+
+    @Test
+    void npmInstallCommandUsesDefaultWhenEmpty() {
+        assertEquals(
+                List.of("npm", "install", "--omit=dev", "--no-audit"),
+                ScramjetProcessManager.npmInstallCommand("")
+        );
     }
 
     @Test
@@ -79,6 +91,9 @@ class ScramjetProcessManagerTest {
                 "0.0.0.0",
                 1337,
                 20,
+                true,
+                "npm",
+                300,
                 false,
                 "node",
                 Path.of("./discord-bots"),
@@ -102,7 +117,8 @@ class ScramjetProcessManagerTest {
     }
 
     @Test
-    void startIfEnabledFailsWhenServiceDirectoryDoesNotExist() {
+    void startIfEnabledProvisionsServiceDirectoryBeforeLaunchingProcess() {
+        Path serviceDir = tempDir.resolve("auto-created-scramjet");
         PalladiumBackendApplication.Config config = new PalladiumBackendApplication.Config(
                 "0.0.0.0",
                 8080,
@@ -120,11 +136,14 @@ class ScramjetProcessManagerTest {
                 30,
                 131072,
                 true,
-                "node",
-                Path.of("./does-not-exist"),
+                "missing-node-binary",
+                serviceDir,
                 "0.0.0.0",
                 1337,
                 20,
+                false,
+                "npm",
+                30,
                 false,
                 "node",
                 Path.of("./discord-bots"),
@@ -142,6 +161,9 @@ class ScramjetProcessManagerTest {
         );
 
         assertThrows(IOException.class, () -> ScramjetProcessManager.startIfEnabled(config));
+        assertTrue(Files.isDirectory(serviceDir));
+        assertTrue(Files.isRegularFile(serviceDir.resolve("server.mjs")));
+        assertTrue(Files.isRegularFile(serviceDir.resolve("package.json")));
     }
 
     @Test
@@ -179,6 +201,9 @@ class ScramjetProcessManagerTest {
                     "127.0.0.1",
                     port,
                     20,
+                    true,
+                    "npm",
+                    300,
                     false,
                     "node",
                     Path.of("./discord-bots"),

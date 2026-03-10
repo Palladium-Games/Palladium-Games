@@ -36,6 +36,9 @@ class PalladiumBackendApplicationConfigTest {
         assertEquals("0.0.0.0", config.scramjetHost());
         assertEquals(1337, config.scramjetPort());
         assertEquals(20, config.scramjetStartupTimeoutSeconds());
+        assertTrue(config.scramjetInstallDependencies());
+        assertEquals("npm", config.scramjetNpmCommand());
+        assertEquals(300, config.scramjetInstallTimeoutSeconds());
         assertTrue(config.blockPrivateProxyTargets());
         assertTrue(config.rateLimitEnabled());
         assertEquals(60, config.rateLimitWindowSeconds());
@@ -72,6 +75,9 @@ class PalladiumBackendApplicationConfigTest {
                 Map.entry("SCRAMJET_HOST", "127.0.0.1"),
                 Map.entry("SCRAMJET_PORT", "1444"),
                 Map.entry("SCRAMJET_STARTUP_TIMEOUT_SECONDS", "9"),
+                Map.entry("SCRAMJET_INSTALL_DEPENDENCIES", "false"),
+                Map.entry("SCRAMJET_NPM_COMMAND", "/usr/local/bin/npm"),
+                Map.entry("SCRAMJET_INSTALL_TIMEOUT_SECONDS", "123"),
                 Map.entry("SECURITY_TRUST_PROXY_HEADERS", "true"),
                 Map.entry("PROXY_BLOCK_PRIVATE_NETWORK_TARGETS", "false"),
                 Map.entry("SECURITY_RATE_LIMIT_ENABLED", "false"),
@@ -96,6 +102,9 @@ class PalladiumBackendApplicationConfigTest {
         assertEquals("127.0.0.1", config.scramjetHost());
         assertEquals(1444, config.scramjetPort());
         assertEquals(9, config.scramjetStartupTimeoutSeconds());
+        assertFalse(config.scramjetInstallDependencies());
+        assertEquals("/usr/local/bin/npm", config.scramjetNpmCommand());
+        assertEquals(123, config.scramjetInstallTimeoutSeconds());
         assertTrue(config.trustProxyHeaders());
         assertFalse(config.blockPrivateProxyTargets());
         assertFalse(config.rateLimitEnabled());

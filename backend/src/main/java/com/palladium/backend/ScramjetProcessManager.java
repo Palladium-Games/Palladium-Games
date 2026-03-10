@@ -57,8 +57,9 @@ final class ScramjetProcessManager implements AutoCloseable {
         }
 
         Path serviceDir = config.scramjetServiceDir().toAbsolutePath().normalize();
-        Path entryScript = serviceDir.resolve("server.mjs");
-        validateServiceDirectory(serviceDir, entryScript);
+        SidecarProvisioner.ensureScramjetService(serviceDir);
+        validateServiceDirectory(serviceDir, serviceDir.resolve("server.mjs"));
+        ensureDependencies(config, serviceDir);
 
         Process process = launchProcess(config, serviceDir);
 
@@ -197,6 +198,54 @@ final class ScramjetProcessManager implements AutoCloseable {
                     startupError
             );
         }
+    }
+
+    private static void ensureDependencies(PalladiumBackendApplication.Config config, Path serviceDir) throws IOException {
+        if (!config.scramjetInstallDependencies()) {
+            return;
+        }
+        if (Files.isDirectory(serviceDir.resolve("node_modules"))) {
+            return;
+        }
+
+        ProcessBuilder builder = new ProcessBuilder(npmInstallCommand(config.scramjetNpmCommand()));
+        builder.directory(serviceDir.toFile());
+        builder.redirectErrorStream(true);
+        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+        builder.environment().put("NPM_CONFIG_CACHE", serviceDir.resolve(".npm-cache").toString());
+
+        Process process;
+        try {
+            process = builder.start();
+        } catch (IOException startupError) {
+            throw new IOException(
+                    "Failed to start npm install using command '" + config.scramjetNpmCommand() + "' in " + serviceDir,
+                    startupError
+            );
+        }
+
+        try {
+            boolean finished = process.waitFor(
+                    Math.max(10, config.scramjetInstallTimeoutSeconds()),
+                    TimeUnit.SECONDS
+            );
+            if (!finished) {
+                process.destroyForcibly();
+                throw new IOException("Scramjet dependency install timed out.");
+            }
+            if (process.exitValue() != 0) {
+                throw new IOException("Scramjet dependency install failed with exit code " + process.exitValue() + ".");
+            }
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            process.destroyForcibly();
+            throw new IOException("Interrupted while installing Scramjet dependencies.", interrupted);
+        }
+    }
+
+    static List<String> npmInstallCommand(String npmCommand) {
+        String normalized = npmCommand == null || npmCommand.isBlank() ? "npm" : npmCommand.trim();
+        return List.of(normalized, "install", "--omit=dev", "--no-audit");
     }
 
     private void awaitHealthy(Duration timeout) throws IOException {

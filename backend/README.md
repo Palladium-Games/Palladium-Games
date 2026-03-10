@@ -52,6 +52,8 @@ java -jar target/palladium-backend-1.0.0.jar
 
 By default, running the JAR also starts the Scramjet service from `backend/scramjet-service`
 on `http://127.0.0.1:1337` (health endpoint: `/health`).
+If the service directory does not exist yet, the JAR auto-creates it from embedded templates.
+On first run it also installs Scramjet dependencies (`npm install --omit=dev --no-audit`) unless disabled.
 If Scramjet is already running on that host/port, the backend reuses the existing process.
 
 By default, running the JAR also starts Discord bot sidecars from `backend/discord-bots`:
@@ -59,6 +61,8 @@ By default, running the JAR also starts Discord bot sidecars from `backend/disco
 - `discord-commit-presence.js` (when `discord.commit.bot.token` is set)
 - `discord-link-command-bot.js` (when `discord.link.bot.token` is set)
 - `discord-community-bot.js` (when `discord.community.bot.token` is set)
+
+If `backend/discord-bots` does not exist yet, the JAR auto-creates it from embedded bot templates.
 
 Or with explicit config path:
 
@@ -68,6 +72,8 @@ BACKEND_CONFIG=./config/backend.properties java -jar target/palladium-backend-1.
 ```
 
 Set `scramjet.autostart=false` in `backend.properties` if you want to run Scramjet separately.
+Set `scramjet.install.dependencies=false` if dependencies are preinstalled.
+Use `scramjet.npm.command` and `scramjet.install.timeout.seconds` to customize first-run dependency install.
 Set `discord.bots.autostart=false` in `backend.properties` if you want bots managed separately.
 
 ## Production Guides

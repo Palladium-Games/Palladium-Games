@@ -301,6 +301,9 @@ public final class PalladiumBackendApplication {
             String scramjetHost,
             int scramjetPort,
             int scramjetStartupTimeoutSeconds,
+            boolean scramjetInstallDependencies,
+            String scramjetNpmCommand,
+            int scramjetInstallTimeoutSeconds,
             boolean discordBotsAutostart,
             String discordBotsNodeCommand,
             Path discordBotsDir,
@@ -388,6 +391,15 @@ public final class PalladiumBackendApplication {
                     readValue(properties, environment, "scramjet.startup.timeout.seconds", "20"),
                     20
             );
+            boolean scramjetInstallDependencies = parseBoolean(
+                    readValue(properties, environment, "scramjet.install.dependencies", "true"),
+                    true
+            );
+            String scramjetNpmCommand = readValue(properties, environment, "scramjet.npm.command", "npm");
+            int scramjetInstallTimeoutSeconds = parseInt(
+                    readValue(properties, environment, "scramjet.install.timeout.seconds", "300"),
+                    300
+            );
 
             boolean discordBotsAutostart = parseBoolean(
                     readValue(properties, environment, "discord.bots.autostart", "true"),
@@ -436,6 +448,9 @@ public final class PalladiumBackendApplication {
                     scramjetHost,
                     scramjetPort,
                     scramjetStartupTimeoutSeconds,
+                    scramjetInstallDependencies,
+                    scramjetNpmCommand,
+                    scramjetInstallTimeoutSeconds,
                     discordBotsAutostart,
                     discordBotsNodeCommand,
                     discordBotsDir,
