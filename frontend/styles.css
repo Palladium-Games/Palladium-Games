@@ -670,6 +670,24 @@ html.nav-initial-collapsed #nav ~ .main {
   height: calc(100vh - 88px);
 }
 
+/* Proxy page: true fullscreen frame next to sidebar */
+.page--proxy {
+  padding: 0 !important;
+}
+
+.page--proxy .proxy-shell {
+  height: 100vh;
+  gap: 0;
+}
+
+.page--proxy .proxy-shell .player-frame-wrap.proxy-shell__frame {
+  height: 100vh;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+}
+
 /* Responsive: collapse nav on small screens */
 @media (max-width: 768px) {
   .nav {
@@ -693,6 +711,11 @@ html.nav-initial-collapsed #nav ~ .main {
   .proxy-shell__controls {
     width: 100%;
   }
+
+  .page--proxy .proxy-shell .player-frame-wrap.proxy-shell__frame {
+    height: 100vh;
+  }
+
   .proxy-shell .player-frame-wrap.proxy-shell__frame {
     height: calc(100vh - 120px);
   }

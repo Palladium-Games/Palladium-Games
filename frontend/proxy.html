@@ -62,15 +62,8 @@
     </nav>
 
     <main class="main">
-      <div class="page page--player">
+      <div class="page page--player page--proxy">
         <div class="proxy-shell">
-          <div class="proxy-shell__top">
-            <h1 class="page__title proxy-shell__title">  BROWSE</h1>
-            <div class="proxy-shell__controls">
-              <input id="proxy-service-input" class="proxy-shell__input" type="text" spellcheck="false" placeholder="Proxy URL (Enter to apply)" />
-            </div>
-          </div>
-
           <div class="player-frame-wrap proxy-shell__frame" id="proxy-shell-frame-wrap">
             <iframe id="proxy-embed-frame" title="Palladium Browse"></iframe>
           </div>
@@ -83,10 +76,8 @@
   <script>
     (function () {
       var DEFAULT_PROXY_BASE = 'https://sethpang.com:1337';
-      var STORAGE_KEY = 'palladium-proxy-base';
 
       var frame = document.getElementById('proxy-embed-frame');
-      var serviceInput = document.getElementById('proxy-service-input');
 
       var params = new URLSearchParams(window.location.search);
       var initialUrl = params.get('url') || '';
@@ -133,19 +124,11 @@
         }
       }
 
-      function connect(baseValue, persist) {
+      function connect(baseValue) {
         var base = normalizeBase(baseValue);
         if (!base) {
-          setStatus('Enter a valid proxy URL (example: http://127.0.0.1:1337).', true);
+          setStatus('Invalid proxy URL configuration.', true);
           return;
-        }
-
-        if (persist && typeof localStorage !== 'undefined') {
-          localStorage.setItem(STORAGE_KEY, base);
-        }
-
-        if (serviceInput) {
-          serviceInput.value = base;
         }
 
         if (frame) {
@@ -156,25 +139,8 @@
         checkHealth(base);
       }
 
-      var stored = '';
-      try {
-        stored = localStorage.getItem(STORAGE_KEY) || '';
-      } catch (e) {}
-
-      var startupBase = normalizeBase(initialProxy) || normalizeBase(stored) || DEFAULT_PROXY_BASE;
-      if (serviceInput) {
-        serviceInput.value = startupBase;
-      }
-      connect(startupBase, false);
-
-      if (serviceInput) {
-        serviceInput.addEventListener('keydown', function (event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            connect(serviceInput.value, true);
-          }
-        });
-      }
+      var startupBase = normalizeBase(initialProxy) || DEFAULT_PROXY_BASE;
+      connect(startupBase);
     })();
   </script>
 </body>
