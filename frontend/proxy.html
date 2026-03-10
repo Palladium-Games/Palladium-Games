@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function(){
+      try {
+        var stored = sessionStorage.getItem('palladium-nav-expanded');
+        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+      } catch (e) {}
+    })();
+  </script>
+  <title>Proxy — Palladium Games</title>
+  <link rel="icon" href="images/favicon.png?v=3" type="image/png" />
+  <link rel="shortcut icon" href="favicon.ico?v=3" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="images/favicon.png?v=3" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav">
+      <div class="nav__toggle">
+        <button type="button" id="nav-toggle" class="nav__toggle-btn" aria-label="Toggle menu">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="nav__logo">
+        <img src="images/favicon.png" alt="Palladium" class="nav__logo-icon" />
+        <span class="nav__logo-text">PALLADIUM</span>
+      </div>
+      <div class="nav__links">
+        <a href="index.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="nav__link-text">Home</span>
+        </a>
+        <a href="games.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><path d="M17 16a5 5 0 0 0-10 0"/><rect x="3" y="4" width="18" height="16" rx="2" ry="2"/></svg>
+          <span class="nav__link-text">Games</span>
+        </a>
+        <a href="proxy.html" class="nav__link nav__link--active">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="nav__link-text">Proxy</span>
+        </a>
+        <a href="ai.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><path d="M6 14v-4a4 4 0 0 1 4-4h4"/></svg>
+          <span class="nav__link-text">AI</span>
+        </a>
+        <a href="music.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="nav__link-text">Music</span>
+        </a>
+        <a href="tv.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          <span class="nav__link-text">TV</span>
+        </a>
+        <a href="movies.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span class="nav__link-text">Movies</span>
+        </a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="page page--player">
+        <div class="proxy-shell">
+          <div class="proxy-shell__top">
+            <h1 class="page__title proxy-shell__title">  BROWSE</h1>
+            <div class="proxy-shell__controls">
+              <input id="proxy-service-input" class="proxy-shell__input" type="text" spellcheck="false" placeholder="Proxy URL (Enter to apply)" />
+            </div>
+          </div>
+
+          <div class="player-frame-wrap proxy-shell__frame" id="proxy-shell-frame-wrap">
+            <iframe id="proxy-embed-frame" title="Palladium Browse"></iframe>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="nav.js"></script>
+  <script>
+    (function () {
+      var DEFAULT_PROXY_BASE = 'https://sethpang.com:1337';
+      var STORAGE_KEY = 'palladium-proxy-base';
+
+      var frame = document.getElementById('proxy-embed-frame');
+      var serviceInput = document.getElementById('proxy-service-input');
+
+      var params = new URLSearchParams(window.location.search);
+      var initialUrl = params.get('url') || '';
+      var initialProxy = params.get('proxy') || '';
+
+      function normalizeBase(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return '';
+        if (!/^https?:\/\//i.test(raw)) {
+          raw = 'http://' + raw;
+        }
+        raw = raw.replace(/\/+$/, '');
+        try {
+          var parsed = new URL(raw);
+          return parsed.origin;
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function setStatus(message, isError) {
+        /* Status UI removed; optional console for debugging */
+        if (isError && message) console.warn('[proxy]', message);
+      }
+
+      function buildFrameSrc(base) {
+        var target = base + '/';
+        if (!initialUrl) return target;
+        var qp = new URLSearchParams();
+        qp.set('url', initialUrl);
+        return target + '?' + qp.toString();
+      }
+
+      async function checkHealth(base) {
+        try {
+          var response = await fetch(base + '/health', { method: 'GET' });
+          if (!response.ok) {
+            setStatus('Proxy is online but returned status ' + response.status + '.', true);
+            return;
+          }
+          setStatus('Connected to Palladium Scramjet at ' + base, false);
+        } catch (error) {
+          setStatus('Proxy is offline at ' + base + '. Start the backend Scramjet service.', true);
+        }
+      }
+
+      function connect(baseValue, persist) {
+        var base = normalizeBase(baseValue);
+        if (!base) {
+          setStatus('Enter a valid proxy URL (example: http://127.0.0.1:1337).', true);
+          return;
+        }
+
+        if (persist && typeof localStorage !== 'undefined') {
+          localStorage.setItem(STORAGE_KEY, base);
+        }
+
+        if (serviceInput) {
+          serviceInput.value = base;
+        }
+
+        if (frame) {
+          frame.src = buildFrameSrc(base);
+        }
+
+        setStatus('Connecting to ' + base + '...', false);
+        checkHealth(base);
+      }
+
+      var stored = '';
+      try {
+        stored = localStorage.getItem(STORAGE_KEY) || '';
+      } catch (e) {}
+
+      var startupBase = normalizeBase(initialProxy) || normalizeBase(stored) || DEFAULT_PROXY_BASE;
+      if (serviceInput) {
+        serviceInput.value = startupBase;
+      }
+      connect(startupBase, false);
+
+      if (serviceInput) {
+        serviceInput.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            connect(serviceInput.value, true);
+          }
+        });
+      }
+    })();
+  </script>
+</body>
+</html>

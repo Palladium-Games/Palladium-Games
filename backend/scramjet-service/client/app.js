@@ -1,3 +1,5 @@
+import { BareMuxConnection } from "/baremux/index.mjs";
+
 const DEFAULT_HOME = "https://www.bing.com/";
 const NEW_TAB_LABEL = "New Tab";
 
@@ -17,6 +19,8 @@ const favicon = document.getElementById("site-favicon");
 let tabs = [];
 let activeTabId = "";
 let tabCounter = 1;
+let scramjetController = null;
+let transportConnection = null;
 
 boot().catch((error) => {
   console.error(error);
@@ -24,8 +28,8 @@ boot().catch((error) => {
 });
 
 async function boot() {
-  if (!window.BareMux || !window.BareMod || !self.__scramjet$config || !self.__scramjet$bundle) {
-    throw new Error("Scramjet runtime was not loaded.");
+  if (typeof window.$scramjetLoadController !== "function") {
+    throw new Error("Scramjet 2 runtime was not loaded.");
   }
 
   setStatus("Preparing service worker...");
@@ -34,21 +38,27 @@ async function boot() {
     throw new Error("This browser does not support service workers.");
   }
 
-  await navigator.serviceWorker.register("/sw.js");
+  const registration = await navigator.serviceWorker.register("/sw.js");
+  await registration.update().catch(() => {
+    // Ignore update errors and continue with the currently active worker.
+  });
   await navigator.serviceWorker.ready;
 
-  setStatus("Connecting transport...");
-  BareMux.SetTransport("BareMod.BareClient", `${location.origin}/bare/`);
-  const switcher = BareMux.findSwitcher?.();
-  if (switcher?.data && switcher?.channel) {
-    switcher.channel.postMessage(switcher.data);
-  }
-  if (switcher?.active?.initpromise) {
-    await switcher.active.initpromise;
-  }
+  await configureTransport();
+
+  setStatus("Initializing Scramjet...");
+  const { ScramjetController } = window.$scramjetLoadController();
+  scramjetController = new ScramjetController({
+    prefix: "/scramjet/",
+    files: {
+      wasm: "/scram/scramjet.wasm.wasm",
+      all: "/scram/scramjet.all.js",
+      sync: "/scram/scramjet.sync.js"
+    }
+  });
+  await scramjetController.init();
 
   bindEvents();
-  beginFrameTracking();
 
   const params = new URLSearchParams(window.location.search);
   const initialInput = (params.get("url") || DEFAULT_HOME).trim();
@@ -59,6 +69,32 @@ async function boot() {
   setStatus("Ready");
 }
 
+async function configureTransport() {
+  setStatus("Connecting transport...");
+
+  try {
+    transportConnection = new BareMuxConnection("/baremux/worker.js");
+    await transportConnection.setTransport("/baremod/index.mjs", [`${location.origin}/bare/`]);
+    return;
+  } catch (error) {
+    console.warn("BareMuxConnection setup failed, trying legacy transport fallback.", error);
+  }
+
+  if (window.BareMux?.SetTransport) {
+    window.BareMux.SetTransport("BareMod.BareClient", `${location.origin}/bare/`);
+    const switcher = window.BareMux.findSwitcher?.();
+    if (switcher?.data && switcher?.channel) {
+      switcher.channel.postMessage(switcher.data);
+    }
+    if (switcher?.active?.initpromise) {
+      await switcher.active.initpromise;
+    }
+    return;
+  }
+
+  throw new Error("Could not initialize proxy transport.");
+}
+
 function bindEvents() {
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -67,15 +103,15 @@ function bindEvents() {
   });
 
   backButton?.addEventListener("click", () => {
-    getActiveTab()?.frame.contentWindow?.history.back();
+    getActiveTab()?.scramjetFrame?.back();
   });
 
   forwardButton?.addEventListener("click", () => {
-    getActiveTab()?.frame.contentWindow?.history.forward();
+    getActiveTab()?.scramjetFrame?.forward();
   });
 
   reloadButton?.addEventListener("click", () => {
-    getActiveTab()?.frame.contentWindow?.location.reload();
+    getActiveTab()?.scramjetFrame?.reload();
   });
 
   homeButton?.addEventListener("click", async () => {
@@ -100,9 +136,21 @@ function bindEvents() {
 }
 
 function createTab() {
+  if (!scramjetController) {
+    throw new Error("Scramjet controller is not initialized.");
+  }
+
+  const frame = document.createElement("iframe");
+  frame.title = "Palladium Browse";
+  frame.referrerPolicy = "no-referrer";
+  frame.classList.add("is-hidden");
+
+  const scramjetFrame = scramjetController.createFrame(frame);
+
   const tab = {
     id: `tab-${tabCounter++}`,
-    frame: document.createElement("iframe"),
+    frame,
+    scramjetFrame,
     url: DEFAULT_HOME,
     title: NEW_TAB_LABEL,
     favicon: "",
@@ -113,20 +161,25 @@ function createTab() {
     ui: null
   };
 
-  tab.frame.title = "Palladium Browse";
-  tab.frame.referrerPolicy = "no-referrer";
-  tab.frame.classList.add("is-hidden");
-  tab.frame.addEventListener("load", () => {
-    updateFromFrameLocation(tab);
+  frame.addEventListener("load", () => {
+    syncUrlFromFrame(tab);
     detectProxyErrorPage(tab);
   });
-  frameHost.appendChild(tab.frame);
 
+  scramjetFrame.addEventListener("navigate", (event) => {
+    handleFrameUrlEvent(tab, event.url, "Loading");
+  });
+
+  scramjetFrame.addEventListener("urlchange", (event) => {
+    handleFrameUrlEvent(tab, event.url, "Ready");
+  });
+
+  frameHost?.appendChild(frame);
   tab.ui = buildTabUi(tab);
   tabs.push(tab);
 
   if (tabs.length === 1) {
-    tab.frame.classList.remove("is-hidden");
+    frame.classList.remove("is-hidden");
   }
 
   return tab;
@@ -196,6 +249,7 @@ function setActiveTab(tabId) {
   if (input) {
     input.value = active.url;
   }
+
   renderActiveTabMeta(active);
 }
 
@@ -241,16 +295,23 @@ async function navigate(inputValue, tab) {
   }
 
   tab.url = target;
-  tab.lastObservedFrameUrl = "";
+  tab.lastObservedFrameUrl = target;
 
   if (tab.id === activeTabId && input) {
     input.value = target;
   }
 
   setStatus(`Loading ${target}`);
-  tab.frame.src = encodeProxyUrl(target);
 
-  updateSiteMeta(tab, target);
+  try {
+    tab.scramjetFrame.go(target);
+  } catch (error) {
+    console.error(error);
+    setStatus(`Failed to load ${target}`, true);
+    return;
+  }
+
+  await updateSiteMeta(tab, target);
 }
 
 function normalizeInput(raw) {
@@ -270,63 +331,57 @@ function normalizeInput(raw) {
   return `https://${value}`;
 }
 
-function encodeProxyUrl(target) {
-  return `${location.origin}${self.__scramjet$config.prefix}${self.__scramjet$config.codec.encode(target)}`;
-}
-
-function decodeProxyUrl(proxiedUrl) {
-  const expectedPrefix = `${location.origin}${self.__scramjet$config.prefix}`;
-  if (!proxiedUrl.startsWith(expectedPrefix)) {
-    return proxiedUrl;
-  }
-
-  return self.__scramjet$config.codec.decode(proxiedUrl.slice(expectedPrefix.length));
-}
-
-function beginFrameTracking() {
-  window.setInterval(() => {
-    const active = getActiveTab();
-    if (active) {
-      updateFromFrameLocation(active);
-    }
-  }, 500);
-}
-
-function updateFromFrameLocation(tab) {
-  if (!tab.frame.contentWindow) {
-    return;
-  }
-
-  let rawHref;
+function syncUrlFromFrame(tab) {
+  let current;
   try {
-    rawHref = tab.frame.contentWindow.location.href;
+    current = tab.scramjetFrame.url?.toString();
   } catch {
     return;
   }
 
-  if (!rawHref || rawHref === tab.lastObservedFrameUrl) {
+  if (!current) {
     return;
   }
 
-  tab.lastObservedFrameUrl = rawHref;
+  handleFrameUrlEvent(tab, current, "Ready");
+}
 
-  let decoded;
-  try {
-    decoded = decodeProxyUrl(rawHref);
-  } catch {
-    decoded = rawHref;
-  }
-
-  if (decoded && decoded !== tab.url) {
-    tab.url = decoded;
-    if (tab.id === activeTabId && input) {
-      input.value = decoded;
+function handleFrameUrlEvent(tab, rawUrl, statusLabel) {
+  const decoded = decodeUrlIfNeeded(rawUrl);
+  if (!decoded || decoded === tab.lastObservedFrameUrl) {
+    if (tab.id === activeTabId && statusLabel) {
+      setStatus(statusLabel);
     }
-    updateSiteMeta(tab, decoded);
+    return;
   }
 
-  if (tab.id === activeTabId) {
-    setStatus("Ready");
+  tab.lastObservedFrameUrl = decoded;
+  tab.url = decoded;
+
+  if (tab.id === activeTabId && input) {
+    input.value = decoded;
+  }
+
+  void updateSiteMeta(tab, decoded);
+
+  if (tab.id === activeTabId && statusLabel) {
+    setStatus(statusLabel);
+  }
+}
+
+function decodeUrlIfNeeded(rawUrl) {
+  if (!rawUrl) {
+    return "";
+  }
+
+  if (!scramjetController) {
+    return rawUrl;
+  }
+
+  try {
+    return scramjetController.decodeUrl(rawUrl);
+  } catch {
+    return rawUrl;
   }
 }
 
@@ -395,7 +450,7 @@ function renderActiveTabMeta(tab) {
     siteTitle.textContent = tab.title || NEW_TAB_LABEL;
   }
   if (favicon) {
-    favicon.src = tab.favicon || "";
+    favicon.src = tab.favicon || defaultFaviconForHost("");
   }
 }
 

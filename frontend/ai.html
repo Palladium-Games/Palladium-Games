@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function(){
+      try {
+        var stored = sessionStorage.getItem('palladium-nav-expanded');
+        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+      } catch (e) {}
+    })();
+  </script>
+  <title>AI — Palladium Games</title>
+  <link rel="icon" href="images/favicon.png" type="image/png" />
+  <link rel="apple-touch-icon" href="images/favicon.png" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav">
+      <div class="nav__toggle">
+        <button type="button" id="nav-toggle" class="nav__toggle-btn" aria-label="Toggle menu">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="nav__logo">
+        <img src="images/favicon.png" alt="Palladium" class="nav__logo-icon" />
+        <span class="nav__logo-text">PALLADIUM</span>
+      </div>
+      <div class="nav__links">
+        <a href="index.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="nav__link-text">Home</span>
+        </a>
+        <a href="games.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><path d="M17 16a5 5 0 0 0-10 0"/><rect x="3" y="4" width="18" height="16" rx="2" ry="2"/></svg>
+          <span class="nav__link-text">Games</span>
+        </a>
+        <a href="proxy.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="nav__link-text">Proxy</span>
+        </a>
+        <a href="ai.html" class="nav__link nav__link--active">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><path d="M6 14v-4a4 4 0 0 1 4-4h4"/></svg>
+          <span class="nav__link-text">AI</span>
+        </a>
+        <a href="music.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="nav__link-text">Music</span>
+        </a>
+        <a href="tv.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="15" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
+          <span class="nav__link-text">TV</span>
+        </a>
+        <a href="movies.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+          <span class="nav__link-text">Movies</span>
+        </a>
+      </div>
+    </nav>
+    <main class="main">
+      <div class="page page--player">
+        <div class="player-wrap">
+          <div class="player-frame-wrap" id="ai-frame-wrap">
+            <iframe id="ai-frame" title="AI" src=""></iframe>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="nav.js"></script>
+  <script>
+    (function () {
+      var frame = document.getElementById('ai-frame');
+      var frameWrap = document.getElementById('ai-frame-wrap');
+      var fullscreenBtn = document.getElementById('ai-fullscreen-btn');
+      var fullscreenLabel = document.getElementById('ai-fullscreen-label');
+      var newTabLink = document.getElementById('ai-newtab-link');
+
+      if (frame && frameWrap && fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', function () {
+          if (!document.fullscreenElement) {
+            frameWrap.requestFullscreen().catch(function (err) {
+              console.warn('Fullscreen failed:', err);
+            });
+          } else {
+            document.exitFullscreen();
+          }
+        });
+        document.addEventListener('fullscreenchange', function () {
+          if (fullscreenLabel) {
+            fullscreenLabel.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+          }
+        });
+      }
+
+      if (frame && newTabLink) {
+        var params = new URLSearchParams(window.location.search);
+        var url = params.get('url');
+        if (url) {
+          frame.src = url;
+          newTabLink.href = url;
+          newTabLink.style.display = 'inline-flex';
+          var status = document.getElementById('ai-status');
+          if (status) status.textContent = '';
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
