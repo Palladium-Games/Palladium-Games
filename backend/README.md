@@ -1,6 +1,9 @@
 # Palladium Backend (JAR)
 
-Requires JDK 21.
+Requires:
+
+- JDK 21
+- Node.js (for Scramjet + Discord bot sidecars)
 
 This backend is a Java JAR service for:
 
@@ -31,7 +34,7 @@ cd backend
 cp config/backend.example.properties config/backend.properties
 ```
 
-Edit `config/backend.properties` for server settings and Discord bot config values.
+Edit `config/backend.properties` for server settings and bot config values.
 
 Important production settings:
 
@@ -51,6 +54,12 @@ By default, running the JAR also starts the Scramjet service from `backend/scram
 on `http://127.0.0.1:1337` (health endpoint: `/health`).
 If Scramjet is already running on that host/port, the backend reuses the existing process.
 
+By default, running the JAR also starts Discord bot sidecars from `backend/discord-bots`:
+
+- `discord-commit-presence.js` (when `discord.commit.bot.token` is set)
+- `discord-link-command-bot.js` (when `discord.link.bot.token` is set)
+- `discord-community-bot.js` (when `discord.community.bot.token` is set)
+
 Or with explicit config path:
 
 ```bash
@@ -59,6 +68,7 @@ BACKEND_CONFIG=./config/backend.properties java -jar target/palladium-backend-1.
 ```
 
 Set `scramjet.autostart=false` in `backend.properties` if you want to run Scramjet separately.
+Set `discord.bots.autostart=false` in `backend.properties` if you want bots managed separately.
 
 ## Production Guides
 

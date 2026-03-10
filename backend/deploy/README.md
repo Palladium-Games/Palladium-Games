@@ -51,6 +51,11 @@ sudo systemctl start palladium-backend
 sudo systemctl status palladium-backend
 ```
 
+The backend service automatically starts:
+
+- Scramjet (`backend/scramjet-service`)
+- Discord bots (`backend/discord-bots`) when corresponding tokens are configured
+
 6. Install nginx config and set your domain/cert paths:
 
 ```bash

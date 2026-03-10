@@ -42,6 +42,13 @@ class PalladiumBackendApplicationConfigTest {
         assertEquals(120, config.rateLimitProxyRequests());
         assertEquals(30, config.rateLimitAiRequests());
         assertEquals(131072, config.aiMaxRequestBodyBytes());
+        assertTrue(config.discordBotsAutostart());
+        assertEquals("node", config.discordBotsNodeCommand());
+        assertEquals(configDir.resolve("../discord-bots").normalize(), config.discordBotsDir());
+        assertEquals(5, config.discordBotsStartupGraceSeconds());
+        assertEquals("https://discord.com/api/v10", config.discordApiBaseUrl());
+        assertEquals("", config.discordGuildId());
+        assertEquals("", config.discordRulesText());
     }
 
     @Test
@@ -71,7 +78,14 @@ class PalladiumBackendApplicationConfigTest {
                 Map.entry("SECURITY_RATE_LIMIT_WINDOW_SECONDS", "45"),
                 Map.entry("SECURITY_RATE_LIMIT_PROXY_REQUESTS", "70"),
                 Map.entry("SECURITY_RATE_LIMIT_AI_REQUESTS", "12"),
-                Map.entry("AI_MAX_REQUEST_BODY_BYTES", "4096")
+                Map.entry("AI_MAX_REQUEST_BODY_BYTES", "4096"),
+                Map.entry("DISCORD_BOTS_AUTOSTART", "false"),
+                Map.entry("DISCORD_BOTS_NODE_COMMAND", "/opt/node/bin/node"),
+                Map.entry("DISCORD_BOTS_DIR", "./custom-bots"),
+                Map.entry("DISCORD_BOTS_STARTUP_GRACE_SECONDS", "7"),
+                Map.entry("DISCORD_API_BASE_URL", "https://discord.com/api/v10"),
+                Map.entry("DISCORD_GUILD_ID", "123456789"),
+                Map.entry("DISCORD_RULES_TEXT", "Server rules text")
         );
 
         PalladiumBackendApplication.Config config = PalladiumBackendApplication.Config.load(configPath, environment);
@@ -89,5 +103,12 @@ class PalladiumBackendApplicationConfigTest {
         assertEquals(70, config.rateLimitProxyRequests());
         assertEquals(12, config.rateLimitAiRequests());
         assertEquals(4096, config.aiMaxRequestBodyBytes());
+        assertFalse(config.discordBotsAutostart());
+        assertEquals("/opt/node/bin/node", config.discordBotsNodeCommand());
+        assertEquals(configDir.resolve("custom-bots").normalize(), config.discordBotsDir());
+        assertEquals(7, config.discordBotsStartupGraceSeconds());
+        assertEquals("https://discord.com/api/v10", config.discordApiBaseUrl());
+        assertEquals("123456789", config.discordGuildId());
+        assertEquals("Server rules text", config.discordRulesText());
     }
 }

@@ -8,8 +8,9 @@ This guide is for maintainers/agents operating Palladium backend in production.
 
 1. `PalladiumBackendApplication` loads config.
 2. `ScramjetProcessManager` starts Scramjet sidecar unless disabled.
-3. If Scramjet already listens on configured host/port, backend reuses it.
-4. HTTP server starts on configured backend host/port.
+3. `DiscordBotProcessManager` starts configured Discord bot scripts unless disabled.
+4. If Scramjet already listens on configured host/port, backend reuses it.
+5. HTTP server starts on configured backend host/port.
 
 ## Safety Controls
 

@@ -48,20 +48,24 @@ public final class PalladiumBackendApplication {
     public static void main(String[] args) throws IOException {
         Config config = Config.load();
         ScramjetProcessManager scramjetProcessManager = ScramjetProcessManager.startIfEnabled(config);
+        DiscordBotProcessManager discordBotProcessManager = DiscordBotProcessManager.startIfEnabled(config);
         HttpServer server;
         try {
             server = createServer(config);
             server.start();
         } catch (IOException | RuntimeException startupError) {
             scramjetProcessManager.close();
+            discordBotProcessManager.close();
             throw startupError;
         }
 
         HttpServer finalServer = server;
         ScramjetProcessManager finalScramjetProcessManager = scramjetProcessManager;
+        DiscordBotProcessManager finalDiscordBotProcessManager = discordBotProcessManager;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             finalServer.stop(0);
             finalScramjetProcessManager.close();
+            finalDiscordBotProcessManager.close();
         }, "palladium-backend-shutdown"));
 
         System.out.println("Palladium backend JAR running on http://" + config.host() + ":" + config.port());
@@ -74,6 +78,11 @@ public final class PalladiumBackendApplication {
             System.out.println("Scramjet proxy already running on http://" + config.scramjetHost() + ":" + config.scramjetPort());
         } else {
             System.out.println("Scramjet proxy autostart is disabled.");
+        }
+        if (discordBotProcessManager.isManaged()) {
+            System.out.println("Discord bots started: " + discordBotProcessManager.botCount());
+        } else {
+            System.out.println(discordBotProcessManager.message());
         }
     }
 
@@ -292,6 +301,13 @@ public final class PalladiumBackendApplication {
             String scramjetHost,
             int scramjetPort,
             int scramjetStartupTimeoutSeconds,
+            boolean discordBotsAutostart,
+            String discordBotsNodeCommand,
+            Path discordBotsDir,
+            int discordBotsStartupGraceSeconds,
+            String discordApiBaseUrl,
+            String discordGuildId,
+            String discordRulesText,
             String discordCommitBotToken,
             String discordLinkBotToken,
             String discordCommunityBotToken,
@@ -373,6 +389,23 @@ public final class PalladiumBackendApplication {
                     20
             );
 
+            boolean discordBotsAutostart = parseBoolean(
+                    readValue(properties, environment, "discord.bots.autostart", "true"),
+                    true
+            );
+            String discordBotsNodeCommand = readValue(properties, environment, "discord.bots.node.command", "node");
+            Path discordBotsDir = resolvePath(
+                    readValue(properties, environment, "discord.bots.dir", "../discord-bots"),
+                    configDir
+            );
+            int discordBotsStartupGraceSeconds = parseInt(
+                    readValue(properties, environment, "discord.bots.startup.grace.seconds", "5"),
+                    5
+            );
+            String discordApiBaseUrl = readValue(properties, environment, "discord.api.base.url", "https://discord.com/api/v10");
+            String discordGuildId = readValue(properties, environment, "discord.guild.id", "");
+            String discordRulesText = readValue(properties, environment, "discord.rules.text", "");
+
             String commitBotToken = readValue(properties, environment, "discord.commit.bot.token", "");
             String linkBotToken = readValue(properties, environment, "discord.link.bot.token", "");
             String communityBotToken = readValue(properties, environment, "discord.community.bot.token", "");
@@ -403,6 +436,13 @@ public final class PalladiumBackendApplication {
                     scramjetHost,
                     scramjetPort,
                     scramjetStartupTimeoutSeconds,
+                    discordBotsAutostart,
+                    discordBotsNodeCommand,
+                    discordBotsDir,
+                    discordBotsStartupGraceSeconds,
+                    discordApiBaseUrl,
+                    discordGuildId,
+                    discordRulesText,
                     commitBotToken,
                     linkBotToken,
                     communityBotToken,

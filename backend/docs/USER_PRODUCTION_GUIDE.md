@@ -4,6 +4,7 @@
 
 - Java backend API on `127.0.0.1:8080`
 - Scramjet proxy sidecar on `127.0.0.1:1337` (auto-started by JAR)
+- Discord bot sidecars from `backend/discord-bots` (auto-started by JAR when tokens are configured)
 - TLS/public access handled by reverse proxy (recommended nginx)
 
 ## Checklist
