@@ -46,13 +46,34 @@ public final class PalladiumBackendApplication {
      */
     public static void main(String[] args) throws IOException {
         Config config = Config.load();
-        HttpServer server = createServer(config);
-        server.start();
+        ScramjetProcessManager scramjetProcessManager = ScramjetProcessManager.startIfEnabled(config);
+        HttpServer server;
+        try {
+            server = createServer(config);
+            server.start();
+        } catch (IOException | RuntimeException startupError) {
+            scramjetProcessManager.close();
+            throw startupError;
+        }
+
+        HttpServer finalServer = server;
+        ScramjetProcessManager finalScramjetProcessManager = scramjetProcessManager;
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            finalServer.stop(0);
+            finalScramjetProcessManager.close();
+        }, "palladium-backend-shutdown"));
 
         System.out.println("Palladium backend JAR running on http://" + config.host() + ":" + config.port());
         System.out.println("Frontend catalog directory: " + config.frontendDir().toAbsolutePath());
         System.out.println("Games directory fallback: " + config.gamesDir().toAbsolutePath());
         System.out.println("Ollama base URL: " + config.ollamaBaseUrl());
+        if (scramjetProcessManager.isManaged()) {
+            System.out.println("Scramjet proxy auto-started on http://" + config.scramjetHost() + ":" + config.scramjetPort());
+        } else if (scramjetProcessManager.isExternal()) {
+            System.out.println("Scramjet proxy already running on http://" + config.scramjetHost() + ":" + config.scramjetPort());
+        } else {
+            System.out.println("Scramjet proxy autostart is disabled.");
+        }
     }
 
     static HttpServer createServer(Config config) throws IOException {
@@ -256,6 +277,12 @@ public final class PalladiumBackendApplication {
             String ollamaBaseUrl,
             String ollamaModel,
             int requestTimeoutSeconds,
+            boolean scramjetAutostart,
+            String scramjetNodeCommand,
+            Path scramjetServiceDir,
+            String scramjetHost,
+            int scramjetPort,
+            int scramjetStartupTimeoutSeconds,
             String discordCommitBotToken,
             String discordLinkBotToken,
             String discordCommunityBotToken,
@@ -265,9 +292,12 @@ public final class PalladiumBackendApplication {
             String discordRulesChannelId
     ) {
         static Config load() throws IOException {
-            Properties properties = new Properties();
             String configPathValue = System.getenv().getOrDefault("BACKEND_CONFIG", "config/backend.properties");
-            Path configPath = Paths.get(configPathValue);
+            return load(Paths.get(configPathValue), System.getenv());
+        }
+
+        static Config load(Path configPath, Map<String, String> environment) throws IOException {
+            Properties properties = new Properties();
             Path configDir = configPath.toAbsolutePath().getParent();
             if (configDir == null) {
                 configDir = Paths.get(".").toAbsolutePath().normalize();
@@ -279,24 +309,40 @@ public final class PalladiumBackendApplication {
                 }
             }
 
-            String host = readValue(properties, "server.host", "0.0.0.0");
-            int port = parseInt(readValue(properties, "server.port", "8080"), 8080);
-            String corsOrigin = readValue(properties, "cors.origin", "*");
+            String host = readValue(properties, environment, "server.host", "0.0.0.0");
+            int port = parseInt(readValue(properties, environment, "server.port", "8080"), 8080);
+            String corsOrigin = readValue(properties, environment, "cors.origin", "*");
 
-            Path frontendDir = resolvePath(readValue(properties, "frontend.dir", "../frontend"), configDir);
-            Path gamesDir = resolvePath(readValue(properties, "games.dir", "../games"), configDir);
+            Path frontendDir = resolvePath(readValue(properties, environment, "frontend.dir", "../frontend"), configDir);
+            Path gamesDir = resolvePath(readValue(properties, environment, "games.dir", "../games"), configDir);
 
-            String ollamaBaseUrl = readValue(properties, "ollama.base.url", "http://127.0.0.1:11434");
-            String ollamaModel = readValue(properties, "ollama.model", "qwen3.5:0.8b");
-            int requestTimeoutSeconds = parseInt(readValue(properties, "request.timeout.seconds", "25"), 25);
+            String ollamaBaseUrl = readValue(properties, environment, "ollama.base.url", "http://127.0.0.1:11434");
+            String ollamaModel = readValue(properties, environment, "ollama.model", "qwen3.5:0.8b");
+            int requestTimeoutSeconds = parseInt(readValue(properties, environment, "request.timeout.seconds", "25"), 25);
 
-            String commitBotToken = readValue(properties, "discord.commit.bot.token", "");
-            String linkBotToken = readValue(properties, "discord.link.bot.token", "");
-            String communityBotToken = readValue(properties, "discord.community.bot.token", "");
-            String commitChannelId = readValue(properties, "discord.commit.channel.id", "");
-            String linkCommandChannelIds = readValue(properties, "discord.link.command.channel.ids", "");
-            String welcomeChannelId = readValue(properties, "discord.welcome.channel.id", "");
-            String rulesChannelId = readValue(properties, "discord.rules.channel.id", "");
+            boolean scramjetAutostart = parseBoolean(
+                    readValue(properties, environment, "scramjet.autostart", "true"),
+                    true
+            );
+            String scramjetNodeCommand = readValue(properties, environment, "scramjet.node.command", "node");
+            Path scramjetServiceDir = resolvePath(
+                    readValue(properties, environment, "scramjet.service.dir", "../scramjet-service"),
+                    configDir
+            );
+            String scramjetHost = readValue(properties, environment, "scramjet.host", "0.0.0.0");
+            int scramjetPort = parseInt(readValue(properties, environment, "scramjet.port", "1337"), 1337);
+            int scramjetStartupTimeoutSeconds = parseInt(
+                    readValue(properties, environment, "scramjet.startup.timeout.seconds", "20"),
+                    20
+            );
+
+            String commitBotToken = readValue(properties, environment, "discord.commit.bot.token", "");
+            String linkBotToken = readValue(properties, environment, "discord.link.bot.token", "");
+            String communityBotToken = readValue(properties, environment, "discord.community.bot.token", "");
+            String commitChannelId = readValue(properties, environment, "discord.commit.channel.id", "");
+            String linkCommandChannelIds = readValue(properties, environment, "discord.link.command.channel.ids", "");
+            String welcomeChannelId = readValue(properties, environment, "discord.welcome.channel.id", "");
+            String rulesChannelId = readValue(properties, environment, "discord.rules.channel.id", "");
 
             return new Config(
                     host,
@@ -307,6 +353,12 @@ public final class PalladiumBackendApplication {
                     ollamaBaseUrl,
                     ollamaModel,
                     requestTimeoutSeconds,
+                    scramjetAutostart,
+                    scramjetNodeCommand,
+                    scramjetServiceDir,
+                    scramjetHost,
+                    scramjetPort,
+                    scramjetStartupTimeoutSeconds,
                     commitBotToken,
                     linkBotToken,
                     communityBotToken,
@@ -317,9 +369,9 @@ public final class PalladiumBackendApplication {
             );
         }
 
-        private static String readValue(Properties properties, String key, String fallback) {
+        private static String readValue(Properties properties, Map<String, String> environment, String key, String fallback) {
             String envKey = key.toUpperCase(Locale.ROOT).replace('.', '_');
-            String fromEnv = System.getenv(envKey);
+            String fromEnv = environment.get(envKey);
             if (fromEnv != null && !fromEnv.isBlank()) {
                 return fromEnv.trim();
             }
@@ -332,6 +384,16 @@ public final class PalladiumBackendApplication {
             } catch (NumberFormatException ignored) {
                 return fallback;
             }
+        }
+
+        private static boolean parseBoolean(String value, boolean fallback) {
+            if ("true".equalsIgnoreCase(value)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(value)) {
+                return false;
+            }
+            return fallback;
         }
 
         private static Path resolvePath(String value, Path baseDir) {

@@ -40,9 +40,15 @@ cd backend
 java -jar target/palladium-backend-1.0.0.jar
 ```
 
+By default, running the JAR also starts the Scramjet service from `backend/scramjet-service`
+on `http://127.0.0.1:1337` (health endpoint: `/health`).
+If Scramjet is already running on that host/port, the backend reuses the existing process.
+
 Or with explicit config path:
 
 ```bash
 cd backend
 BACKEND_CONFIG=./config/backend.properties java -jar target/palladium-backend-1.0.0.jar
 ```
+
+Set `scramjet.autostart=false` in `backend.properties` if you want to run Scramjet separately.
