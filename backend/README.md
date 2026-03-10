@@ -33,6 +33,13 @@ cp config/backend.example.properties config/backend.properties
 
 Edit `config/backend.properties` for server settings and Discord bot config values.
 
+Important production settings:
+
+- `cors.origin` should be your exact frontend origin, not `*`
+- `security.rate.limit.*` values should stay enabled
+- `proxy.block.private.network.targets=true` should stay enabled
+- `security.trust.proxy.headers=true` only when traffic is behind trusted reverse proxy
+
 ## Run
 
 ```bash
@@ -52,3 +59,12 @@ BACKEND_CONFIG=./config/backend.properties java -jar target/palladium-backend-1.
 ```
 
 Set `scramjet.autostart=false` in `backend.properties` if you want to run Scramjet separately.
+
+## Production Guides
+
+- User guide: `docs/USER_PRODUCTION_GUIDE.md`
+- Agent/operator guide: `docs/AGENT_PRODUCTION_OPERATIONS.md`
+- Service templates: `deploy/`
+
+Monochrome music service can be hosted alongside backend via Docker Compose.
+See `deploy/README.md` for clone/start instructions and systemd integration.

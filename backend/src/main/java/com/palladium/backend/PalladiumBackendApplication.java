@@ -5,6 +5,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -82,6 +83,7 @@ public final class PalladiumBackendApplication {
                 .connectTimeout(Duration.ofSeconds(config.requestTimeoutSeconds()))
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
+        SlidingWindowRateLimiter rateLimiter = new SlidingWindowRateLimiter();
 
         server.createContext("/health", new JsonHandler(config) {
             @Override
@@ -142,8 +144,8 @@ public final class PalladiumBackendApplication {
             }
         });
 
-        server.createContext("/api/proxy/fetch", new ProxyFetchHandler(config, httpClient));
-        server.createContext("/api/ai/chat", new AiChatProxyHandler(config, httpClient));
+        server.createContext("/api/proxy/fetch", new ProxyFetchHandler(config, httpClient, rateLimiter));
+        server.createContext("/api/ai/chat", new AiChatProxyHandler(config, httpClient, rateLimiter));
 
         server.createContext("/api/config/public", new JsonHandler(config) {
             @Override
@@ -277,6 +279,13 @@ public final class PalladiumBackendApplication {
             String ollamaBaseUrl,
             String ollamaModel,
             int requestTimeoutSeconds,
+            boolean trustProxyHeaders,
+            boolean blockPrivateProxyTargets,
+            boolean rateLimitEnabled,
+            int rateLimitWindowSeconds,
+            int rateLimitProxyRequests,
+            int rateLimitAiRequests,
+            int aiMaxRequestBodyBytes,
             boolean scramjetAutostart,
             String scramjetNodeCommand,
             Path scramjetServiceDir,
@@ -319,6 +328,34 @@ public final class PalladiumBackendApplication {
             String ollamaBaseUrl = readValue(properties, environment, "ollama.base.url", "http://127.0.0.1:11434");
             String ollamaModel = readValue(properties, environment, "ollama.model", "qwen3.5:0.8b");
             int requestTimeoutSeconds = parseInt(readValue(properties, environment, "request.timeout.seconds", "25"), 25);
+            boolean trustProxyHeaders = parseBoolean(
+                    readValue(properties, environment, "security.trust.proxy.headers", "false"),
+                    false
+            );
+            boolean blockPrivateProxyTargets = parseBoolean(
+                    readValue(properties, environment, "proxy.block.private.network.targets", "true"),
+                    true
+            );
+            boolean rateLimitEnabled = parseBoolean(
+                    readValue(properties, environment, "security.rate.limit.enabled", "true"),
+                    true
+            );
+            int rateLimitWindowSeconds = parseInt(
+                    readValue(properties, environment, "security.rate.limit.window.seconds", "60"),
+                    60
+            );
+            int rateLimitProxyRequests = parseInt(
+                    readValue(properties, environment, "security.rate.limit.proxy.requests", "120"),
+                    120
+            );
+            int rateLimitAiRequests = parseInt(
+                    readValue(properties, environment, "security.rate.limit.ai.requests", "30"),
+                    30
+            );
+            int aiMaxRequestBodyBytes = parseInt(
+                    readValue(properties, environment, "ai.max.request.body.bytes", "131072"),
+                    131072
+            );
 
             boolean scramjetAutostart = parseBoolean(
                     readValue(properties, environment, "scramjet.autostart", "true"),
@@ -353,6 +390,13 @@ public final class PalladiumBackendApplication {
                     ollamaBaseUrl,
                     ollamaModel,
                     requestTimeoutSeconds,
+                    trustProxyHeaders,
+                    blockPrivateProxyTargets,
+                    rateLimitEnabled,
+                    rateLimitWindowSeconds,
+                    rateLimitProxyRequests,
+                    rateLimitAiRequests,
+                    aiMaxRequestBodyBytes,
                     scramjetAutostart,
                     scramjetNodeCommand,
                     scramjetServiceDir,
@@ -444,10 +488,12 @@ public final class PalladiumBackendApplication {
     private static final class ProxyFetchHandler implements HttpHandler {
         private final Config config;
         private final HttpClient httpClient;
+        private final SlidingWindowRateLimiter rateLimiter;
 
-        ProxyFetchHandler(Config config, HttpClient httpClient) {
+        ProxyFetchHandler(Config config, HttpClient httpClient, SlidingWindowRateLimiter rateLimiter) {
             this.config = config;
             this.httpClient = httpClient;
+            this.rateLimiter = rateLimiter;
         }
 
         @Override
@@ -459,6 +505,11 @@ public final class PalladiumBackendApplication {
             }
             if (!"GET".equals(method) && !"HEAD".equals(method)) {
                 sendPlain(exchange, 405, "Method not allowed", config.corsOrigin());
+                return;
+            }
+
+            if (!allowRequest(exchange, "proxy", config.rateLimitProxyRequests())) {
+                sendPlain(exchange, 429, "Too many requests. Please retry shortly.", config.corsOrigin());
                 return;
             }
 
@@ -481,6 +532,10 @@ public final class PalladiumBackendApplication {
                 sendPlain(exchange, 400, "Only http/https URLs are allowed", config.corsOrigin());
                 return;
             }
+            if (RequestSecurity.isBlockedProxyTarget(target, config.blockPrivateProxyTargets())) {
+                sendPlain(exchange, 403, "Target is blocked by proxy security policy", config.corsOrigin());
+                return;
+            }
 
             HttpRequest request = HttpRequest.newBuilder(target)
                     .timeout(Duration.ofSeconds(config.requestTimeoutSeconds()))
@@ -496,6 +551,7 @@ public final class PalladiumBackendApplication {
                         upstream.headers().firstValue("content-type").orElse("application/octet-stream")
                 );
                 addCors(headers, config.corsOrigin(), "GET,HEAD,OPTIONS");
+                addSecurityHeaders(headers);
 
                 if ("HEAD".equals(method)) {
                     exchange.sendResponseHeaders(upstream.statusCode(), -1);
@@ -513,6 +569,18 @@ public final class PalladiumBackendApplication {
                 sendPlain(exchange, 502, "Proxy interrupted", config.corsOrigin());
             }
         }
+
+        private boolean allowRequest(HttpExchange exchange, String scope, int limit) {
+            if (!config.rateLimitEnabled()) {
+                return true;
+            }
+            String client = RequestSecurity.resolveClientIdentifier(exchange, config.trustProxyHeaders());
+            return rateLimiter.allow(
+                    scope + ":" + client,
+                    limit,
+                    Duration.ofSeconds(Math.max(1, config.rateLimitWindowSeconds()))
+            );
+        }
     }
 
     /**
@@ -521,10 +589,12 @@ public final class PalladiumBackendApplication {
     private static final class AiChatProxyHandler implements HttpHandler {
         private final Config config;
         private final HttpClient httpClient;
+        private final SlidingWindowRateLimiter rateLimiter;
 
-        AiChatProxyHandler(Config config, HttpClient httpClient) {
+        AiChatProxyHandler(Config config, HttpClient httpClient, SlidingWindowRateLimiter rateLimiter) {
             this.config = config;
             this.httpClient = httpClient;
+            this.rateLimiter = rateLimiter;
         }
 
         @Override
@@ -539,7 +609,21 @@ public final class PalladiumBackendApplication {
                 return;
             }
 
-            String rawBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8).trim();
+            if (!allowRequest(exchange, "ai", config.rateLimitAiRequests())) {
+                sendPlain(exchange, 429, "Too many AI requests. Please retry shortly.", config.corsOrigin());
+                return;
+            }
+
+            String rawBody;
+            try {
+                rawBody = new String(
+                        readRequestBodyWithLimit(exchange.getRequestBody(), config.aiMaxRequestBodyBytes()),
+                        StandardCharsets.UTF_8
+                ).trim();
+            } catch (RequestTooLargeException tooLarge) {
+                sendPlain(exchange, 413, tooLarge.getMessage(), config.corsOrigin());
+                return;
+            }
             if (rawBody.isBlank()) {
                 sendPlain(exchange, 400, "Request body is required", config.corsOrigin());
                 return;
@@ -569,6 +653,7 @@ public final class PalladiumBackendApplication {
                         upstream.headers().firstValue("content-type").orElse("application/json; charset=utf-8")
                 );
                 addCors(headers, config.corsOrigin(), "POST,OPTIONS");
+                addSecurityHeaders(headers);
 
                 byte[] body = upstream.body();
                 exchange.sendResponseHeaders(upstream.statusCode(), body.length);
@@ -579,6 +664,18 @@ public final class PalladiumBackendApplication {
                 Thread.currentThread().interrupt();
                 sendPlain(exchange, 502, "AI request interrupted", config.corsOrigin());
             }
+        }
+
+        private boolean allowRequest(HttpExchange exchange, String scope, int limit) {
+            if (!config.rateLimitEnabled()) {
+                return true;
+            }
+            String client = RequestSecurity.resolveClientIdentifier(exchange, config.trustProxyHeaders());
+            return rateLimiter.allow(
+                    scope + ":" + client,
+                    limit,
+                    Duration.ofSeconds(Math.max(1, config.rateLimitWindowSeconds()))
+            );
         }
 
         private static String withDefaultModel(String body, String defaultModel) {
@@ -604,6 +701,7 @@ public final class PalladiumBackendApplication {
         Headers headers = exchange.getResponseHeaders();
         headers.set("content-type", "application/json; charset=utf-8");
         addCors(headers, corsOrigin, "GET,HEAD,OPTIONS");
+        addSecurityHeaders(headers);
         if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(statusCode, -1);
             exchange.close();
@@ -620,6 +718,7 @@ public final class PalladiumBackendApplication {
         Headers headers = exchange.getResponseHeaders();
         headers.set("content-type", "text/plain; charset=utf-8");
         addCors(headers, corsOrigin, "GET,HEAD,OPTIONS,POST");
+        addSecurityHeaders(headers);
         if ("HEAD".equalsIgnoreCase(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(statusCode, -1);
             exchange.close();
@@ -636,5 +735,32 @@ public final class PalladiumBackendApplication {
         headers.set("access-control-allow-origin", corsOrigin);
         headers.set("access-control-allow-methods", allowMethods);
         headers.set("access-control-allow-headers", "content-type, authorization");
+    }
+
+    private static void addSecurityHeaders(Headers headers) {
+        headers.set("x-content-type-options", "nosniff");
+        headers.set("x-frame-options", "SAMEORIGIN");
+        headers.set("referrer-policy", "no-referrer");
+    }
+
+    private static byte[] readRequestBodyWithLimit(InputStream inputStream, int maxBytes) throws IOException {
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        byte[] buffer = new byte[8192];
+        int total = 0;
+        int read;
+        while ((read = inputStream.read(buffer)) != -1) {
+            total += read;
+            if (total > maxBytes) {
+                throw new RequestTooLargeException("Request body exceeds " + maxBytes + " bytes");
+            }
+            outputStream.write(buffer, 0, read);
+        }
+        return outputStream.toByteArray();
+    }
+
+    private static final class RequestTooLargeException extends IOException {
+        RequestTooLargeException(String message) {
+            super(message);
+        }
     }
 }
