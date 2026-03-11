@@ -5,6 +5,7 @@ Palladium now runs as a single Node monolith:
 - serves the static frontend
 - exposes API routes (`/api/games`, `/api/ai/chat`, `/api/proxy/fetch`, `/link-check`)
 - manages sidecars (Scramjet proxy, Ollama, Discord bots)
+- serves Music page integration for Monochrome
 
 ## Repo Layout
 
@@ -31,6 +32,13 @@ First run auto-creates `config/palladium.env` from `config/palladium.env.example
 - Site/API: `3000` (`SITE_PORT`)
 - Scramjet: `1337` (`SCRAMJET_PORT`)
 - Ollama: `11434` (`OLLAMA_BASE_URL`)
+
+If `SCRAMJET_PORT` is already occupied by an incompatible process, the backend automatically launches managed Scramjet on the next free port and publishes it via `/api/config/public`.
+
+## Music (Monochrome)
+
+- Frontend page: `/music.html`
+- Config key: `MONOCHROME_BASE_URL` (default `https://monochrome.tf`)
 
 ## Notes
 

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function(){
+      try {
+        var stored = sessionStorage.getItem('palladium-nav-expanded');
+        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+      } catch (e) {}
+    })();
+  </script>
+  <title>Music — Palladium Games</title>
+  <link rel="icon" href="images/favicon.png?v=3" type="image/png" />
+  <link rel="shortcut icon" href="favicon.ico?v=3" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="images/favicon.png?v=3" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav">
+      <div class="nav__toggle">
+        <button type="button" id="nav-toggle" class="nav__toggle-btn" aria-label="Toggle menu">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="nav__logo">
+        <img src="images/favicon.png" alt="Palladium" class="nav__logo-icon" />
+        <span class="nav__logo-text">PALLADIUM</span>
+      </div>
+      <div class="nav__links">
+        <a href="index.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="nav__link-text">Home</span>
+        </a>
+        <a href="games.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-1.6a2 2 0 0 1-1.6-.8l-.8-1.1a2 2 0 0 0-1.6-.8h-2.8a2 2 0 0 0-1.6.8l-.8 1.1A2 2 0 0 1 6.6 19H5a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4h2z"/><path d="M7.5 12h3"/><path d="M9 10.5v3"/><circle cx="16.5" cy="11.5" r="1"/><circle cx="18.2" cy="13.2" r="1"/></svg>
+          <span class="nav__link-text">Games</span>
+        </a>
+        <a href="proxy.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="nav__link-text">Proxy</span>
+        </a>
+        <a href="ai.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="10" rx="3"/><path d="M12 8V4"/><path d="M8.5 4h7"/><circle cx="9.5" cy="13" r="1"/><circle cx="14.5" cy="13" r="1"/><path d="M9 16h6"/></svg>
+          <span class="nav__link-text">AI</span>
+        </a>
+        <a href="music.html" class="nav__link nav__link--active">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="nav__link-text">Music</span>
+        </a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="page page--music">
+        <section class="music-shell">
+          <header class="music-shell__top">
+            <h1 class="music-shell__title">Monochrome Music</h1>
+            <div id="music-status" class="proxy-shell__status">Connecting...</div>
+          </header>
+          <form id="music-form" class="music-shell__controls">
+            <input id="music-url-input" class="proxy-shell__input" type="text" placeholder="Monochrome URL" autocomplete="off" />
+            <button type="submit" class="player-bar__btn">Open</button>
+            <button type="button" id="music-reload-btn" class="player-bar__btn">Reload</button>
+            <a id="music-open-btn" href="#" target="_blank" rel="noopener noreferrer" class="player-bar__btn">Open in new tab</a>
+          </form>
+          <div class="music-shell__frame">
+            <iframe id="music-frame" title="Monochrome Music"></iframe>
+          </div>
+          <div id="music-note" class="proxy-shell__status">If the player does not appear, open it in a new tab.</div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="backend.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    (function () {
+      var DEFAULT_MUSIC_URL = 'https://monochrome.tf';
+      var form = document.getElementById('music-form');
+      var input = document.getElementById('music-url-input');
+      var frame = document.getElementById('music-frame');
+      var reloadBtn = document.getElementById('music-reload-btn');
+      var openBtn = document.getElementById('music-open-btn');
+      var statusEl = document.getElementById('music-status');
+
+      function normalizeUrl(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return '';
+        if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+        try {
+          return new URL(raw).toString();
+        } catch (e) {
+          return '';
+        }
+      }
+
+      function setStatus(text, isError) {
+        if (!statusEl) return;
+        statusEl.textContent = String(text || '');
+        statusEl.classList.toggle('proxy-shell__status--error', Boolean(isError));
+      }
+
+      function openMusic(url) {
+        var normalized = normalizeUrl(url);
+        if (!normalized) {
+          setStatus('Invalid Monochrome URL.', true);
+          return;
+        }
+        if (input) input.value = normalized;
+        if (frame) frame.src = normalized;
+        if (openBtn) openBtn.href = normalized;
+        setStatus('Loaded ' + normalized, false);
+      }
+
+      async function resolveDefaultUrl() {
+        var fromQuery = normalizeUrl((new URLSearchParams(window.location.search)).get('url') || '');
+        if (fromQuery) return fromQuery;
+
+        if (window.PalladiumBackend && typeof window.PalladiumBackend.getPublicConfig === 'function') {
+          try {
+            var config = await window.PalladiumBackend.getPublicConfig();
+            var fromConfig = normalizeUrl(config && config.services && config.services.monochromeBase);
+            if (fromConfig) return fromConfig;
+          } catch (error) {
+            console.warn('Failed to fetch backend config for music:', error);
+          }
+        }
+
+        return DEFAULT_MUSIC_URL;
+      }
+
+      if (form) {
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          openMusic(input && input.value);
+        });
+      }
+
+      if (reloadBtn) {
+        reloadBtn.addEventListener('click', function () {
+          if (frame && frame.src) {
+            frame.src = frame.src;
+            setStatus('Reloaded music frame.', false);
+          }
+        });
+      }
+
+      (async function init() {
+        setStatus('Resolving Monochrome endpoint...', false);
+        var initial = await resolveDefaultUrl();
+        openMusic(initial);
+      })();
+    })();
+  </script>
+</body>
+</html>
