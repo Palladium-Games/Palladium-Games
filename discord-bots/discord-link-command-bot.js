@@ -6,7 +6,7 @@ const { execSync } = require("child_process");
 const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
-const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://localhost:1338").replace(/\/$/, "");
+const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const POLL_MS = Number(process.env.DISCORD_LINK_POLL_MS || 3500);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
 const LINK_COMMAND_NAME = "link";
@@ -139,6 +139,29 @@ async function interactionCallback(interactionId, interactionToken, body) {
   if (!response.ok) {
     const text = await response.text().catch(() => "");
     throw new Error(`Interaction callback failed (${response.status}): ${text}`);
+  }
+}
+
+async function interactionEditOriginal(interactionToken, body) {
+  if (!appId) {
+    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
+    appId = appInfo && appInfo.id ? String(appInfo.id) : "";
+  }
+  if (!appId) {
+    throw new Error("Unable to resolve application id for interaction follow-up.");
+  }
+
+  const response = await fetch(`${DISCORD_API_BASE}/webhooks/${appId}/${interactionToken}/messages/@original`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body || {}),
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Interaction edit failed (${response.status}): ${text}`);
   }
 }
 
@@ -295,6 +318,19 @@ function buildResultPayload(requesterMention, url, result, errorText) {
   if (errorText) {
     return {
       content: `${requesterMention} asked for a filter check on ${url}\nResult: ${errorText}`.slice(0, 1900),
+      embeds: [
+        {
+          title: "🔎 Filter Analysis",
+          color: 0xef4444,
+          fields: [
+            { name: "Target", value: `\`${safeHost(url)}\``, inline: false },
+            { name: "Status", value: "Failed", inline: true },
+            { name: "Error", value: clamp(errorText, 900), inline: false },
+          ],
+          footer: { text: "Palladium Link Intelligence" },
+          timestamp: new Date().toISOString(),
+        },
+      ],
     };
   }
 
@@ -502,21 +538,33 @@ async function handleSlashLinkInteraction(interaction) {
   const requesterMention = requesterId ? `<@${requesterId}>` : "Someone";
 
   try {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 5,
+    });
+
     const result = await runLinkCheck(url);
     const payload = buildResultPayload(requesterMention, url, result, "");
-    await interactionCallback(interaction.id, interaction.token, {
-      type: 4,
-      data: payload,
-    });
+    await interactionEditOriginal(interaction.token, payload);
   } catch (error) {
     const msg = error && error.message ? error.message : "Unknown error";
-    await interactionCallback(interaction.id, interaction.token, {
-      type: 4,
-      data: {
+    try {
+      await interactionEditOriginal(interaction.token, {
         flags: 64,
         content: `${requesterMention} link check failed for ${url}: ${msg}`,
-      },
-    });
+      });
+    } catch {
+      try {
+        await interactionCallback(interaction.id, interaction.token, {
+          type: 4,
+          data: {
+            flags: 64,
+            content: `${requesterMention} link check failed for ${url}: ${msg}`,
+          },
+        });
+      } catch {
+        // Interaction already acknowledged or expired.
+      }
+    }
   }
 }
 

@@ -214,11 +214,42 @@
         var trimmed = String(rawText || '').trim();
         if (!trimmed) return '';
 
-        try {
-          var parsed = JSON.parse(trimmed);
-          if (parsed && parsed.message && typeof parsed.message.content === 'string') {
+        function contentFromParsed(parsed) {
+          if (!parsed || typeof parsed !== 'object') return '';
+
+          if (parsed.error && typeof parsed.error === 'string') {
+            return '';
+          }
+
+          if (parsed.message && typeof parsed.message.content === 'string') {
             return parsed.message.content;
           }
+
+          if (typeof parsed.response === 'string') {
+            return parsed.response;
+          }
+
+          if (typeof parsed.content === 'string') {
+            return parsed.content;
+          }
+
+          if (Array.isArray(parsed.choices) && parsed.choices.length) {
+            var first = parsed.choices[0] || {};
+            if (first.message && typeof first.message.content === 'string') {
+              return first.message.content;
+            }
+            if (typeof first.text === 'string') {
+              return first.text;
+            }
+          }
+
+          return '';
+        }
+
+        try {
+          var parsed = JSON.parse(trimmed);
+          var direct = contentFromParsed(parsed);
+          if (direct) return direct;
         } catch (e) {
           // Ignore single JSON parse failures and try NDJSON.
         }
@@ -230,14 +261,65 @@
           if (!line) continue;
           try {
             var part = JSON.parse(line);
-            if (part && part.message && typeof part.message.content === 'string') {
-              combined += part.message.content;
+            var segment = contentFromParsed(part);
+            if (segment) {
+              combined += segment;
             }
           } catch (e) {
             // Ignore malformed stream lines.
           }
         }
         return combined || trimmed;
+      }
+
+      function extractErrorText(rawText) {
+        var trimmed = String(rawText || '').trim();
+        if (!trimmed) return '';
+
+        try {
+          var parsed = JSON.parse(trimmed);
+          if (parsed && parsed.error && typeof parsed.error === 'string') {
+            return parsed.error;
+          }
+        } catch (e) {
+          // Ignore and attempt NDJSON.
+        }
+
+        var chunks = trimmed.split(/\r?\n/);
+        for (var i = 0; i < chunks.length; i += 1) {
+          var line = chunks[i].trim();
+          if (!line) continue;
+          try {
+            var part = JSON.parse(line);
+            if (part && part.error && typeof part.error === 'string') {
+              return part.error;
+            }
+          } catch (e) {
+            // Ignore malformed lines.
+          }
+        }
+
+        return '';
+      }
+
+      async function requestAi(payload) {
+        var response = await fetch(window.PalladiumBackend.apiUrl('/api/ai/chat'), {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        var raw = await response.text();
+        if (!response.ok) {
+          throw new Error(raw || ('AI request failed: ' + response.status));
+        }
+
+        var upstreamError = extractErrorText(raw);
+        if (upstreamError) {
+          throw new Error(upstreamError);
+        }
+
+        return extractAssistantText(raw);
       }
 
       async function getGamesCatalog() {
@@ -286,24 +368,31 @@
         }
         messages.push({ role: 'user', content: userText });
 
-        var response = await fetch(window.PalladiumBackend.apiUrl('/api/ai/chat'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            stream: false,
-            messages: messages,
-            options: {
-              temperature: 0.2,
-              num_predict: 220
-            }
-          })
+        var primaryPayload = {
+          stream: false,
+          messages: messages,
+          options: {
+            temperature: 0.2,
+            num_predict: 220
+          }
+        };
+
+        var answer = await requestAi(primaryPayload);
+        if (String(answer || '').trim()) {
+          return answer;
+        }
+
+        // Retry once with simpler payload for providers that ignore/strip options.
+        var fallbackAnswer = await requestAi({
+          stream: false,
+          messages: messages
         });
 
-        var raw = await response.text();
-        if (!response.ok) {
-          throw new Error(raw || ('AI request failed: ' + response.status));
+        if (String(fallbackAnswer || '').trim()) {
+          return fallbackAnswer;
         }
-        return extractAssistantText(raw);
+
+        throw new Error('AI returned an empty response.');
       }
 
       function autoGrow() {
