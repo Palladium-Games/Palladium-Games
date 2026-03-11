@@ -9,6 +9,15 @@ const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/ap
 const POLL_MS = Number(process.env.DISCORD_COMMUNITY_POLL_MS || 5000);
 const RULES_CHECK_MS = Number(process.env.DISCORD_RULES_CHECK_MS || 5 * 60 * 1000);
 const ROLE_CACHE_MS = Number(process.env.DISCORD_ROLE_CACHE_MS || 10 * 60 * 1000);
+const MODERATION_ENABLED = String(process.env.DISCORD_MODERATION_ENABLED || "true").toLowerCase() !== "false";
+const MODERATION_TIMEOUT_MINUTES = Number(process.env.DISCORD_MODERATION_TIMEOUT_MINUTES || 15);
+const MODERATION_LOOKBACK_MS = Number(process.env.DISCORD_MODERATION_LOOKBACK_MS || 12_000);
+const MODERATION_MAX_MESSAGES = Number(process.env.DISCORD_MODERATION_MAX_MESSAGES || 6);
+const MODERATION_COOLDOWN_MS = Number(process.env.DISCORD_MODERATION_COOLDOWN_MS || 10 * 60 * 1000);
+const MODERATION_USE_QWEN = String(process.env.DISCORD_MODERATION_USE_QWEN || "true").toLowerCase() !== "false";
+const OLLAMA_BASE_URL = (process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434").replace(/\/+$/, "");
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || "qwen3.5:0.8b";
+const MODERATION_QWEN_TIMEOUT_MS = Number(process.env.DISCORD_MODERATION_QWEN_TIMEOUT_MS || 8_000);
 const STATE_PATH = process.env.DISCORD_COMMUNITY_STATE_PATH || path.join(__dirname, "..", ".discord-community-bot-state.json");
 const RULES_EMBED_TITLE = "Palladium Rules";
 const RULES_SIGNATURE = "palladium-rules-v1";
@@ -40,19 +49,67 @@ const CONFIGURED_COMMAND_CHANNEL_IDS = unique(
 );
 
 let COMMAND_CHANNEL_IDS = [...CONFIGURED_COMMAND_CHANNEL_IDS];
+const CONFIGURED_MODERATION_CHANNEL_IDS = unique(
+  parseChannelIds(
+    process.env.DISCORD_MODERATION_CHANNEL_IDS ||
+    tryReadGitConfig("discord.moderationChannelIds") ||
+    ""
+  )
+);
+let MODERATION_CHANNEL_IDS = [...CONFIGURED_MODERATION_CHANNEL_IDS];
 
 let GUILD_ID =
   process.env.DISCORD_GUILD_ID ||
   tryReadGitConfig("discord.communityGuildId") ||
   "";
 
-const DEFAULT_RULES_TEXT = [
-  "1. Be respectful to everyone.",
-  "2. No hate speech, harassment, or threats.",
-  "3. No spam or scams.",
-  "4. Keep channels on-topic.",
-  "5. Follow Discord Terms of Service.",
-].join("\n");
+const DEFAULT_RULE_SECTIONS = [
+  {
+    title: "Respect Everyone",
+    details: [
+      "Treat members, staff, and guests with respect at all times.",
+      "Harassment, personal attacks, hate speech, and threats are not allowed."
+    ]
+  },
+  {
+    title: "No Scams, Spam, or Abuse",
+    details: [
+      "Do not send scam links, phishing attempts, mass promotions, or repeated spam.",
+      "Excessive repeated messages can trigger an automatic timeout."
+    ]
+  },
+  {
+    title: "Keep Content Appropriate",
+    details: [
+      "No NSFW, illegal, or harmful content.",
+      "Do not post malicious files, doxxing content, or privacy-violating material."
+    ]
+  },
+  {
+    title: "Use Channels Correctly",
+    details: [
+      "Keep discussions in the correct channels and avoid derailing conversations.",
+      "Use commands where they belong and follow moderator instructions."
+    ]
+  },
+  {
+    title: "Follow Discord ToS",
+    details: [
+      "All Discord Terms of Service and Community Guidelines are enforced here."
+    ]
+  },
+  {
+    title: "Enforcement Policy",
+    details: [
+      "Rule-breaking can result in message removal, timeout (mute), kick, or ban depending on severity.",
+      "Staff decisions and safety actions are final during active incidents."
+    ]
+  }
+];
+
+const DEFAULT_RULES_TEXT = DEFAULT_RULE_SECTIONS
+  .map((section, index) => `${index + 1}. ${section.title}`)
+  .join("\n");
 
 const RULES_TEXT =
   process.env.DISCORD_RULES_TEXT ||
@@ -76,13 +133,27 @@ if (typeof state.lastRulesCheck !== "number") state.lastRulesCheck = 0;
 if (typeof state.rulesMessageId !== "string") state.rulesMessageId = "";
 if (!state.commandLastMessageIds || typeof state.commandLastMessageIds !== "object") state.commandLastMessageIds = {};
 if (!state.commandBootstrapped || typeof state.commandBootstrapped !== "object") state.commandBootstrapped = {};
+if (!state.moderationLastMessageIds || typeof state.moderationLastMessageIds !== "object") state.moderationLastMessageIds = {};
+if (!state.moderationBootstrapped || typeof state.moderationBootstrapped !== "object") state.moderationBootstrapped = {};
+if (!state.inviteSnapshot || typeof state.inviteSnapshot !== "object") state.inviteSnapshot = {};
 
 let botUser = null;
 let memberPollingEnabled = true;
+let inviteTrackingEnabled = true;
+let moderationEnabled = MODERATION_ENABLED;
 let guildRolesById = new Map();
 let guildRolesFetchedAt = 0;
 let guildInfo = null;
 let appId = "";
+const recentMessagesByUser = new Map();
+const recentModerationActions = new Map();
+
+const MODERATION_PATTERNS = [
+  { id: "hate-speech", reason: "hate speech", regex: /\b(?:racial\s+slur|nazi\s+propaganda|kill\s+all\s+\w+)\b/i },
+  { id: "threats", reason: "threatening language", regex: /\b(?:kys|kill yourself|i will kill you|im going to kill you)\b/i },
+  { id: "scam", reason: "scam/phishing language", regex: /\b(?:free nitro|steam gift|gift card drop|claim reward|verify account now)\b/i },
+  { id: "phishing-link", reason: "suspicious phishing link", regex: /\b(?:discord\.(?:gift|gg)\/[a-z0-9]+)\b/i }
+];
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -330,6 +401,22 @@ async function resolveCommandChannels() {
   }
 }
 
+async function resolveModerationChannels() {
+  if (MODERATION_CHANNEL_IDS.length) return MODERATION_CHANNEL_IDS;
+
+  try {
+    const channels = await discordRequest("GET", `/guilds/${GUILD_ID}/channels`);
+    const textChannels = (Array.isArray(channels) ? channels : [])
+      .filter((channel) => channel && (channel.type === 0 || channel.type === 5) && channel.id)
+      .map((channel) => String(channel.id));
+    MODERATION_CHANNEL_IDS = unique(textChannels).slice(0, 60);
+    return MODERATION_CHANNEL_IDS;
+  } catch {
+    MODERATION_CHANNEL_IDS = await resolveCommandChannels();
+    return MODERATION_CHANNEL_IDS;
+  }
+}
+
 function buildRulesCommandPayload() {
   return {
     name: RULES_COMMAND_NAME,
@@ -388,19 +475,52 @@ function normalizeRules() {
   return lines.map((line) => line.replace(/^[-*\d.)\s]+/, "").trim()).filter(Boolean);
 }
 
-function buildRulesEmbed() {
-  const normalizedRules = normalizeRules().slice(0, 20);
-  const fields = normalizedRules.map((rule, index) => ({
-    name: `Rule ${index + 1}`,
-    value: `- ${rule}`,
-    inline: false,
+function buildRuleSections() {
+  const normalizedRules = normalizeRules();
+  if (!normalizedRules.length) {
+    return DEFAULT_RULE_SECTIONS;
+  }
+
+  const defaultNames = DEFAULT_RULE_SECTIONS.map((section) => section.title.toLowerCase());
+  const normalizedNames = normalizedRules.map((rule) => rule.toLowerCase());
+  if (
+    normalizedNames.length === defaultNames.length &&
+    normalizedNames.every((name, index) => name === defaultNames[index])
+  ) {
+    return DEFAULT_RULE_SECTIONS;
+  }
+
+  return normalizedRules.slice(0, 12).map((rule) => ({
+    title: rule,
+    details: [
+      "Follow this rule in all channels.",
+      "Breaking this rule may result in timeout (mute), kick, or ban."
+    ]
   }));
+}
+
+function buildRulesEmbed() {
+  const sections = buildRuleSections();
+  const descriptionLines = [
+    "# PALLADIUM RULES",
+    "Read and follow these rules to keep the server safe, fair, and fun.",
+    ""
+  ];
+
+  for (let index = 0; index < sections.length; index += 1) {
+    const section = sections[index];
+    descriptionLines.push(`## ${index + 1}. ${section.title}`);
+    const details = Array.isArray(section.details) ? section.details : [];
+    for (const detail of details.slice(0, 3)) {
+      descriptionLines.push(`- ${detail}`);
+    }
+    descriptionLines.push("");
+  }
 
   return {
     title: RULES_EMBED_TITLE,
-    description: "Please read and follow these rules to keep Palladium fun, safe, and organized for everyone.",
+    description: descriptionLines.join("\n").slice(0, 3900),
     color: 0x60a5fa,
-    fields,
     footer: {
       text: `Palladium Community • ${RULES_SIGNATURE}`,
     },
@@ -447,10 +567,99 @@ async function deleteMessage(channelId, messageId) {
   }
 }
 
-async function postWelcome(memberId) {
+function memberDisplayName(member, fallbackId) {
+  const user = member && member.user ? member.user : null;
+  if (user && user.global_name) return String(user.global_name);
+  if (user && user.username) return String(user.username);
+  return fallbackId ? `User-${fallbackId}` : "Unknown User";
+}
+
+function parseInviteUses(rawValue) {
+  const value = Number(rawValue);
+  if (Number.isFinite(value) && value >= 0) return value;
+  return 0;
+}
+
+function mapInvitesToSnapshot(invites) {
+  const snapshot = {};
+  for (const invite of Array.isArray(invites) ? invites : []) {
+    if (!invite || !invite.code) continue;
+    const code = String(invite.code);
+    const inviter = invite.inviter || {};
+    snapshot[code] = {
+      code,
+      uses: parseInviteUses(invite.uses),
+      inviterId: inviter.id ? String(inviter.id) : "",
+      inviterName: inviter.global_name || inviter.username || "Unknown",
+    };
+  }
+  return snapshot;
+}
+
+async function fetchInviteSnapshot() {
+  const invites = await discordRequest("GET", `/guilds/${GUILD_ID}/invites`);
+  return mapInvitesToSnapshot(invites);
+}
+
+function buildInviteAttributionQueue(previousSnapshot, currentSnapshot) {
+  const previous = previousSnapshot && typeof previousSnapshot === "object" ? previousSnapshot : {};
+  const current = currentSnapshot && typeof currentSnapshot === "object" ? currentSnapshot : {};
+  const queue = [];
+
+  for (const [code, currentEntry] of Object.entries(current)) {
+    const previousEntry = previous[code] || {};
+    const prevUses = parseInviteUses(previousEntry.uses);
+    const currUses = parseInviteUses(currentEntry.uses);
+    const delta = Math.max(0, currUses - prevUses);
+    if (!delta) continue;
+
+    let inviterTotalInvites = currUses;
+    if (currentEntry.inviterId) {
+      inviterTotalInvites = Object.values(current)
+        .filter((entry) => entry && entry.inviterId && entry.inviterId === currentEntry.inviterId)
+        .reduce((sum, entry) => sum + parseInviteUses(entry.uses), 0);
+    }
+
+    for (let index = 0; index < delta; index += 1) {
+      queue.push({
+        inviterName: currentEntry.inviterName || "Unknown",
+        invites: inviterTotalInvites
+      });
+    }
+  }
+
+  return queue;
+}
+
+async function refreshInviteSnapshot() {
+  if (!inviteTrackingEnabled) return state.inviteSnapshot;
+  try {
+    const snapshot = await fetchInviteSnapshot();
+    state.inviteSnapshot = snapshot;
+    saveState();
+    return snapshot;
+  } catch (error) {
+    if (isAccessDeniedError(error)) {
+      inviteTrackingEnabled = false;
+      console.warn("Invite tracking disabled (missing Manage Guild permission).");
+      return state.inviteSnapshot;
+    }
+    throw error;
+  }
+}
+
+async function postWelcome(member, inviteContext) {
+  const memberId = extractMemberId(member);
   if (!memberId) return;
+
+  const memberName = memberDisplayName(member, memberId);
+  const inviterName = inviteContext && inviteContext.inviterName ? String(inviteContext.inviterName) : "Unknown";
+  const inviteCount = inviteContext && Number.isFinite(Number(inviteContext.invites))
+    ? Number(inviteContext.invites)
+    : 0;
+
   await discordRequest("POST", `/channels/${WELCOME_CHANNEL_ID}/messages`, {
-    content: `Welcome <@${memberId}> to Palladium! Please read the rules in <#${RULES_CHANNEL_ID}>.`,
+    content: `Welcome ${memberName} to Palladium Games! You were invited by ${inviterName}, who now has ${inviteCount} invites.`,
   });
 }
 
@@ -589,6 +798,181 @@ async function isAdminInteraction(interaction) {
   return await isAdminByUserId(userId, permissionBits);
 }
 
+function firstJsonObject(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    // Try to recover JSON object embedded in text.
+  }
+
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(raw.slice(start, end + 1));
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function evaluateHeuristicViolations(message, channelId) {
+  const userId = message && message.author && message.author.id ? String(message.author.id) : "";
+  if (!userId) return [];
+
+  const content = String((message && message.content) || "").trim();
+  const lowered = content.toLowerCase();
+  const reasons = [];
+
+  for (const pattern of MODERATION_PATTERNS) {
+    if (pattern.regex.test(lowered)) {
+      reasons.push(pattern.reason);
+    }
+  }
+
+  const now = Date.now();
+  const history = recentMessagesByUser.get(userId) || [];
+  const normalizedContent = lowered.replace(/\s+/g, " ").trim();
+  const active = history.filter((entry) => now - entry.timestamp <= MODERATION_LOOKBACK_MS);
+  active.push({ timestamp: now, normalizedContent, channelId: String(channelId || "") });
+  recentMessagesByUser.set(userId, active.slice(-20));
+
+  if (active.length >= MODERATION_MAX_MESSAGES) {
+    reasons.push("spam flood");
+  }
+
+  if (normalizedContent) {
+    const duplicates = active.filter((entry) => entry.normalizedContent === normalizedContent).length;
+    if (duplicates >= 4) {
+      reasons.push("repeated spam");
+    }
+  }
+
+  return Array.from(new Set(reasons));
+}
+
+async function classifyMessageWithQwen(message) {
+  if (!MODERATION_USE_QWEN) return { violation: false, reason: "" };
+
+  const content = String((message && message.content) || "").trim();
+  if (!content) return { violation: false, reason: "" };
+
+  const prompt = [
+    "You are a Discord moderation classifier.",
+    "Rules:",
+    "1) Be respectful. No hate speech, harassment, or threats.",
+    "2) No spam or scams.",
+    "3) Keep content appropriate and safe.",
+    "4) Follow Discord ToS.",
+    "Return only strict JSON with this schema:",
+    "{\"violation\":true|false,\"reason\":\"short reason\",\"severity\":\"low|medium|high\"}",
+    "Set violation=true only when the message clearly breaks a rule.",
+    `Message: ${JSON.stringify(content.slice(0, 1200))}`
+  ].join("\n");
+
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        prompt,
+        options: {
+          temperature: 0,
+          num_predict: 80
+        },
+        keep_alive: "10m",
+        think: false
+      }),
+      signal: AbortSignal.timeout(MODERATION_QWEN_TIMEOUT_MS)
+    });
+
+    if (!response.ok) {
+      return { violation: false, reason: "" };
+    }
+
+    const payload = firstJsonObject(await response.text());
+    const rawClassifierText = payload && typeof payload.response === "string" ? payload.response : "";
+    const classifier = firstJsonObject(rawClassifierText);
+    if (!classifier) {
+      return { violation: false, reason: "" };
+    }
+
+    const violation = Boolean(classifier.violation);
+    const reason = classifier.reason ? String(classifier.reason).trim() : "";
+    return { violation, reason };
+  } catch {
+    return { violation: false, reason: "" };
+  }
+}
+
+async function timeoutMember(userId) {
+  const minutes = Math.max(1, MODERATION_TIMEOUT_MINUTES);
+  const timeoutUntil = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+
+  try {
+    await discordRequest("PATCH", `/guilds/${GUILD_ID}/members/${userId}`, {
+      communication_disabled_until: timeoutUntil
+    });
+    return true;
+  } catch (error) {
+    if (isAccessDeniedError(error)) {
+      moderationEnabled = false;
+      console.warn("Moderation disabled: missing permission to timeout members.");
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function moderateMessage(channelId, message) {
+  if (!moderationEnabled) return;
+  if (!message || !message.id || !message.author || !message.author.id) return;
+  if (message.author.bot) return;
+
+  const content = String(message.content || "").trim();
+  const hasAttachments = Array.isArray(message.attachments) && message.attachments.length > 0;
+  if (!content && !hasAttachments) return;
+
+  const isAdmin = await isAdminMessage(message);
+  if (isAdmin) return;
+
+  const heuristicReasons = evaluateHeuristicViolations(message, channelId);
+  const qwenDecision = await classifyMessageWithQwen(message);
+  const reasons = [...heuristicReasons];
+  if (qwenDecision.violation) {
+    reasons.push(qwenDecision.reason || "rule violation detected by Qwen");
+  }
+
+  const uniqueReasons = Array.from(new Set(reasons.filter(Boolean)));
+  if (!uniqueReasons.length) return;
+
+  const userId = String(message.author.id);
+  const lastAction = recentModerationActions.get(userId) || 0;
+  const now = Date.now();
+  if (now - lastAction < MODERATION_COOLDOWN_MS) {
+    return;
+  }
+
+  const reasonText = uniqueReasons.join("; ").slice(0, 180);
+  await deleteMessage(channelId, String(message.id));
+
+  const timedOut = await timeoutMember(userId);
+  if (!timedOut) return;
+
+  recentModerationActions.set(userId, now);
+
+  await discordRequest("POST", `/channels/${channelId}/messages`, {
+    content: `⚠️ <@${userId}> was timed out for ${MODERATION_TIMEOUT_MINUTES} minutes for breaking rules (${reasonText}).`,
+  });
+}
+
 async function pollCommandChannel(channelId) {
   const lastMessageId = state.commandLastMessageIds[channelId] || "";
   const route = `/channels/${channelId}/messages?limit=50${lastMessageId ? `&after=${lastMessageId}` : ""}`;
@@ -633,6 +1017,36 @@ async function pollCommandChannel(channelId) {
         content: `Rules were reposted in <#${RULES_CHANNEL_ID}>.`,
       });
     }
+  }
+
+  saveState();
+}
+
+async function pollModerationChannel(channelId) {
+  if (!moderationEnabled) return;
+
+  const lastMessageId = state.moderationLastMessageIds[channelId] || "";
+  const route = `/channels/${channelId}/messages?limit=50${lastMessageId ? `&after=${lastMessageId}` : ""}`;
+  const messages = await discordRequest("GET", route);
+  const list = Array.isArray(messages) ? messages : [];
+
+  if (!state.moderationBootstrapped[channelId]) {
+    if (list.length) {
+      const newest = sortMessagesAsc(list).at(-1);
+      if (newest && newest.id) state.moderationLastMessageIds[channelId] = String(newest.id);
+    }
+    state.moderationBootstrapped[channelId] = true;
+    saveState();
+    return;
+  }
+
+  if (!list.length) return;
+
+  const ordered = sortMessagesAsc(list);
+  for (const message of ordered) {
+    if (!message || !message.id) continue;
+    state.moderationLastMessageIds[channelId] = String(message.id);
+    await moderateMessage(channelId, message);
   }
 
   saveState();
@@ -702,7 +1116,13 @@ const presence = startDiscordPresence({
 async function initialize() {
   await resolveGuildId();
   await resolveCommandChannels();
+  await resolveModerationChannels();
   botUser = await discordRequest("GET", "/users/@me");
+
+  await refreshInviteSnapshot().catch((error) => {
+    const msg = String(error && error.message ? error.message : error);
+    console.warn(`Invite snapshot init error: ${msg}`);
+  });
 
   try {
     const members = await fetchAllMembers(GUILD_ID);
@@ -734,6 +1154,7 @@ async function initialize() {
     (memberPollingEnabled ? "" : " (rules-only mode)")
   );
   console.log(`Community /rules command channels: ${COMMAND_CHANNEL_IDS.join(", ")}`);
+  console.log(`Community moderation channels: ${MODERATION_CHANNEL_IDS.join(", ")}`);
 }
 
 async function pollLoop() {
@@ -741,12 +1162,35 @@ async function pollLoop() {
     try {
       if (memberPollingEnabled) {
         const members = await fetchAllMembers(GUILD_ID);
+        const membersById = new Map();
+        for (const member of members) {
+          const memberId = extractMemberId(member);
+          if (!memberId) continue;
+          membersById.set(memberId, member);
+        }
+
         const currentIds = members.map(extractMemberId).filter(Boolean);
         const knownSet = new Set(state.knownMemberIds.map(String));
-
         const newMembers = currentIds.filter((id) => !knownSet.has(String(id)));
+
+        let inviteQueue = [];
+        if (newMembers.length > 0) {
+          const previousInviteSnapshot = state.inviteSnapshot && typeof state.inviteSnapshot === "object"
+            ? state.inviteSnapshot
+            : {};
+          const refreshedInviteSnapshot = await refreshInviteSnapshot().catch((error) => {
+            const msg = String(error && error.message ? error.message : error);
+            console.warn(`Invite snapshot refresh error: ${msg}`);
+            return previousInviteSnapshot;
+          });
+          inviteQueue = buildInviteAttributionQueue(previousInviteSnapshot, refreshedInviteSnapshot);
+        }
         for (const memberId of sortSnowflakeAsc(newMembers)) {
-          await postWelcome(memberId);
+          const member = membersById.get(String(memberId)) || { user: { id: memberId, username: `User-${memberId}` } };
+          const inviteContext = inviteQueue.length
+            ? inviteQueue.shift()
+            : { inviterName: "Unknown", invites: 0 };
+          await postWelcome(member, inviteContext);
         }
 
         state.knownMemberIds = limitKnownMembers(Array.from(new Set(currentIds.map(String))));
@@ -754,6 +1198,18 @@ async function pollLoop() {
       }
 
       await ensureRulesMessage();
+
+      if (moderationEnabled) {
+        const moderationChannels = await resolveModerationChannels();
+        for (const channelId of moderationChannels) {
+          try {
+            await pollModerationChannel(channelId);
+          } catch (error) {
+            const msg = error && error.message ? error.message : String(error);
+            console.error(`Community moderation poll error in ${channelId}: ${msg}`);
+          }
+        }
+      }
 
       const commandChannels = await resolveCommandChannels();
       for (const channelId of commandChannels) {
