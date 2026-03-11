@@ -1194,6 +1194,12 @@ html.nav-initial-collapsed #nav ~ .main {
   gap: 0.4rem;
 }
 
+.settings-divider {
+  height: 1px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.35), transparent);
+}
+
 .settings-fetch__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
