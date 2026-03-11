@@ -142,6 +142,10 @@ async function main() {
     discordCommunityBotToken: readString(env, "DISCORD_COMMUNITY_BOT_TOKEN", ""),
 
     discordCommitChannelId: readString(env, "DISCORD_COMMIT_CHANNEL_ID", "1480022214303682700"),
+    discordCommitRepo: readString(env, "DISCORD_COMMIT_REPO", ""),
+    discordCommitBranch: readString(env, "DISCORD_COMMIT_BRANCH", ""),
+    discordCommitPollMs: readInt(env, "DISCORD_COMMIT_POLL_MS", 15_000),
+    discordCommitGithubToken: readString(env, "DISCORD_COMMIT_GITHUB_TOKEN", ""),
     discordLinkCommandChannelIds: readString(env, "DISCORD_LINK_COMMAND_CHANNEL_IDS", "1480327216826155059,1480329637660983408"),
     discordWelcomeChannelId: readString(env, "DISCORD_WELCOME_CHANNEL_ID", "1480334877961355304"),
     discordRulesChannelId: readString(env, "DISCORD_RULES_CHANNEL_ID", "1480324913561862184")
@@ -188,6 +192,37 @@ function displayHost(host) {
   return host;
 }
 
+function isPrivateIPv4(hostname) {
+  const match = String(hostname || "").match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) return false;
+
+  const a = Number.parseInt(match[1], 10);
+  const b = Number.parseInt(match[2], 10);
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  return false;
+}
+
+function isLocalHostname(hostname) {
+  const host = String(hostname || "").trim().toLowerCase();
+  if (!host) return true;
+  if (host === "localhost" || host === "::1" || host === "[::1]") return true;
+  if (host.endsWith(".local")) return true;
+  return isPrivateIPv4(host);
+}
+
+function isLocalOrPrivateOrigin(originValue) {
+  try {
+    const parsed = new URL(originValue);
+    return isLocalHostname(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
 function readForwardedHeader(value) {
   return String(value || "")
     .split(",")[0]
@@ -196,10 +231,27 @@ function readForwardedHeader(value) {
 
 function requestOrigin(req) {
   const forwardedProto = readForwardedHeader(req.headers["x-forwarded-proto"]);
-  const proto = forwardedProto || (req.socket && req.socket.encrypted ? "https" : "http");
+  let proto = forwardedProto || (req.socket && req.socket.encrypted ? "https" : "http");
 
   const forwardedHost = readForwardedHeader(req.headers["x-forwarded-host"]);
-  const host = forwardedHost || String(req.headers.host || "").trim() || "localhost";
+  let host = forwardedHost || String(req.headers.host || "").trim() || "localhost";
+
+  // If a reverse proxy forwards localhost host headers, prefer browser Origin when available.
+  const originHeader = readForwardedHeader(req.headers.origin);
+  if (originHeader) {
+    try {
+      const parsedOrigin = new URL(originHeader);
+      const hostNameOnly = String(host).split(":")[0].toLowerCase();
+      const sameHost = parsedOrigin.hostname.toLowerCase() === hostNameOnly;
+      const hostLooksLocal = isLocalHostname(hostNameOnly);
+      if (sameHost || hostLooksLocal) {
+        host = parsedOrigin.host;
+        proto = parsedOrigin.protocol.replace(":", "") || proto;
+      }
+    } catch {
+      // Ignore invalid origin header.
+    }
+  }
 
   try {
     return new URL(`${proto}://${host}`).origin;
@@ -464,14 +516,22 @@ async function startDiscordBotsIfNeeded(config) {
   let started = 0;
 
   if (config.discordCommitBotToken) {
+    const commitBotEnv = {
+      ...baseEnv,
+      DISCORD_COMMIT_BOT_TOKEN: config.discordCommitBotToken,
+      DISCORD_BOT_TOKEN: config.discordCommitBotToken,
+      DISCORD_COMMIT_REPO: config.discordCommitRepo,
+      DISCORD_COMMIT_BRANCH: config.discordCommitBranch,
+      DISCORD_COMMIT_POLL_MS: String(config.discordCommitPollMs)
+    };
+    if (config.discordCommitGithubToken) {
+      commitBotEnv.DISCORD_COMMIT_GITHUB_TOKEN = config.discordCommitGithubToken;
+    }
+
     await spawnBot(
       config,
       "discord-commit-presence.js",
-      {
-        ...baseEnv,
-        DISCORD_COMMIT_BOT_TOKEN: config.discordCommitBotToken,
-        DISCORD_BOT_TOKEN: config.discordCommitBotToken
-      },
+      commitBotEnv,
       "commit"
     );
     started += 1;
@@ -617,7 +677,11 @@ async function routeRequest(req, res, config) {
 
   if (url.pathname === "/api/config/public") {
     const backendOrigin = requestOrigin(req);
-    const scramjetOrigin = managed.runtime.scramjetBase || originWithPort(backendOrigin, config.scramjetPort);
+    const runtimePort = managed.runtime.scramjetPort || config.scramjetPort;
+    let scramjetOrigin = originWithPort(backendOrigin, runtimePort);
+    if (managed.runtime.scramjetBase && !isLocalOrPrivateOrigin(managed.runtime.scramjetBase)) {
+      scramjetOrigin = managed.runtime.scramjetBase;
+    }
 
     sendJson(
       res,

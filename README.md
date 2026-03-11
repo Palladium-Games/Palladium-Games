@@ -118,4 +118,5 @@ The website-url detector only updates favicon, not title.
 - Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `scramjet-service/`, `services/`, dotfiles).
 - Game catalog API reads from `games.html` so titles/authors stay aligned with the UI.
 - Discord tokens/channels are configured in `config/palladium.env`.
+- Commit bot tracks remote GitHub commits (not local-only git state). Optional settings: `DISCORD_COMMIT_REPO`, `DISCORD_COMMIT_BRANCH`, `DISCORD_COMMIT_POLL_MS`, `DISCORD_COMMIT_GITHUB_TOKEN`.
 - `config/palladium.env.example` contains all supported runtime settings.
