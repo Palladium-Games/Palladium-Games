@@ -1,0 +1,11 @@
+{
+  "name": "palladium-monolith",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Palladium monolith runtime (frontend + backend + sidecars)",
+  "main": "apps.js",
+  "scripts": {
+    "start": "node apps.js",
+    "start:dev": "SITE_PORT=3000 node apps.js"
+  }
+}
