@@ -30,6 +30,11 @@ class PalladiumBackendApplicationConfigTest {
 
         PalladiumBackendApplication.Config config = PalladiumBackendApplication.Config.load(configPath, Map.of());
 
+        assertTrue(config.ollamaAutostart());
+        assertEquals("ollama", config.ollamaCommand());
+        assertEquals(45, config.ollamaStartupTimeoutSeconds());
+        assertTrue(config.ollamaPullModelOnStart());
+        assertEquals(600, config.ollamaPullTimeoutSeconds());
         assertTrue(config.scramjetAutostart());
         assertEquals("node", config.scramjetNodeCommand());
         assertEquals(configDir.resolve("../scramjet-service").normalize(), config.scramjetServiceDir());
@@ -78,6 +83,11 @@ class PalladiumBackendApplicationConfigTest {
                 Map.entry("SCRAMJET_INSTALL_DEPENDENCIES", "false"),
                 Map.entry("SCRAMJET_NPM_COMMAND", "/usr/local/bin/npm"),
                 Map.entry("SCRAMJET_INSTALL_TIMEOUT_SECONDS", "123"),
+                Map.entry("OLLAMA_AUTOSTART", "false"),
+                Map.entry("OLLAMA_COMMAND", "/usr/local/bin/ollama"),
+                Map.entry("OLLAMA_STARTUP_TIMEOUT_SECONDS", "77"),
+                Map.entry("OLLAMA_PULL_MODEL_ON_START", "false"),
+                Map.entry("OLLAMA_PULL_TIMEOUT_SECONDS", "222"),
                 Map.entry("SECURITY_TRUST_PROXY_HEADERS", "true"),
                 Map.entry("PROXY_BLOCK_PRIVATE_NETWORK_TARGETS", "false"),
                 Map.entry("SECURITY_RATE_LIMIT_ENABLED", "false"),
@@ -105,6 +115,11 @@ class PalladiumBackendApplicationConfigTest {
         assertFalse(config.scramjetInstallDependencies());
         assertEquals("/usr/local/bin/npm", config.scramjetNpmCommand());
         assertEquals(123, config.scramjetInstallTimeoutSeconds());
+        assertFalse(config.ollamaAutostart());
+        assertEquals("/usr/local/bin/ollama", config.ollamaCommand());
+        assertEquals(77, config.ollamaStartupTimeoutSeconds());
+        assertFalse(config.ollamaPullModelOnStart());
+        assertEquals(222, config.ollamaPullTimeoutSeconds());
         assertTrue(config.trustProxyHeaders());
         assertFalse(config.blockPrivateProxyTargets());
         assertFalse(config.rateLimitEnabled());

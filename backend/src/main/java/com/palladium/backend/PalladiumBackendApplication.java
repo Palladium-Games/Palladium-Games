@@ -47,6 +47,7 @@ public final class PalladiumBackendApplication {
      */
     public static void main(String[] args) throws IOException {
         Config config = Config.load();
+        OllamaProcessManager ollamaProcessManager = OllamaProcessManager.startIfEnabled(config);
         ScramjetProcessManager scramjetProcessManager = ScramjetProcessManager.startIfEnabled(config);
         DiscordBotProcessManager discordBotProcessManager = DiscordBotProcessManager.startIfEnabled(config);
         HttpServer server;
@@ -54,16 +55,19 @@ public final class PalladiumBackendApplication {
             server = createServer(config);
             server.start();
         } catch (IOException | RuntimeException startupError) {
+            ollamaProcessManager.close();
             scramjetProcessManager.close();
             discordBotProcessManager.close();
             throw startupError;
         }
 
         HttpServer finalServer = server;
+        OllamaProcessManager finalOllamaProcessManager = ollamaProcessManager;
         ScramjetProcessManager finalScramjetProcessManager = scramjetProcessManager;
         DiscordBotProcessManager finalDiscordBotProcessManager = discordBotProcessManager;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             finalServer.stop(0);
+            finalOllamaProcessManager.close();
             finalScramjetProcessManager.close();
             finalDiscordBotProcessManager.close();
         }, "palladium-backend-shutdown"));
@@ -72,6 +76,13 @@ public final class PalladiumBackendApplication {
         System.out.println("Frontend catalog directory: " + config.frontendDir().toAbsolutePath());
         System.out.println("Games directory fallback: " + config.gamesDir().toAbsolutePath());
         System.out.println("Ollama base URL: " + config.ollamaBaseUrl());
+        if (ollamaProcessManager.isManaged()) {
+            System.out.println("Ollama auto-started from command: " + config.ollamaCommand());
+        } else if (ollamaProcessManager.isExternal()) {
+            System.out.println("Ollama already running at: " + config.ollamaBaseUrl());
+        } else {
+            System.out.println("Ollama autostart is disabled.");
+        }
         if (scramjetProcessManager.isManaged()) {
             System.out.println("Scramjet proxy auto-started on http://" + config.scramjetHost() + ":" + config.scramjetPort());
         } else if (scramjetProcessManager.isExternal()) {
@@ -287,6 +298,11 @@ public final class PalladiumBackendApplication {
             Path gamesDir,
             String ollamaBaseUrl,
             String ollamaModel,
+            boolean ollamaAutostart,
+            String ollamaCommand,
+            int ollamaStartupTimeoutSeconds,
+            boolean ollamaPullModelOnStart,
+            int ollamaPullTimeoutSeconds,
             int requestTimeoutSeconds,
             boolean trustProxyHeaders,
             boolean blockPrivateProxyTargets,
@@ -346,6 +362,23 @@ public final class PalladiumBackendApplication {
 
             String ollamaBaseUrl = readValue(properties, environment, "ollama.base.url", "http://127.0.0.1:11434");
             String ollamaModel = readValue(properties, environment, "ollama.model", "qwen3.5:0.8b");
+            boolean ollamaAutostart = parseBoolean(
+                    readValue(properties, environment, "ollama.autostart", "true"),
+                    true
+            );
+            String ollamaCommand = readValue(properties, environment, "ollama.command", "ollama");
+            int ollamaStartupTimeoutSeconds = parseInt(
+                    readValue(properties, environment, "ollama.startup.timeout.seconds", "45"),
+                    45
+            );
+            boolean ollamaPullModelOnStart = parseBoolean(
+                    readValue(properties, environment, "ollama.pull.model.on.start", "true"),
+                    true
+            );
+            int ollamaPullTimeoutSeconds = parseInt(
+                    readValue(properties, environment, "ollama.pull.timeout.seconds", "600"),
+                    600
+            );
             int requestTimeoutSeconds = parseInt(readValue(properties, environment, "request.timeout.seconds", "25"), 25);
             boolean trustProxyHeaders = parseBoolean(
                     readValue(properties, environment, "security.trust.proxy.headers", "false"),
@@ -434,6 +467,11 @@ public final class PalladiumBackendApplication {
                     gamesDir,
                     ollamaBaseUrl,
                     ollamaModel,
+                    ollamaAutostart,
+                    ollamaCommand,
+                    ollamaStartupTimeoutSeconds,
+                    ollamaPullModelOnStart,
+                    ollamaPullTimeoutSeconds,
                     requestTimeoutSeconds,
                     trustProxyHeaders,
                     blockPrivateProxyTargets,

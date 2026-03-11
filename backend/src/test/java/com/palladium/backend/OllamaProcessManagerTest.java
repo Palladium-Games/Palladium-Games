@@ -2,14 +2,12 @@ package com.palladium.backend;
 
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -19,56 +17,54 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Tests for {@link ScramjetProcessManager}.
+ * Tests for {@link OllamaProcessManager}.
  */
-class ScramjetProcessManagerTest {
-    @TempDir
-    Path tempDir;
+class OllamaProcessManagerTest {
 
     @Test
-    void commandForUsesNodeAndServerEntry() {
-        List<String> command = ScramjetProcessManager.commandFor("node");
-        assertEquals(List.of("node", "server.mjs"), command);
+    void commandForServeUsesDefaultCommandWhenBlank() {
+        assertEquals(List.of("ollama", "serve"), OllamaProcessManager.commandForServe(""));
     }
 
     @Test
-    void npmInstallCommandUsesDefaultWhenEmpty() {
+    void commandForPullBuildsExpectedCommand() {
         assertEquals(
-                List.of("npm", "install", "--omit=dev", "--no-audit"),
-                ScramjetProcessManager.npmInstallCommand("")
+                List.of("ollama", "pull", "qwen3.5:0.8b"),
+                OllamaProcessManager.commandForPull("ollama", "qwen3.5:0.8b")
         );
     }
 
     @Test
-    void healthHostMapsWildcardToLoopback() {
-        assertEquals("127.0.0.1", ScramjetProcessManager.healthHost("0.0.0.0"));
-        assertEquals("127.0.0.1", ScramjetProcessManager.healthHost("::"));
-        assertEquals("127.0.0.1", ScramjetProcessManager.healthHost(""));
-        assertEquals("192.168.1.10", ScramjetProcessManager.healthHost("192.168.1.10"));
+    void tagsUriBuildsFromBaseUrl() throws IOException {
+        URI uri = OllamaProcessManager.tagsUri("http://127.0.0.1:11434/");
+        assertEquals("http://127.0.0.1:11434/api/tags", uri.toString());
+    }
+
+    @Test
+    void tagsUriRejectsBlankBaseUrl() {
+        assertThrows(IOException.class, () -> OllamaProcessManager.tagsUri(" "));
     }
 
     @Test
     void probeHealthReturnsTrueForHealthyEndpoint() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/health", exchange -> {
-            byte[] payload = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+        server.createContext("/api/tags", exchange -> {
+            byte[] payload = "{\"models\":[]}".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, payload.length);
             exchange.getResponseBody().write(payload);
             exchange.close();
         });
         server.start();
-
         try {
-            URI healthUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/health");
-            HttpClient client = HttpClient.newHttpClient();
-            assertTrue(ScramjetProcessManager.probeHealth(client, healthUri));
+            URI tagsUri = URI.create("http://127.0.0.1:" + server.getAddress().getPort() + "/api/tags");
+            assertTrue(OllamaProcessManager.probeHealth(HttpClient.newHttpClient(), tagsUri));
         } finally {
             server.stop(0);
         }
     }
 
     @Test
-    void startIfEnabledReturnsUnmanagedWhenAutostartDisabled() throws IOException {
+    void startIfEnabledReturnsDisabledWhenAutostartOff() throws IOException {
         PalladiumBackendApplication.Config config = new PalladiumBackendApplication.Config(
                 "0.0.0.0",
                 8080,
@@ -115,78 +111,23 @@ class ScramjetProcessManagerTest {
                 ""
         );
 
-        ScramjetProcessManager manager = ScramjetProcessManager.startIfEnabled(config);
+        OllamaProcessManager manager = OllamaProcessManager.startIfEnabled(config);
         assertFalse(manager.isManaged());
         assertFalse(manager.isRunning());
+        assertFalse(manager.isExternal());
         manager.close();
     }
 
     @Test
-    void startIfEnabledProvisionsServiceDirectoryBeforeLaunchingProcess() {
-        Path serviceDir = tempDir.resolve("auto-created-scramjet");
-        PalladiumBackendApplication.Config config = new PalladiumBackendApplication.Config(
-                "0.0.0.0",
-                8080,
-                "*",
-                Path.of("../frontend"),
-                Path.of("../games"),
-                "http://127.0.0.1:11434",
-                "qwen3.5:0.8b",
-                false,
-                "ollama",
-                45,
-                false,
-                600,
-                25,
-                false,
-                true,
-                true,
-                60,
-                120,
-                30,
-                131072,
-                true,
-                "missing-node-binary",
-                serviceDir,
-                "0.0.0.0",
-                1337,
-                20,
-                false,
-                "npm",
-                30,
-                false,
-                "node",
-                Path.of("./discord-bots"),
-                5,
-                "https://discord.com/api/v10",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-                ""
-        );
-
-        assertThrows(IOException.class, () -> ScramjetProcessManager.startIfEnabled(config));
-        assertTrue(Files.isDirectory(serviceDir));
-        assertTrue(Files.isRegularFile(serviceDir.resolve("server.mjs")));
-        assertTrue(Files.isRegularFile(serviceDir.resolve("package.json")));
-    }
-
-    @Test
-    void startIfEnabledReusesExistingHealthyScramjet() throws IOException {
+    void startIfEnabledReusesExistingHealthyOllama() throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/health", exchange -> {
-            byte[] payload = "{\"ok\":true}".getBytes(StandardCharsets.UTF_8);
+        server.createContext("/api/tags", exchange -> {
+            byte[] payload = "{\"models\":[]}".getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(200, payload.length);
             exchange.getResponseBody().write(payload);
             exchange.close();
         });
         server.start();
-
         try {
             int port = server.getAddress().getPort();
             PalladiumBackendApplication.Config config = new PalladiumBackendApplication.Config(
@@ -195,9 +136,9 @@ class ScramjetProcessManagerTest {
                     "*",
                     Path.of("../frontend"),
                     Path.of("../games"),
-                    "http://127.0.0.1:11434",
+                    "http://127.0.0.1:" + port,
                     "qwen3.5:0.8b",
-                    false,
+                    true,
                     "ollama",
                     45,
                     false,
@@ -210,11 +151,11 @@ class ScramjetProcessManagerTest {
                     120,
                     30,
                     131072,
-                    true,
+                    false,
                     "node",
-                    Path.of("./does-not-exist"),
-                    "127.0.0.1",
-                    port,
+                    Path.of("./scramjet-service"),
+                    "0.0.0.0",
+                    1337,
                     20,
                     true,
                     "npm",
@@ -235,7 +176,7 @@ class ScramjetProcessManagerTest {
                     ""
             );
 
-            ScramjetProcessManager manager = ScramjetProcessManager.startIfEnabled(config);
+            OllamaProcessManager manager = OllamaProcessManager.startIfEnabled(config);
             assertFalse(manager.isManaged());
             assertTrue(manager.isExternal());
             manager.close();

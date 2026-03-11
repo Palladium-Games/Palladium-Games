@@ -4,6 +4,7 @@ Requires:
 
 - JDK 21
 - Node.js (for Scramjet + Discord bot sidecars)
+- Ollama (for local AI sidecar mode)
 
 This backend is a Java JAR service for:
 
@@ -56,6 +57,10 @@ If the service directory does not exist yet, the JAR auto-creates it from embedd
 On first run it also installs Scramjet dependencies (`npm install --omit=dev --no-audit`) unless disabled.
 If Scramjet is already running on that host/port, the backend reuses the existing process.
 
+By default, running the JAR also starts Ollama using `ollama serve` and waits for
+`ollama.base.url` to become healthy. If `ollama.pull.model.on.start=true`, the backend ensures
+the configured `ollama.model` is available (pulling it on first run when missing).
+
 By default, running the JAR also starts Discord bot sidecars from `backend/discord-bots`:
 
 - `discord-commit-presence.js` (when `discord.commit.bot.token` is set)
@@ -74,6 +79,8 @@ BACKEND_CONFIG=./config/backend.properties java -jar target/palladium-backend-1.
 Set `scramjet.autostart=false` in `backend.properties` if you want to run Scramjet separately.
 Set `scramjet.install.dependencies=false` if dependencies are preinstalled.
 Use `scramjet.npm.command` and `scramjet.install.timeout.seconds` to customize first-run dependency install.
+Set `ollama.autostart=false` if Ollama is managed outside the backend.
+Use `ollama.command`, `ollama.startup.timeout.seconds`, and `ollama.pull.*` to tune AI startup.
 Set `discord.bots.autostart=false` in `backend.properties` if you want bots managed separately.
 
 ## Production Guides
