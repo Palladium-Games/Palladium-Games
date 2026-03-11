@@ -66,6 +66,14 @@ function parseGithubRepo(value) {
   return null;
 }
 
+function normalizeBranchName(value) {
+  const branch = String(value || "").trim();
+  if (!branch || branch.toUpperCase() === "HEAD") {
+    return "";
+  }
+  return branch;
+}
+
 function truncate(value, max = 1000) {
   const text = String(value || "");
   if (text.length <= max) return text;
@@ -126,11 +134,12 @@ const resolvedRepo =
   parseGithubRepo(tryReadGitConfig("discord.commitRepo")) ||
   parseGithubRepo(tryReadOriginRemote());
 
-const BRANCH =
+const CONFIGURED_BRANCH = normalizeBranchName(
   process.env.DISCORD_COMMIT_BRANCH ||
   tryReadGitConfig("discord.commitBranch") ||
   tryReadCurrentBranch() ||
-  "main";
+  "main"
+);
 
 if (!BOT_TOKEN) {
   console.error("Missing commit bot token. Set DISCORD_COMMIT_BOT_TOKEN or git config discord.commitBotToken.");
@@ -151,18 +160,23 @@ if (!resolvedRepo) {
 
 const REPO = `${resolvedRepo.owner}/${resolvedRepo.name}`;
 const REPO_LABEL = String(resolvedRepo.name || "repository").toUpperCase();
-const REF_KEY = `${REPO}#${BRANCH}`;
 const state = loadState();
 if (!state.byRef || typeof state.byRef !== "object") state.byRef = {};
+let activeBranch = CONFIGURED_BRANCH || "main";
+let defaultBranchCache = "";
+
+function branchRefKey(branch = activeBranch) {
+  return `${REPO}#${branch}`;
+}
 
 function getLastSha() {
-  return String(state.byRef[REF_KEY] || state.lastSha || "").trim();
+  return String(state.byRef[branchRefKey()] || state.lastSha || "").trim();
 }
 
 function setLastSha(sha) {
   const normalized = String(sha || "").trim();
   if (!normalized) return;
-  state.byRef[REF_KEY] = normalized;
+  state.byRef[branchRefKey()] = normalized;
   state.lastSha = normalized;
   saveState(state);
 }
@@ -209,10 +223,74 @@ async function githubRequest(route) {
   }
 }
 
+async function fetchRepoDefaultBranch() {
+  if (defaultBranchCache) {
+    return defaultBranchCache;
+  }
+
+  const payload = await githubRequest(`/repos/${resolvedRepo.owner}/${resolvedRepo.name}`);
+  const fromApi = normalizeBranchName(payload && payload.default_branch ? payload.default_branch : "");
+  if (fromApi) {
+    defaultBranchCache = fromApi;
+  }
+  return defaultBranchCache;
+}
+
+function isBranchNotFoundError(error) {
+  const message = String(error && error.message ? error.message : error);
+  return message.includes("commits?sha=") && message.includes("failed (404)");
+}
+
+function withActiveBranch(routeTemplate, branch) {
+  return routeTemplate.replace("{branch}", encodeURIComponent(branch));
+}
+
 async function fetchRecentCommits() {
-  const route = `/repos/${resolvedRepo.owner}/${resolvedRepo.name}/commits?sha=${encodeURIComponent(BRANCH)}&per_page=${FETCH_LIMIT}`;
-  const payload = await githubRequest(route);
-  return Array.isArray(payload) ? payload : [];
+  const branchCandidates = [];
+  const pushBranch = (branch) => {
+    const normalized = normalizeBranchName(branch);
+    if (!normalized) return;
+    if (!branchCandidates.includes(normalized)) {
+      branchCandidates.push(normalized);
+    }
+  };
+
+  pushBranch(activeBranch);
+
+  try {
+    pushBranch(await fetchRepoDefaultBranch());
+  } catch (error) {
+    const msg = String(error && error.message ? error.message : error);
+    console.warn(`Unable to fetch repo default branch for ${REPO}: ${msg}`);
+  }
+
+  pushBranch("main");
+  pushBranch("master");
+
+  let lastError = null;
+
+  for (const candidate of branchCandidates) {
+    const route = withActiveBranch(
+      `/repos/${resolvedRepo.owner}/${resolvedRepo.name}/commits?sha={branch}&per_page=${FETCH_LIMIT}`,
+      candidate
+    );
+
+    try {
+      const payload = await githubRequest(route);
+      if (candidate !== activeBranch) {
+        console.warn(`Commit bot switched branches: ${activeBranch} -> ${candidate} for ${REPO}.`);
+        activeBranch = candidate;
+      }
+      return Array.isArray(payload) ? payload : [];
+    } catch (error) {
+      lastError = error;
+      if (!isBranchNotFoundError(error)) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError || new Error(`Unable to resolve a valid branch for ${REPO}.`);
 }
 
 async function fetchCommitDetail(sha) {
@@ -295,7 +373,7 @@ function buildCommitEmbed(commitSummary, commitDetail) {
     color: 0x2563eb,
     fields: [
       { name: "Commit", value: `[\`${shortSha}\`](${htmlUrl})`, inline: true },
-      { name: "Branch", value: BRANCH, inline: true },
+      { name: "Branch", value: activeBranch, inline: true },
       { name: "Posted By", value: author, inline: true },
       { name: "Files Changed", value: String(filesChanged), inline: true },
       { name: "Commit Message", value: truncate(message, 900), inline: false },
@@ -331,7 +409,7 @@ async function pollRemoteCommits() {
 
   if (!lastSha) {
     setLastSha(newestSha);
-    console.log(`Commit bot bootstrapped at ${newestSha.slice(0, 7)} (${REPO}@${BRANCH}).`);
+    console.log(`Commit bot bootstrapped at ${newestSha.slice(0, 7)} (${REPO}@${activeBranch}).`);
     return;
   }
 
@@ -355,7 +433,7 @@ async function pollRemoteCommits() {
     setLastSha(commit.sha);
   }
 
-  console.log(`Posted ${pending.length} new remote commit update(s) for ${REPO}@${BRANCH}.`);
+  console.log(`Posted ${pending.length} new remote commit update(s) for ${REPO}@${activeBranch}.`);
 }
 
 const presence = startDiscordPresence({
@@ -381,7 +459,7 @@ function shutdown(code) {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
-console.log(`Palladium commit bot running for ${REPO}@${BRANCH} (poll ${POLL_MS}ms).`);
+console.log(`Palladium commit bot running for ${REPO}@${activeBranch} (poll ${POLL_MS}ms).`);
 
 (async function loop() {
   while (true) {
