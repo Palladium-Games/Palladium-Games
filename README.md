@@ -27,6 +27,33 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 
 On first run, `config/palladium.env` is auto-created from `config/palladium.env.example` if missing.
 
+## Make Your Own Link
+
+If you want your own public URL (domain/subdomain) for this site:
+
+1. Run Palladium on your server (it listens on `SITE_PORT`, default `3000`).
+2. Point DNS for your hostname to that server (A/AAAA record).
+3. Put a reverse proxy/CDN in front (Nginx, Caddy, Fastly, Cloudflare, etc.).
+4. Forward all routes to your Palladium origin (`http://127.0.0.1:3000` or your internal origin).
+5. Keep original host/proto headers (`Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`) so generated URLs stay correct.
+6. Enable TLS on the public hostname (HTTPS certificate).
+
+Minimum requirement: it must proxy both static pages and API routes (including `/api/*` and `/link-check`), not just a single page.
+
+### Fastly-style checklist
+
+- Backend origin: your server/domain running Palladium
+- Service domain: your custom public hostname
+- Pass-through for dynamic paths (`/api/*`, `/health`, `/link-check`)
+- Do not aggressively cache API responses
+- Valid TLS cert for the public hostname
+
+If you host frontend and backend on different domains, frontend can target backend via query param:
+
+```text
+https://your-frontend.example/?backend=https://your-backend.example
+```
+
 ## Ports
 
 - Site/API: `3000` (`SITE_PORT`, default)
