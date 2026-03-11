@@ -69,13 +69,14 @@
     </main>
   </div>
   <div id="discord-notification" class="discord-notification" role="dialog" aria-label="Join Discord" aria-modal="true" hidden>
-    <div class="discord-notification__backdrop"></div>
     <div class="discord-notification__card">
       <button type="button" class="discord-notification__close" aria-label="Dismiss">×</button>
       <img src="images/discord.png" alt="" class="discord-notification__img" />
-      <h2 class="discord-notification__title">Join The Discord!</h2>
-      <p class="discord-notification__desc">Join for regular updates on the websites, an amazing community, and more!</p>
-      <a href="https://discord.gg/BNU7A3CnjS" target="_blank" rel="noopener noreferrer" class="discord-notification__btn">JOIN</a>
+      <div class="discord-notification__body">
+        <span class="discord-notification__title">Join The Discord!</span>
+        <span class="discord-notification__desc">Updates, community & more.</span>
+        <a href="https://discord.gg/BNU7A3CnjS" target="_blank" rel="noopener noreferrer" class="discord-notification__btn">JOIN</a>
+      </div>
     </div>
   </div>
   <time id="footer-time" class="footer-time" aria-live="polite"></time>
@@ -109,7 +110,6 @@
         var el = document.getElementById('discord-notification');
         if (!el) return;
         var close = el.querySelector('.discord-notification__close');
-        var backdrop = el.querySelector('.discord-notification__backdrop');
         var joinBtn = el.querySelector('.discord-notification__btn');
         var discordUrl = 'https://discord.gg/BNU7A3CnjS';
         var duration = 350;
@@ -131,7 +131,6 @@
         }
 
         if (close) close.addEventListener('click', function() { hide(false); });
-        if (backdrop) backdrop.addEventListener('click', function() { hide(false); });
         if (joinBtn) {
           joinBtn.addEventListener('click', function(e) {
             e.preventDefault();
@@ -141,9 +140,11 @@
 
         setTimeout(function() {
           el.removeAttribute('hidden');
-          setTimeout(function() {
-            el.classList.add('discord-notification--visible');
-          }, 0);
+          requestAnimationFrame(function() {
+            requestAnimationFrame(function() {
+              el.classList.add('discord-notification--visible');
+            });
+          });
         }, 1000);
       } catch (e) {}
     })();
