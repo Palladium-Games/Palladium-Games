@@ -7,7 +7,7 @@
     (function(){
       try {
         var stored = sessionStorage.getItem('palladium-nav-expanded');
-        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+        document.documentElement.classList.add(stored === '1' ? 'nav-initial-expanded' : 'nav-initial-collapsed');
       } catch (e) {}
     })();
   </script>
@@ -72,6 +72,7 @@
     </main>
   </div>
 
+  <script src="site-settings.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
   <script>

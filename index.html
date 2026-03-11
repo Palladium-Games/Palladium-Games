@@ -7,7 +7,7 @@
     (function(){
       try {
         var stored = sessionStorage.getItem('palladium-nav-expanded');
-        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+        document.documentElement.classList.add(stored === '1' ? 'nav-initial-expanded' : 'nav-initial-collapsed');
       } catch (e) {}
     })();
   </script>
@@ -72,13 +72,10 @@
     <div class="discord-notification__backdrop"></div>
     <div class="discord-notification__card">
       <button type="button" class="discord-notification__close" aria-label="Dismiss">×</button>
-      <a href="https://discord.gg/BNU7A3CnjS" target="_blank" rel="noopener noreferrer" class="discord-notification__link">
-        <img src="images/discord.png" alt="" class="discord-notification__img" />
-        <div class="discord-notification__text">
-          <span class="discord-notification__title">Join The Discord!</span>
-          <span class="discord-notification__sub">Chat, updates & community — Palladium</span>
-        </div>
-      </a>
+      <img src="images/discord.png" alt="" class="discord-notification__img" />
+      <h2 class="discord-notification__title">Join The Discord!</h2>
+      <p class="discord-notification__desc">Join for regular updates on the websites, an amazing community, and more!</p>
+      <a href="https://discord.gg/BNU7A3CnjS" target="_blank" rel="noopener noreferrer" class="discord-notification__btn">JOIN</a>
     </div>
   </div>
   <time id="footer-time" class="footer-time" aria-live="polite"></time>
@@ -102,6 +99,7 @@
       setInterval(updateTime, 1000);
     })();
   </script>
+  <script src="site-settings.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
   <script>
@@ -112,13 +110,41 @@
         if (!el) return;
         var close = el.querySelector('.discord-notification__close');
         var backdrop = el.querySelector('.discord-notification__backdrop');
-        function hide() {
+        var joinBtn = el.querySelector('.discord-notification__btn');
+        var discordUrl = 'https://discord.gg/BNU7A3CnjS';
+        var duration = 350;
+
+        function finishHide() {
           el.setAttribute('hidden', '');
+          el.classList.remove('discord-notification--visible', 'discord-notification--hiding');
           try { sessionStorage.setItem('palladium-discord-dismissed', '1'); } catch (e) {}
         }
-        if (close) close.addEventListener('click', hide);
-        if (backdrop) backdrop.addEventListener('click', hide);
-        el.removeAttribute('hidden');
+
+        function hide(openLink) {
+          if (el.classList.contains('discord-notification--hiding')) return;
+          el.classList.remove('discord-notification--visible');
+          el.classList.add('discord-notification--hiding');
+          setTimeout(function() {
+            finishHide();
+            if (openLink) window.open(discordUrl, '_blank', 'noopener,noreferrer');
+          }, duration);
+        }
+
+        if (close) close.addEventListener('click', function() { hide(false); });
+        if (backdrop) backdrop.addEventListener('click', function() { hide(false); });
+        if (joinBtn) {
+          joinBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            hide(true);
+          });
+        }
+
+        setTimeout(function() {
+          el.removeAttribute('hidden');
+          setTimeout(function() {
+            el.classList.add('discord-notification--visible');
+          }, 0);
+        }, 1000);
       } catch (e) {}
     })();
   </script>

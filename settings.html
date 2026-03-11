@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function(){
+      try {
+        var stored = sessionStorage.getItem('palladium-nav-expanded');
+        document.documentElement.classList.add(stored === '0' ? 'nav-initial-collapsed' : 'nav-initial-expanded');
+      } catch (e) {}
+    })();
+  </script>
+  <title>Settings — Palladium Games</title>
+  <link rel="icon" href="images/favicon.png?v=3" type="image/png" />
+  <link rel="shortcut icon" href="favicon.ico?v=3" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="images/favicon.png?v=3" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav">
+      <div class="nav__toggle">
+        <button type="button" id="nav-toggle" class="nav__toggle-btn" aria-label="Toggle menu">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="nav__logo">
+        <img src="images/favicon.png" alt="Palladium" class="nav__logo-icon" />
+        <span class="nav__logo-text">PALLADIUM</span>
+      </div>
+      <div class="nav__links">
+        <a href="index.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span class="nav__link-text">Home</span>
+        </a>
+        <a href="games.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 5h10a4 4 0 0 1 4 4v6a4 4 0 0 1-4 4h-1.6a2 2 0 0 1-1.6-.8l-.8-1.1a2 2 0 0 0-1.6-.8h-2.8a2 2 0 0 0-1.6.8l-.8 1.1A2 2 0 0 1 6.6 19H5a4 4 0 0 1-4-4V9a4 4 0 0 1 4-4h2z"/><path d="M7.5 12h3"/><path d="M9 10.5v3"/><circle cx="16.5" cy="11.5" r="1"/><circle cx="18.2" cy="13.2" r="1"/></svg>
+          <span class="nav__link-text">Games</span>
+        </a>
+        <a href="proxy.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span class="nav__link-text">Proxy</span>
+        </a>
+        <a href="ai.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="8" width="16" height="10" rx="3"/><path d="M12 8V4"/><path d="M8.5 4h7"/><circle cx="9.5" cy="13" r="1"/><circle cx="14.5" cy="13" r="1"/><path d="M9 16h6"/></svg>
+          <span class="nav__link-text">AI</span>
+        </a>
+        <a href="music.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="nav__link-text">Music</span>
+        </a>
+      </div>
+    </nav>
+    <main class="main">
+      <div class="page page--settings">
+        <section class="settings-shell">
+          <header class="settings-shell__header">
+            <h1 class="settings-shell__title">Website Settings</h1>
+            <p class="settings-shell__subtitle">Customize tab title, favicon, and launch in about:blank.</p>
+          </header>
+
+          <div class="settings-grid">
+            <form id="settings-form" class="settings-card settings-form">
+              <label class="settings-field">
+                <span class="settings-field__label">Website title</span>
+                <input id="settings-title" class="settings-input" type="text" placeholder="Palladium Games" autocomplete="off" />
+              </label>
+
+              <label class="settings-field">
+                <span class="settings-field__label">Favicon URL or path</span>
+                <input id="settings-favicon" class="settings-input" type="text" placeholder="images/favicon.png" autocomplete="off" />
+              </label>
+
+              <label class="settings-field">
+                <span class="settings-field__label">Upload favicon image</span>
+                <input id="settings-favicon-file" class="settings-file" type="file" accept="image/*" />
+              </label>
+
+              <div class="settings-actions">
+                <button type="submit" class="settings-btn settings-btn--primary">Save</button>
+                <button type="button" id="settings-reset" class="settings-btn">Reset</button>
+                <button type="button" id="settings-aboutblank" class="settings-btn">Open in about:blank</button>
+              </div>
+
+              <p id="settings-status" class="settings-status" aria-live="polite"></p>
+            </form>
+
+            <aside class="settings-card settings-preview">
+              <h2 class="settings-preview__title">Preview</h2>
+              <img id="settings-preview-icon" class="settings-preview__icon" src="images/favicon.png" alt="Favicon preview" />
+              <div id="settings-preview-title" class="settings-preview__text">Palladium Games</div>
+              <p class="settings-preview__hint">Changes are stored in your browser for this site.</p>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <script src="site-settings.js"></script>
+  <script src="backend.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    (function () {
+      var api = window.PalladiumSiteSettings;
+      var form = document.getElementById('settings-form');
+      var titleInput = document.getElementById('settings-title');
+      var faviconInput = document.getElementById('settings-favicon');
+      var fileInput = document.getElementById('settings-favicon-file');
+      var resetBtn = document.getElementById('settings-reset');
+      var aboutBlankBtn = document.getElementById('settings-aboutblank');
+      var previewIcon = document.getElementById('settings-preview-icon');
+      var previewTitle = document.getElementById('settings-preview-title');
+      var statusEl = document.getElementById('settings-status');
+
+      if (!api) return;
+
+      function setStatus(text, isError) {
+        if (!statusEl) return;
+        statusEl.textContent = String(text || '');
+        statusEl.classList.toggle('settings-status--error', Boolean(isError));
+      }
+
+      function currentTitleValue() {
+        var raw = titleInput ? titleInput.value : '';
+        return String(raw || '').trim();
+      }
+
+      function currentFaviconValue() {
+        var raw = faviconInput ? faviconInput.value : '';
+        return String(raw || '').trim();
+      }
+
+      function renderPreview() {
+        if (previewTitle) {
+          var title = currentTitleValue() || api.defaultTitle;
+          previewTitle.textContent = title;
+        }
+        if (previewIcon) {
+          var icon = currentFaviconValue() || api.defaultFavicon;
+          previewIcon.src = icon;
+        }
+      }
+
+      function loadIntoForm() {
+        var settings = api.getSettings();
+        if (titleInput) titleInput.value = settings.title || '';
+        if (faviconInput) faviconInput.value = settings.favicon || '';
+        if (fileInput) fileInput.value = '';
+        renderPreview();
+      }
+
+      if (form) {
+        form.addEventListener('submit', function (event) {
+          event.preventDefault();
+          api.setTitle(currentTitleValue());
+          api.setFavicon(currentFaviconValue());
+          setStatus('Saved. Refresh any open tabs to apply everywhere.', false);
+          loadIntoForm();
+        });
+      }
+
+      if (resetBtn) {
+        resetBtn.addEventListener('click', function () {
+          api.reset();
+          loadIntoForm();
+          setStatus('Reset to default title and favicon.', false);
+        });
+      }
+
+      if (aboutBlankBtn) {
+        aboutBlankBtn.addEventListener('click', function () {
+          var target = new URL('index.html', window.location.href).toString();
+          var result = api.openInAboutBlank(target);
+          if (result.ok) {
+            setStatus('Opened site in an about:blank tab.', false);
+          } else {
+            setStatus(result.error || 'Could not open about:blank tab.', true);
+          }
+        });
+      }
+
+      if (titleInput) {
+        titleInput.addEventListener('input', renderPreview);
+      }
+
+      if (faviconInput) {
+        faviconInput.addEventListener('input', renderPreview);
+      }
+
+      if (fileInput) {
+        fileInput.addEventListener('change', function () {
+          var file = fileInput.files && fileInput.files[0];
+          if (!file) return;
+
+          var reader = new FileReader();
+          reader.onload = function () {
+            if (typeof reader.result === 'string' && faviconInput) {
+              faviconInput.value = reader.result;
+              renderPreview();
+              setStatus('Loaded favicon from file. Click Save to apply.', false);
+            }
+          };
+          reader.onerror = function () {
+            setStatus('Failed to read the selected file.', true);
+          };
+          reader.readAsDataURL(file);
+        });
+      }
+
+      loadIntoForm();
+      setStatus('Ready.', false);
+    })();
+  </script>
+</body>
+</html>
