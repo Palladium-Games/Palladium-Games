@@ -72,6 +72,14 @@
                 <input id="settings-favicon" class="settings-input" type="text" placeholder="images/favicon.png" autocomplete="off" />
               </label>
 
+              <div class="settings-fetch">
+                <span class="settings-field__label">Fetch title and favicon from a website URL</span>
+                <div class="settings-fetch__row">
+                  <input id="settings-source-url" class="settings-input" type="text" placeholder="https://google.com" autocomplete="off" />
+                  <button type="button" id="settings-fetch-btn" class="settings-btn">Fetch</button>
+                </div>
+              </div>
+
               <label class="settings-field">
                 <span class="settings-field__label">Upload favicon image</span>
                 <input id="settings-favicon-file" class="settings-file" type="file" accept="image/*" />
@@ -107,6 +115,8 @@
       var form = document.getElementById('settings-form');
       var titleInput = document.getElementById('settings-title');
       var faviconInput = document.getElementById('settings-favicon');
+      var sourceUrlInput = document.getElementById('settings-source-url');
+      var fetchBtn = document.getElementById('settings-fetch-btn');
       var fileInput = document.getElementById('settings-favicon-file');
       var resetBtn = document.getElementById('settings-reset');
       var aboutBlankBtn = document.getElementById('settings-aboutblank');
@@ -130,6 +140,105 @@
       function currentFaviconValue() {
         var raw = faviconInput ? faviconInput.value : '';
         return String(raw || '').trim();
+      }
+
+      function normalizeUrl(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return '';
+        if (!/^https?:\/\//i.test(raw)) raw = 'https://' + raw;
+        try {
+          return new URL(raw).toString();
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function resolveAbsoluteUrl(raw, base) {
+        var value = String(raw || '').trim();
+        if (!value) return '';
+        try {
+          return new URL(value, base).toString();
+        } catch (error) {
+          return '';
+        }
+      }
+
+      function extractTitle(doc) {
+        var titleTag = doc.querySelector('title');
+        var ogTitle = doc.querySelector('meta[property="og:title"]');
+        var twitterTitle = doc.querySelector('meta[name="twitter:title"]');
+
+        var title = '';
+        if (titleTag && titleTag.textContent) title = String(titleTag.textContent).trim();
+        if (!title && ogTitle) title = String(ogTitle.getAttribute('content') || '').trim();
+        if (!title && twitterTitle) title = String(twitterTitle.getAttribute('content') || '').trim();
+        return title;
+      }
+
+      function extractFavicon(doc, baseUrl) {
+        var links = doc.querySelectorAll('link[rel][href]');
+        var picks = [];
+
+        for (var i = 0; i < links.length; i += 1) {
+          var rel = String(links[i].getAttribute('rel') || '').toLowerCase();
+          if (rel.indexOf('icon') === -1) continue;
+
+          var href = resolveAbsoluteUrl(links[i].getAttribute('href') || '', baseUrl);
+          if (!href) continue;
+
+          var score = 0;
+          if (rel.indexOf('shortcut') !== -1) score += 1;
+          if (rel.indexOf('apple-touch-icon') !== -1) score += 1;
+          if (rel === 'icon') score += 2;
+          if (rel.indexOf('mask-icon') !== -1) score -= 1;
+          if ((links[i].getAttribute('sizes') || '').toLowerCase().indexOf('any') !== -1) score += 1;
+
+          picks.push({ href: href, score: score });
+        }
+
+        if (picks.length) {
+          picks.sort(function (a, b) { return b.score - a.score; });
+          return picks[0].href;
+        }
+
+        var ogImage = doc.querySelector('meta[property="og:image"]');
+        if (ogImage) {
+          var ogImageUrl = resolveAbsoluteUrl(ogImage.getAttribute('content') || '', baseUrl);
+          if (ogImageUrl) return ogImageUrl;
+        }
+
+        try {
+          var parsed = new URL(baseUrl);
+          return parsed.origin + '/favicon.ico';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      async function fetchSiteMetadata(sourceUrl) {
+        var target = normalizeUrl(sourceUrl);
+        if (!target) {
+          throw new Error('Enter a valid URL to fetch from.');
+        }
+
+        var endpoint = '/api/proxy/fetch?url=' + encodeURIComponent(target);
+        var requestUrl = window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function'
+          ? window.PalladiumBackend.apiUrl(endpoint)
+          : endpoint;
+
+        var response = await fetch(requestUrl, { method: 'GET' });
+        if (!response.ok) {
+          throw new Error('Could not fetch that URL (status ' + response.status + ').');
+        }
+
+        var html = await response.text();
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+
+        return {
+          title: extractTitle(doc),
+          favicon: extractFavicon(doc, target)
+        };
       }
 
       function renderPreview() {
@@ -187,6 +296,48 @@
 
       if (faviconInput) {
         faviconInput.addEventListener('input', renderPreview);
+      }
+
+      if (fetchBtn) {
+        fetchBtn.addEventListener('click', async function () {
+          var source = sourceUrlInput ? sourceUrlInput.value : '';
+          setStatus('Fetching title and favicon...', false);
+
+          try {
+            var meta = await fetchSiteMetadata(source);
+            var updated = [];
+
+            if (titleInput && meta.title) {
+              titleInput.value = meta.title;
+              updated.push('title');
+            }
+
+            if (faviconInput && meta.favicon) {
+              faviconInput.value = meta.favicon;
+              updated.push('favicon');
+            }
+
+            renderPreview();
+
+            if (!updated.length) {
+              setStatus('No usable title or favicon found for that URL.', true);
+              return;
+            }
+
+            setStatus('Fetched ' + updated.join(' and ') + '. Click Save to apply.', false);
+          } catch (error) {
+            setStatus(String((error && error.message) || error || 'Failed to fetch metadata.'), true);
+          }
+        });
+      }
+
+      if (sourceUrlInput) {
+        sourceUrlInput.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            if (fetchBtn) fetchBtn.click();
+          }
+        });
       }
 
       if (fileInput) {

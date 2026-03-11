@@ -1191,6 +1191,18 @@ html.nav-initial-collapsed #nav ~ .main {
   gap: 0.4rem;
 }
 
+.settings-fetch {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.settings-fetch__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
 .settings-field__label {
   font-size: 0.84rem;
   color: var(--palladium-dim);
@@ -1382,6 +1394,10 @@ html.nav-initial-collapsed #nav ~ .main {
   }
 
   .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-fetch__row {
     grid-template-columns: 1fr;
   }
 }
