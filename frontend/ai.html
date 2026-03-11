@@ -63,7 +63,7 @@
           </header>
           <div id="ai-messages" class="ai-messages" aria-live="polite"></div>
           <form id="ai-form" class="ai-input-row">
-            <textarea id="ai-input" class="ai-input" rows="1" placeholder="Ask anything..."></textarea>
+            <textarea id="ai-input" class="ai-input" rows="1" placeholder="Ask anything..." enterkeyhint="send"></textarea>
             <button id="ai-send" type="submit" class="ai-send">Send</button>
           </form>
         </section>
@@ -98,20 +98,94 @@
           .replace(/>/g, '&gt;');
       }
 
-      function renderMarkdown(text) {
+      function renderInlineMarkdown(text) {
         var safe = escapeHtml(text);
-        safe = safe.replace(/```([\s\S]*?)```/g, function (_, code) {
-          return '<pre><code>' + code + '</code></pre>';
-        });
-        safe = safe.replace(/^### (.*)$/gm, '<strong>$1</strong>');
-        safe = safe.replace(/^## (.*)$/gm, '<strong>$1</strong>');
-        safe = safe.replace(/^# (.*)$/gm, '<strong>$1</strong>');
-        safe = safe.replace(/^\- (.*)$/gm, '&#8226; $1');
         safe = safe.replace(/`([^`]+)`/g, '<code>$1</code>');
         safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
         safe = safe.replace(/\*(.*?)\*/g, '<em>$1</em>');
-        safe = safe.replace(/\n/g, '<br>');
         return safe;
+      }
+
+      function renderMarkdown(text) {
+        var lines = String(text || '').replace(/\r\n/g, '\n').split('\n');
+        var html = [];
+        var inList = false;
+        var inCode = false;
+        var codeLines = [];
+
+        function closeList() {
+          if (inList) {
+            html.push('</ul>');
+            inList = false;
+          }
+        }
+
+        for (var i = 0; i < lines.length; i += 1) {
+          var line = lines[i];
+
+          if (/^```/.test(line.trim())) {
+            closeList();
+            if (!inCode) {
+              inCode = true;
+              codeLines = [];
+            } else {
+              inCode = false;
+              html.push('<pre><code>' + escapeHtml(codeLines.join('\n')) + '</code></pre>');
+              codeLines = [];
+            }
+            continue;
+          }
+
+          if (inCode) {
+            codeLines.push(line);
+            continue;
+          }
+
+          var listMatch = line.match(/^\s*[-*]\s+(.*)$/);
+          if (listMatch) {
+            if (!inList) {
+              html.push('<ul>');
+              inList = true;
+            }
+            html.push('<li>' + renderInlineMarkdown(listMatch[1]) + '</li>');
+            continue;
+          }
+
+          closeList();
+
+          var trimmed = line.trim();
+          if (!trimmed) {
+            html.push('<br>');
+            continue;
+          }
+
+          if (/^###\s+/.test(trimmed)) {
+            html.push('<h3>' + renderInlineMarkdown(trimmed.replace(/^###\s+/, '')) + '</h3>');
+            continue;
+          }
+
+          if (/^##\s+/.test(trimmed)) {
+            html.push('<h2>' + renderInlineMarkdown(trimmed.replace(/^##\s+/, '')) + '</h2>');
+            continue;
+          }
+
+          if (/^#\s+/.test(trimmed)) {
+            html.push('<h1>' + renderInlineMarkdown(trimmed.replace(/^#\s+/, '')) + '</h1>');
+            continue;
+          }
+
+          html.push('<p>' + renderInlineMarkdown(trimmed) + '</p>');
+        }
+
+        if (inCode) {
+          html.push('<pre><code>' + escapeHtml(codeLines.join('\n')) + '</code></pre>');
+        }
+
+        if (inList) {
+          html.push('</ul>');
+        }
+
+        return html.join('');
       }
 
       function addMessage(role, text) {
@@ -190,7 +264,7 @@
           'When users ask about games, use ONLY this catalog.',
           'If a requested game is missing from catalog, clearly say it is not listed.',
           'Keep answers concise and factual.',
-          'Use markdown only when useful.',
+          'Always format replies in Markdown.',
           '',
           'Catalog:',
           catalogLines.join('\n')
@@ -260,7 +334,8 @@
       if (input) {
         input.addEventListener('input', autoGrow);
         input.addEventListener('keydown', function (event) {
-          if (event.key === 'Enter' && !event.shiftKey) {
+          if (event.isComposing) return;
+          if (event.key === 'Enter' && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
             event.preventDefault();
             if (form) form.requestSubmit();
           }
