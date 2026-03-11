@@ -7,6 +7,12 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 - optionally manages sidecars (Scramjet proxy, Ollama, Discord bots)
 - powers Settings-based tab cloaking (custom title/favicon + about:blank launcher)
 
+## Deploy
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/Palladium-Games/Palladium-Games)
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Palladium-Games/Palladium-Games)
+[![Deploy to Render](https://img.shields.io/badge/Deploy%20to-Render-46E3B7?logo=render&logoColor=black)](https://render.com/deploy?repo=https://github.com/Palladium-Games/Palladium-Games)
+
 ## Repo Layout
 
 | Path | Purpose |
@@ -53,6 +59,10 @@ If you host frontend and backend on different domains, frontend can target backe
 ```text
 https://your-frontend.example/?backend=https://your-backend.example
 ```
+
+## Games
+
+We source our games from GN-Math (`gn-math.dev`) and other websites.
 
 ## Ports
 
