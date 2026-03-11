@@ -8,6 +8,7 @@ const { startDiscordPresence } = require("./discord-gateway-presence");
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
 const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const POLL_MS = Number(process.env.DISCORD_LINK_POLL_MS || 3500);
+const COMMAND_SYNC_MS = Number(process.env.DISCORD_LINK_COMMAND_SYNC_MS || 10 * 60 * 1000);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
 const LINK_COMMAND_NAME = "link";
 
@@ -39,6 +40,7 @@ if (!state.bootstrapped || typeof state.bootstrapped !== "object") state.bootstr
 
 let appId = "";
 let guildIds = [];
+let lastCommandSyncAt = 0;
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -144,8 +146,7 @@ async function interactionCallback(interactionId, interactionToken, body) {
 
 async function interactionEditOriginal(interactionToken, body) {
   if (!appId) {
-    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
-    appId = appInfo && appInfo.id ? String(appInfo.id) : "";
+    appId = await resolveAppId();
   }
   if (!appId) {
     throw new Error("Unable to resolve application id for interaction follow-up.");
@@ -163,6 +164,38 @@ async function interactionEditOriginal(interactionToken, body) {
     const text = await response.text().catch(() => "");
     throw new Error(`Interaction edit failed (${response.status}): ${text}`);
   }
+}
+
+function decodeBotIdFromToken(token) {
+  const value = String(token || "");
+  const segment = value.split(".")[0];
+  if (!segment) return "";
+  try {
+    return Buffer.from(segment, "base64").toString("utf8").trim();
+  } catch {
+    return "";
+  }
+}
+
+async function resolveAppId() {
+  if (appId) return appId;
+
+  try {
+    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
+    if (appInfo && appInfo.id) {
+      appId = String(appInfo.id);
+      return appId;
+    }
+  } catch {
+    // Fall back to token-derived bot id.
+  }
+
+  const derived = decodeBotIdFromToken(BOT_TOKEN);
+  if (derived) {
+    appId = derived;
+  }
+
+  return appId;
 }
 
 function normalizeUrl(candidateRaw) {
@@ -263,10 +296,19 @@ function providerStatus(provider) {
 }
 
 function providerCategory(provider) {
+  if (!provider || typeof provider !== "object") return "Unknown";
+
+  if (provider.status === "detected") {
+    return "Known block-page signature";
+  }
+  if (provider.status === "not_detected") {
+    return "No known block signature detected";
+  }
+
   const note = String(provider && provider.note ? provider.note : "").toLowerCase();
-  if (note.includes("matched signature")) return "Filter signature matched";
+  if (note.includes("matched signature")) return "Known block-page signature";
   if (note.includes("could not be completed")) return "Probe unavailable";
-  if (note.includes("no known block-page")) return "No known block signature";
+  if (note.includes("no known block-page")) return "No known block signature detected";
   return "Insufficient signal";
 }
 
@@ -308,7 +350,7 @@ function buildProviderFields(result) {
     const category = providerCategory(provider);
     return {
       name: `${style.icon} ${style.label}`.slice(0, 256),
-      value: clamp(`${status.mark} ${status.label}\nCategory: ${category}`, 1024),
+      value: clamp(`${status.mark} **${status.label}**\nCategory: ${category}`, 1024),
       inline: true,
     };
   });
@@ -317,15 +359,21 @@ function buildProviderFields(result) {
 function buildResultPayload(requesterMention, url, result, errorText) {
   if (errorText) {
     return {
-      content: `${requesterMention} asked for a filter check on ${url}\nResult: ${errorText}`.slice(0, 1900),
+      content: `${requesterMention} requested a filter check for ${url}`.slice(0, 1800),
       embeds: [
         {
-          title: "🔎 Filter Analysis",
+          title: "🔍 Filter Analysis",
           color: 0xef4444,
+          description: [
+            `**${safeHost(url)}**`,
+            "",
+            `❌ **Failed**`,
+            "",
+            `Error: ${clamp(errorText, 500)}`
+          ].join("\n"),
           fields: [
-            { name: "Target", value: `\`${safeHost(url)}\``, inline: false },
-            { name: "Status", value: "Failed", inline: true },
-            { name: "Error", value: clamp(errorText, 900), inline: false },
+            { name: "Requested By", value: requesterMention, inline: true },
+            { name: "URL", value: clamp(url, 900), inline: false }
           ],
           footer: { text: "Palladium Link Intelligence" },
           timestamp: new Date().toISOString(),
@@ -345,19 +393,25 @@ function buildResultPayload(requesterMention, url, result, errorText) {
   const providerFields = buildProviderFields(result);
 
   const fields = [
-    { name: "Target", value: `\`${safeHost(url)}\``, inline: false },
-    { name: "Access Snapshot", value: clamp(overview.text, 900), inline: false },
+    { name: "Requested By", value: requesterMention, inline: true },
     { name: "Direct Probe", value: clamp(directState, 900), inline: true },
-    { name: "Summary", value: clamp(summaryText, 900), inline: true },
+    { name: "URL", value: clamp(url, 900), inline: false },
     ...providerFields,
   ].slice(0, 25);
 
   return {
-    content: `${requesterMention} requested a filter analysis for ${url}`.slice(0, 1800),
     embeds: [
       {
-        title: "🔎 Filter Analysis",
-        description: `[Open URL](${url})`,
+        title: "🔍 Filter Analysis",
+        description: [
+          `**${safeHost(url)}**`,
+          "",
+          `**${overview.text}**`,
+          "",
+          `[Open URL](${url})`,
+          "",
+          `Summary: ${summaryText}`
+        ].join("\n"),
         color: verdictColor(result),
         fields,
         footer: { text: "Palladium Link Intelligence" },
@@ -476,8 +530,7 @@ async function upsertGuildCommand(guildId, commandPayload) {
 
 async function ensureSlashCommands() {
   if (!appId) {
-    const appInfo = await discordRequest("GET", "/oauth2/applications/@me");
-    appId = appInfo && appInfo.id ? String(appInfo.id) : "";
+    appId = await resolveAppId();
   }
 
   const resolvedGuildIds = guildIds.length ? guildIds : await resolveGuildIds();
@@ -493,6 +546,8 @@ async function ensureSlashCommands() {
       console.warn(`Failed to register /${LINK_COMMAND_NAME} in guild ${guildId}: ${msg}`);
     }
   }
+
+  lastCommandSyncAt = Date.now();
 }
 
 function interactionUserId(interaction) {
@@ -594,6 +649,16 @@ async function mainLoop() {
   await ensureSlashCommands();
   console.log(`Palladium link command bot running for channels: ${CHANNEL_IDS.join(", ")}`);
   while (true) {
+    const shouldSyncCommands = !lastCommandSyncAt || (Date.now() - lastCommandSyncAt) >= COMMAND_SYNC_MS;
+    if (shouldSyncCommands) {
+      try {
+        await ensureSlashCommands();
+      } catch (error) {
+        const msg = error && error.message ? error.message : String(error);
+        console.warn(`Slash command sync error: ${msg}`);
+      }
+    }
+
     for (const channelId of CHANNEL_IDS) {
       try {
         await pollChannel(channelId);

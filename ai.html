@@ -82,7 +82,7 @@
       var sendButton = document.getElementById('ai-send');
 
       var memory = [];
-      var maxMemoryItems = 6;
+      var maxMemoryItems = 4;
       var gamesCache = null;
       var busy = false;
 
@@ -311,7 +311,8 @@
 
         var raw = await response.text();
         if (!response.ok) {
-          throw new Error(raw || ('AI request failed: ' + response.status));
+          var upstream = extractErrorText(raw);
+          throw new Error(upstream || raw || ('AI request failed: ' + response.status));
         }
 
         var upstreamError = extractErrorText(raw);
@@ -337,17 +338,19 @@
       }
 
       function buildSystemPrompt(games) {
-        var catalogLines = games.slice(0, 140).map(function (entry) {
-          return '- ' + entry.title + ' by ' + entry.author;
+        var catalogLines = games.slice(0, 48).map(function (entry) {
+          return '- ' + entry.title + ' | ' + entry.author + ' | ' + entry.playerPath;
         });
+        var truncated = games.length > 48 ? 'Catalog is truncated in prompt for speed; rely on exact provided entries only.' : '';
 
         return [
           'You are PalladiumAI for the Palladium Games website.',
           'Never make up games, links, authors, or site features.',
           'When users ask about games, use ONLY this catalog.',
           'If a requested game is missing from catalog, clearly say it is not listed.',
-          'Keep answers concise and factual.',
+          'Prefer short, direct answers.',
           'Always format replies in Markdown.',
+          truncated,
           '',
           'Catalog:',
           catalogLines.join('\n')
@@ -371,9 +374,11 @@
         var primaryPayload = {
           stream: false,
           messages: messages,
+          think: false,
+          keep_alive: '15m',
           options: {
-            temperature: 0.2,
-            num_predict: 220
+            temperature: 0.15,
+            num_predict: 160
           }
         };
 
@@ -449,7 +454,7 @@
 
           try {
             var answer = await sendChat(text);
-            addMessage('assistant', answer || 'I could not generate a response.');
+            addMessage('assistant', answer);
 
             memory.push({ role: 'user', content: text });
             memory.push({ role: 'assistant', content: answer });

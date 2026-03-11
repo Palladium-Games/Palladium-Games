@@ -790,31 +790,63 @@ async function routeRequest(req, res, config) {
     try {
       body = await readRequestBody(req, config.maxRequestBodyBytes);
     } catch (error) {
-      sendText(res, 413, String(error?.message || "Request body too large"), config);
+      sendJson(res, 413, { ok: false, error: String(error?.message || "Request body too large") }, config);
       return;
     }
     const raw = body.toString("utf8").trim();
     if (!raw) {
-      sendText(res, 400, "Request body is required", config);
+      sendJson(res, 400, { ok: false, error: "Request body is required" }, config);
       return;
     }
 
-    const payload = withDefaultModel(raw, config.ollamaModel);
-    const target = `${config.ollamaBaseUrl.replace(/\/+$/, "")}/api/chat`;
+    const parsed = parseJsonObject(raw);
+    if (!parsed) {
+      sendJson(res, 400, { ok: false, error: "Request body must be valid JSON." }, config);
+      return;
+    }
 
-    const response = await fetch(target, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json"
+    const normalized = normalizeAiPayload(parsed, config.ollamaModel);
+    const baseUrl = config.ollamaBaseUrl.replace(/\/+$/, "");
+    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 18_000);
+    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 45_000);
+
+    // Try /api/chat first; if it times out or returns empty content, fall back to /api/generate.
+    const chatAttempt = await postJsonWithTimeout(`${baseUrl}/api/chat`, normalized, chatTimeoutMs);
+    const chatText = extractAssistantText(chatAttempt.data);
+    if (chatAttempt.ok && chatText) {
+      sendJson(res, 200, buildAssistantPayload(normalized.model, chatText, "chat"), config);
+      return;
+    }
+
+    const generatePayload = buildGeneratePayload(normalized, config.ollamaModel);
+    const generateAttempt = await postJsonWithTimeout(
+      `${baseUrl}/api/generate`,
+      generatePayload,
+      generateTimeoutMs
+    );
+    const generatedText = extractAssistantText(generateAttempt.data);
+    if (generateAttempt.ok && generatedText) {
+      sendJson(res, 200, buildAssistantPayload(generatePayload.model, generatedText, "generate"), config);
+      return;
+    }
+
+    const errorMessage =
+      generateAttempt.error ||
+      chatAttempt.error ||
+      "AI upstream returned an empty response.";
+    sendJson(
+      res,
+      502,
+      {
+        ok: false,
+        error: errorMessage,
+        details: {
+          chatStatus: chatAttempt.status,
+          generateStatus: generateAttempt.status
+        }
       },
-      body: payload,
-      signal: AbortSignal.timeout(config.aiRequestTimeoutMs)
-    });
-
-    const bytes = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get("content-type") || "application/json; charset=utf-8";
-    sendBinary(res, response.status, bytes, { "content-type": contentType }, config);
+      config
+    );
     return;
   }
 
@@ -1239,12 +1271,224 @@ function runCommandWithTimeout(command, args, options, label) {
   });
 }
 
-function withDefaultModel(rawJson, model) {
-  if (rawJson.includes('"model"')) return rawJson;
-  const trimmed = rawJson.trim();
-  if (!trimmed.startsWith("{")) return rawJson;
-  const safeModel = String(model || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-  return `{"model":"${safeModel}",${trimmed.slice(1)}`;
+function parseJsonObject(rawText) {
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed && typeof parsed === "object") {
+      return parsed;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function parseJsonMaybe(rawText) {
+  const trimmed = String(rawText || "").trim();
+  if (!trimmed) return {};
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return {};
+  }
+}
+
+function normalizeAiPayload(payload, fallbackModel) {
+  const normalized = payload && typeof payload === "object" ? { ...payload } : {};
+  if (!normalized.model) {
+    normalized.model = String(fallbackModel || "");
+  }
+
+  if (!Array.isArray(normalized.messages) || normalized.messages.length === 0) {
+    const prompt = String(normalized.prompt || "").trim();
+    if (prompt) {
+      normalized.messages = [{ role: "user", content: prompt }];
+    } else {
+      normalized.messages = [];
+    }
+  }
+
+  if (typeof normalized.stream !== "boolean") {
+    normalized.stream = false;
+  }
+
+  return normalized;
+}
+
+function flattenContent(contentValue) {
+  if (typeof contentValue === "string") {
+    return contentValue.trim();
+  }
+
+  if (Array.isArray(contentValue)) {
+    return contentValue
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item.text === "string") return item.text;
+        if (item && typeof item.content === "string") return item.content;
+        return "";
+      })
+      .join("")
+      .trim();
+  }
+
+  if (contentValue && typeof contentValue === "object") {
+    if (typeof contentValue.text === "string") return contentValue.text.trim();
+    if (typeof contentValue.content === "string") return contentValue.content.trim();
+  }
+
+  return "";
+}
+
+function extractAssistantText(payload) {
+  if (!payload || typeof payload !== "object") return "";
+
+  if (payload.message && typeof payload.message === "object") {
+    const messageText = flattenContent(payload.message.content);
+    if (messageText) return messageText;
+  }
+
+  if (typeof payload.response === "string" && payload.response.trim()) {
+    return payload.response.trim();
+  }
+
+  if (typeof payload.content === "string" && payload.content.trim()) {
+    return payload.content.trim();
+  }
+
+  if (Array.isArray(payload.choices) && payload.choices.length > 0) {
+    const first = payload.choices[0] || {};
+    if (first.message && typeof first.message === "object") {
+      const choiceText = flattenContent(first.message.content);
+      if (choiceText) return choiceText;
+    }
+    if (typeof first.text === "string" && first.text.trim()) {
+      return first.text.trim();
+    }
+  }
+
+  return "";
+}
+
+function extractUpstreamError(payload, rawText, fallbackMessage) {
+  if (payload && typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error.trim();
+  }
+
+  if (payload && payload.error && typeof payload.error === "object" && typeof payload.error.message === "string") {
+    const nested = payload.error.message.trim();
+    if (nested) return nested;
+  }
+
+  const text = String(rawText || "").trim();
+  if (text) {
+    return text.length > 700 ? `${text.slice(0, 699)}…` : text;
+  }
+
+  return String(fallbackMessage || "Unknown upstream error");
+}
+
+async function postJsonWithTimeout(targetUrl, payload, timeoutMs) {
+  try {
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json"
+      },
+      body: JSON.stringify(payload || {}),
+      signal: AbortSignal.timeout(Math.max(3000, timeoutMs))
+    });
+
+    const rawText = await response.text();
+    const parsed = parseJsonMaybe(rawText);
+
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        data: parsed,
+        error: extractUpstreamError(parsed, rawText, `Upstream request failed (${response.status}).`)
+      };
+    }
+
+    return {
+      ok: true,
+      status: response.status,
+      data: parsed,
+      error: ""
+    };
+  } catch (error) {
+    const message = String(error?.message || error || "Unknown network error");
+    const timeoutLike = /timeout/i.test(message);
+    return {
+      ok: false,
+      status: 0,
+      data: {},
+      error: timeoutLike ? "AI upstream request timed out." : message
+    };
+  }
+}
+
+function buildPromptFromMessages(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return "User: Hello\n\nAssistant:";
+  }
+
+  const lines = [];
+  for (const message of messages) {
+    if (!message || typeof message !== "object") continue;
+    const roleRaw = String(message.role || "user").toLowerCase();
+    const role =
+      roleRaw === "system"
+        ? "System"
+        : roleRaw === "assistant"
+          ? "Assistant"
+          : roleRaw === "tool"
+            ? "Tool"
+            : "User";
+    const content = flattenContent(message.content);
+    if (!content) continue;
+    lines.push(`${role}: ${content}`);
+  }
+
+  lines.push("Assistant:");
+  return lines.join("\n\n");
+}
+
+function buildGeneratePayload(normalizedPayload, fallbackModel) {
+  const payload = {
+    model: String(normalizedPayload.model || fallbackModel || ""),
+    stream: false,
+    prompt: buildPromptFromMessages(normalizedPayload.messages)
+  };
+
+  if (normalizedPayload && typeof normalizedPayload.options === "object" && normalizedPayload.options) {
+    payload.options = normalizedPayload.options;
+  }
+
+  if (typeof normalizedPayload.keep_alive !== "undefined") {
+    payload.keep_alive = normalizedPayload.keep_alive;
+  }
+  if (typeof normalizedPayload.think === "boolean") {
+    payload.think = normalizedPayload.think;
+  }
+
+  return payload;
+}
+
+function buildAssistantPayload(model, text, source) {
+  return {
+    ok: true,
+    model: String(model || ""),
+    message: {
+      role: "assistant",
+      content: String(text || "").trim()
+    },
+    done: true,
+    source: source || "chat",
+    created_at: new Date().toISOString()
+  };
 }
 
 function readRequestBody(req, maxBytes) {
