@@ -381,9 +381,10 @@ html.nav-initial-collapsed #nav ~ .main {
   inset: 0;
   z-index: 100;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-end;
+  justify-content: flex-end;
   padding: 1.5rem;
+  pointer-events: none;
 }
 
 .discord-notification[hidden] {
@@ -393,10 +394,11 @@ html.nav-initial-collapsed #nav ~ .main {
 .discord-notification__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(2px);
   opacity: 0;
   transition: opacity 0.35s ease-out;
+  pointer-events: auto;
 }
 
 .discord-notification--visible .discord-notification__backdrop {
@@ -409,11 +411,12 @@ html.nav-initial-collapsed #nav ~ .main {
 
 .discord-notification__card {
   position: relative;
+  pointer-events: auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-  max-width: 360px;
+  max-width: 340px;
   width: 100%;
   overflow: hidden;
   display: flex;
@@ -1191,11 +1194,6 @@ html.nav-initial-collapsed #nav ~ .main {
   gap: 0.4rem;
 }
 
-.settings-fetch {
-  display: grid;
-  gap: 0.4rem;
-}
-
 .settings-fetch__row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1222,6 +1220,40 @@ html.nav-initial-collapsed #nav ~ .main {
 .settings-input:focus,
 .settings-file:focus {
   outline: none;
+  border-color: var(--accent-bright);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
+}
+
+.settings-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-upload__row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 38px;
+}
+
+.settings-btn--file {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+}
+
+.settings-upload__name {
+  color: var(--palladium-dim);
+  font-size: 0.84rem;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.settings-file-input:focus + .settings-upload__row .settings-btn--file {
   border-color: var(--accent-bright);
   box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.2);
 }
@@ -1399,5 +1431,10 @@ html.nav-initial-collapsed #nav ~ .main {
 
   .settings-fetch__row {
     grid-template-columns: 1fr;
+  }
+
+  .settings-upload__row {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

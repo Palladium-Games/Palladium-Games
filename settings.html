@@ -68,22 +68,21 @@
               </label>
 
               <label class="settings-field">
-                <span class="settings-field__label">Favicon URL or path</span>
-                <input id="settings-favicon" class="settings-input" type="text" placeholder="images/favicon.png" autocomplete="off" />
+                <span class="settings-field__label">Favicon URL/path or website URL</span>
+                <div class="settings-fetch__row">
+                  <input id="settings-favicon-source" class="settings-input" type="text" placeholder="images/favicon.png or https://schoology.com" autocomplete="off" />
+                  <button type="button" id="settings-detect-btn" class="settings-btn">Detect</button>
+                </div>
               </label>
 
-              <div class="settings-fetch">
-                <span class="settings-field__label">Fetch title and favicon from a website URL</span>
-                <div class="settings-fetch__row">
-                  <input id="settings-source-url" class="settings-input" type="text" placeholder="https://google.com" autocomplete="off" />
-                  <button type="button" id="settings-fetch-btn" class="settings-btn">Fetch</button>
+              <div class="settings-field settings-upload">
+                <span class="settings-field__label">Upload favicon image</span>
+                <input id="settings-favicon-file" class="settings-file-input" type="file" accept="image/*" />
+                <div class="settings-upload__row">
+                  <label for="settings-favicon-file" class="settings-btn settings-btn--file">Choose image</label>
+                  <span id="settings-file-name" class="settings-upload__name">No file selected</span>
                 </div>
               </div>
-
-              <label class="settings-field">
-                <span class="settings-field__label">Upload favicon image</span>
-                <input id="settings-favicon-file" class="settings-file" type="file" accept="image/*" />
-              </label>
 
               <div class="settings-actions">
                 <button type="submit" class="settings-btn settings-btn--primary">Save</button>
@@ -114,10 +113,10 @@
       var api = window.PalladiumSiteSettings;
       var form = document.getElementById('settings-form');
       var titleInput = document.getElementById('settings-title');
-      var faviconInput = document.getElementById('settings-favicon');
-      var sourceUrlInput = document.getElementById('settings-source-url');
-      var fetchBtn = document.getElementById('settings-fetch-btn');
+      var sourceInput = document.getElementById('settings-favicon-source');
+      var detectBtn = document.getElementById('settings-detect-btn');
       var fileInput = document.getElementById('settings-favicon-file');
+      var fileNameEl = document.getElementById('settings-file-name');
       var resetBtn = document.getElementById('settings-reset');
       var aboutBlankBtn = document.getElementById('settings-aboutblank');
       var previewIcon = document.getElementById('settings-preview-icon');
@@ -132,13 +131,13 @@
         statusEl.classList.toggle('settings-status--error', Boolean(isError));
       }
 
-      function currentTitleValue() {
-        var raw = titleInput ? titleInput.value : '';
+      function currentSourceValue() {
+        var raw = sourceInput ? sourceInput.value : '';
         return String(raw || '').trim();
       }
 
-      function currentFaviconValue() {
-        var raw = faviconInput ? faviconInput.value : '';
+      function currentTitleValue() {
+        var raw = titleInput ? titleInput.value : '';
         return String(raw || '').trim();
       }
 
@@ -153,6 +152,24 @@
         }
       }
 
+      function isDomainLike(value) {
+        return /^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(String(value || '').trim());
+      }
+
+      function hasImageExtension(value) {
+        return /\.(ico|png|svg|jpg|jpeg|gif|webp)([?#].*)?$/i.test(String(value || '').trim());
+      }
+
+      function isDirectFaviconValue(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return false;
+        if (/^data:image\//i.test(raw)) return true;
+        if (/^(\/|\.{1,2}\/)/.test(raw)) return true;
+        if (!/^https?:\/\//i.test(raw) && !isDomainLike(raw)) return true;
+        if (hasImageExtension(raw)) return true;
+        return false;
+      }
+
       function resolveAbsoluteUrl(raw, base) {
         var value = String(raw || '').trim();
         if (!value) return '';
@@ -161,18 +178,6 @@
         } catch (error) {
           return '';
         }
-      }
-
-      function extractTitle(doc) {
-        var titleTag = doc.querySelector('title');
-        var ogTitle = doc.querySelector('meta[property="og:title"]');
-        var twitterTitle = doc.querySelector('meta[name="twitter:title"]');
-
-        var title = '';
-        if (titleTag && titleTag.textContent) title = String(titleTag.textContent).trim();
-        if (!title && ogTitle) title = String(ogTitle.getAttribute('content') || '').trim();
-        if (!title && twitterTitle) title = String(twitterTitle.getAttribute('content') || '').trim();
-        return title;
       }
 
       function extractFavicon(doc, baseUrl) {
@@ -215,10 +220,10 @@
         }
       }
 
-      async function fetchSiteMetadata(sourceUrl) {
+      async function fetchSiteFavicon(sourceUrl) {
         var target = normalizeUrl(sourceUrl);
         if (!target) {
-          throw new Error('Enter a valid URL to fetch from.');
+          throw new Error('Enter a valid URL.');
         }
 
         var endpoint = '/api/proxy/fetch?url=' + encodeURIComponent(target);
@@ -235,19 +240,38 @@
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, 'text/html');
 
-        return {
-          title: extractTitle(doc),
-          favicon: extractFavicon(doc, target)
-        };
+        return extractFavicon(doc, target);
+      }
+
+      async function resolveFaviconSource(sourceValue) {
+        var raw = String(sourceValue || '').trim();
+        if (!raw) return '';
+
+        if (isDirectFaviconValue(raw)) {
+          if (isDomainLike(raw) && hasImageExtension(raw) && !/^https?:\/\//i.test(raw)) {
+            return 'https://' + raw;
+          }
+          return raw;
+        }
+
+        var normalized = normalizeUrl(raw);
+        if (!normalized) {
+          throw new Error('Enter a valid favicon URL/path or website URL.');
+        }
+
+        var detected = await fetchSiteFavicon(normalized);
+        if (!detected) {
+          throw new Error('Could not detect a favicon from that website.');
+        }
+        return detected;
       }
 
       function renderPreview() {
         if (previewTitle) {
-          var title = currentTitleValue() || api.defaultTitle;
-          previewTitle.textContent = title;
+          previewTitle.textContent = currentTitleValue() || api.defaultTitle;
         }
         if (previewIcon) {
-          var icon = currentFaviconValue() || api.defaultFavicon;
+          var icon = currentSourceValue() || api.getSettings().favicon || api.defaultFavicon;
           previewIcon.src = icon;
         }
       }
@@ -255,18 +279,26 @@
       function loadIntoForm() {
         var settings = api.getSettings();
         if (titleInput) titleInput.value = settings.title || '';
-        if (faviconInput) faviconInput.value = settings.favicon || '';
+        if (sourceInput) sourceInput.value = settings.favicon || '';
         if (fileInput) fileInput.value = '';
+        if (fileNameEl) fileNameEl.textContent = 'No file selected';
         renderPreview();
       }
 
       if (form) {
-        form.addEventListener('submit', function (event) {
+        form.addEventListener('submit', async function (event) {
           event.preventDefault();
-          api.setTitle(currentTitleValue());
-          api.setFavicon(currentFaviconValue());
-          setStatus('Saved. Refresh any open tabs to apply everywhere.', false);
-          loadIntoForm();
+
+          try {
+            var resolved = await resolveFaviconSource(currentSourceValue());
+            api.setTitle(currentTitleValue());
+            api.setFavicon(resolved);
+            if (sourceInput) sourceInput.value = resolved;
+            renderPreview();
+            setStatus('Title and favicon applied.', false);
+          } catch (error) {
+            setStatus(String((error && error.message) || error || 'Failed to apply settings.'), true);
+          }
         });
       }
 
@@ -290,52 +322,31 @@
         });
       }
 
-      if (titleInput) {
-        titleInput.addEventListener('input', renderPreview);
-      }
-
-      if (faviconInput) {
-        faviconInput.addEventListener('input', renderPreview);
-      }
-
-      if (fetchBtn) {
-        fetchBtn.addEventListener('click', async function () {
-          var source = sourceUrlInput ? sourceUrlInput.value : '';
-          setStatus('Fetching title and favicon...', false);
-
-          try {
-            var meta = await fetchSiteMetadata(source);
-            var updated = [];
-
-            if (titleInput && meta.title) {
-              titleInput.value = meta.title;
-              updated.push('title');
-            }
-
-            if (faviconInput && meta.favicon) {
-              faviconInput.value = meta.favicon;
-              updated.push('favicon');
-            }
-
-            renderPreview();
-
-            if (!updated.length) {
-              setStatus('No usable title or favicon found for that URL.', true);
-              return;
-            }
-
-            setStatus('Fetched ' + updated.join(' and ') + '. Click Save to apply.', false);
-          } catch (error) {
-            setStatus(String((error && error.message) || error || 'Failed to fetch metadata.'), true);
+      if (sourceInput) {
+        sourceInput.addEventListener('input', renderPreview);
+        sourceInput.addEventListener('keydown', function (event) {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            if (detectBtn) detectBtn.click();
           }
         });
       }
 
-      if (sourceUrlInput) {
-        sourceUrlInput.addEventListener('keydown', function (event) {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            if (fetchBtn) fetchBtn.click();
+      if (titleInput) {
+        titleInput.addEventListener('input', renderPreview);
+      }
+
+      if (detectBtn) {
+        detectBtn.addEventListener('click', async function () {
+          setStatus('Detecting favicon...', false);
+
+          try {
+            var resolved = await resolveFaviconSource(currentSourceValue());
+            if (sourceInput) sourceInput.value = resolved;
+            renderPreview();
+            setStatus('Favicon detected. Click Apply Favicon to save.', false);
+          } catch (error) {
+            setStatus(String((error && error.message) || error || 'Failed to detect favicon.'), true);
           }
         });
       }
@@ -344,13 +355,14 @@
         fileInput.addEventListener('change', function () {
           var file = fileInput.files && fileInput.files[0];
           if (!file) return;
+          if (fileNameEl) fileNameEl.textContent = file.name;
 
           var reader = new FileReader();
           reader.onload = function () {
-            if (typeof reader.result === 'string' && faviconInput) {
-              faviconInput.value = reader.result;
+            if (typeof reader.result === 'string' && sourceInput) {
+              sourceInput.value = reader.result;
               renderPreview();
-              setStatus('Loaded favicon from file. Click Save to apply.', false);
+              setStatus('Image loaded. Click Apply Favicon to save.', false);
             }
           };
           reader.onerror = function () {

@@ -32,6 +32,28 @@
     return raw;
   }
 
+  function inferFaviconType(href) {
+    var value = String(href || "").toLowerCase();
+    if (/\.ico([?#].*)?$/.test(value)) return "image/x-icon";
+    if (/\.svg([?#].*)?$/.test(value)) return "image/svg+xml";
+    if (/\.jpe?g([?#].*)?$/.test(value)) return "image/jpeg";
+    if (/\.webp([?#].*)?$/.test(value)) return "image/webp";
+    if (/^data:image\/svg\+xml/i.test(value)) return "image/svg+xml";
+    if (/^data:image\/x-icon/i.test(value)) return "image/x-icon";
+    if (/^data:image\/jpeg/i.test(value)) return "image/jpeg";
+    if (/^data:image\/webp/i.test(value)) return "image/webp";
+    if (/^data:image\//i.test(value)) return "image/png";
+    if (/\.png([?#].*)?$/.test(value)) return "image/png";
+    return "";
+  }
+
+  function cacheBust(href) {
+    var raw = String(href || "").trim();
+    if (!raw || /^data:image\//i.test(raw)) return raw;
+    var divider = raw.indexOf("?") === -1 ? "?" : "&";
+    return raw + divider + "palladium_fv=" + Date.now();
+  }
+
   function getSettings() {
     return {
       title: safeGetStorage(TITLE_KEY),
@@ -75,10 +97,12 @@
   }
 
   function applyFavicon(faviconUrl) {
-    var href = normalizeFavicon(faviconUrl) || DEFAULT_FAVICON;
-    setLinkRel("icon", href, "image/png");
-    setLinkRel("shortcut icon", href, "image/x-icon");
-    setLinkRel("apple-touch-icon", href, "image/png");
+    var rawHref = normalizeFavicon(faviconUrl) || DEFAULT_FAVICON;
+    var displayHref = cacheBust(rawHref);
+    var type = inferFaviconType(rawHref);
+    setLinkRel("icon", displayHref, type || "image/png");
+    setLinkRel("shortcut icon", displayHref, type || "image/x-icon");
+    setLinkRel("apple-touch-icon", displayHref, type || "image/png");
   }
 
   function applyDocumentSettings() {
