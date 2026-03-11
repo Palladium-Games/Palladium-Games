@@ -32,6 +32,10 @@ const MIME_TYPES = {
   ".woff2": "font/woff2"
 };
 
+const BROWSER_FETCH_USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
 const STATIC_BLOCKED_ROOTS = new Set([
   ".git",
   ".github",
@@ -691,10 +695,13 @@ async function routeRequest(req, res, config) {
       return;
     }
 
+    const upstreamMethod = method === "HEAD" ? "HEAD" : "GET";
     const response = await fetch(target, {
-      method: "GET",
+      method: upstreamMethod,
       headers: {
-        "user-agent": "PalladiumMonolith/1.0"
+        "user-agent": BROWSER_FETCH_USER_AGENT,
+        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/*,*/*;q=0.8",
+        "accept-language": "en-US,en;q=0.9"
       },
       redirect: "follow",
       signal: AbortSignal.timeout(config.requestTimeoutMs)
@@ -707,7 +714,8 @@ async function routeRequest(req, res, config) {
 
     const body = Buffer.from(await response.arrayBuffer());
     const headers = {
-      "content-type": response.headers.get("content-type") || "application/octet-stream"
+      "content-type": response.headers.get("content-type") || "application/octet-stream",
+      "x-palladium-final-url": response.url || target
     };
     sendBinary(res, response.status, body, headers, config);
     return;
@@ -1224,7 +1232,8 @@ function sendHeadFromUpstream(res, response, config) {
   addCors(res, config);
   addSecurityHeaders(res);
   const headers = {
-    "content-type": response.headers.get("content-type") || "application/octet-stream"
+    "content-type": response.headers.get("content-type") || "application/octet-stream",
+    "x-palladium-final-url": response.url || ""
   };
   res.writeHead(response.status, headers);
   res.end();

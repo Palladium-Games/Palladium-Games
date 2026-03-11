@@ -183,9 +183,28 @@
         }
       }
 
-      function extractFavicon(doc, baseUrl) {
+      function buildProxyRequestUrl(targetUrl) {
+        var endpoint = '/api/proxy/fetch?url=' + encodeURIComponent(targetUrl);
+        return window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function'
+          ? window.PalladiumBackend.apiUrl(endpoint)
+          : endpoint;
+      }
+
+      async function fetchViaProxy(targetUrl, method) {
+        return fetch(buildProxyRequestUrl(targetUrl), {
+          method: method || 'GET'
+        });
+      }
+
+      function isLikelyImageContentType(contentType) {
+        var value = String(contentType || '').toLowerCase();
+        return value.indexOf('image/') !== -1 || value.indexOf('icon') !== -1 || value.indexOf('octet-stream') !== -1;
+      }
+
+      function extractFaviconCandidates(doc, baseUrl) {
         var links = doc.querySelectorAll('link[rel][href]');
         var picks = [];
+        var seen = Object.create(null);
 
         for (var i = 0; i < links.length; i += 1) {
           var rel = String(links[i].getAttribute('rel') || '').toLowerCase();
@@ -204,22 +223,48 @@
           picks.push({ href: href, score: score });
         }
 
-        if (picks.length) {
-          picks.sort(function (a, b) { return b.score - a.score; });
-          return picks[0].href;
-        }
-
         var ogImage = doc.querySelector('meta[property="og:image"]');
         if (ogImage) {
           var ogImageUrl = resolveAbsoluteUrl(ogImage.getAttribute('content') || '', baseUrl);
-          if (ogImageUrl) return ogImageUrl;
+          if (ogImageUrl) picks.push({ href: ogImageUrl, score: -1 });
         }
 
         try {
           var parsed = new URL(baseUrl);
-          return parsed.origin + '/favicon.ico';
+          picks.push({ href: parsed.origin + '/favicon.ico', score: 1 });
+          picks.push({ href: parsed.origin + '/favicon.png', score: 0 });
         } catch (error) {
-          return '';
+          // Ignore fallback URL failures.
+        }
+
+        picks.sort(function (a, b) { return b.score - a.score; });
+        var candidates = [];
+        for (var j = 0; j < picks.length; j += 1) {
+          var key = String(picks[j].href || '').trim();
+          if (!key || seen[key]) continue;
+          seen[key] = true;
+          candidates.push(key);
+        }
+        return candidates;
+      }
+
+      function isLikelyIconUrl(urlValue) {
+        return /\.(ico|png|svg|jpg|jpeg|gif|webp)([?#].*)?$/i.test(String(urlValue || ''));
+      }
+
+      async function verifyFaviconCandidate(urlValue) {
+        try {
+          var headResponse = await fetchViaProxy(urlValue, 'HEAD');
+          if (!headResponse.ok) return false;
+
+          var contentType = String(headResponse.headers.get('content-type') || '');
+          if (isLikelyImageContentType(contentType)) return true;
+
+          if (isLikelyIconUrl(urlValue) && !contentType) return true;
+          if (isLikelyIconUrl(urlValue) && /text\/plain/i.test(contentType)) return true;
+          return false;
+        } catch (error) {
+          return false;
         }
       }
 
@@ -229,21 +274,31 @@
           throw new Error('Enter a valid URL.');
         }
 
-        var endpoint = '/api/proxy/fetch?url=' + encodeURIComponent(target);
-        var requestUrl = window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function'
-          ? window.PalladiumBackend.apiUrl(endpoint)
-          : endpoint;
-
-        var response = await fetch(requestUrl, { method: 'GET' });
+        var response = await fetchViaProxy(target, 'GET');
         if (!response.ok) {
           throw new Error('Could not fetch that URL (status ' + response.status + ').');
+        }
+
+        var finalUrl = String(response.headers.get('x-palladium-final-url') || target);
+        var initialType = String(response.headers.get('content-type') || '');
+        if (isLikelyImageContentType(initialType)) {
+          return finalUrl;
         }
 
         var html = await response.text();
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, 'text/html');
+        var candidates = extractFaviconCandidates(doc, finalUrl);
+        if (!candidates.length) return '';
 
-        return extractFavicon(doc, target);
+        var maxChecks = Math.min(candidates.length, 8);
+        for (var i = 0; i < maxChecks; i += 1) {
+          if (await verifyFaviconCandidate(candidates[i])) {
+            return candidates[i];
+          }
+        }
+
+        return candidates[0];
       }
 
       async function resolveFaviconSource(sourceValue) {

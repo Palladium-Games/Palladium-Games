@@ -378,55 +378,45 @@ html.nav-initial-collapsed #nav ~ .main {
 /* ——— Discord notification popup ——— */
 .discord-notification {
   position: fixed;
-  inset: 0;
+  bottom: 2.5rem;
+  right: 1rem;
   z-index: 100;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  padding: 1.5rem;
-  pointer-events: none;
+  max-width: 280px;
 }
 
 .discord-notification[hidden] {
   display: none;
 }
 
-.discord-notification__backdrop {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(2px);
-  opacity: 0;
-  transition: opacity 0.35s ease-out;
-  pointer-events: auto;
-}
-
-.discord-notification--visible .discord-notification__backdrop {
-  opacity: 1;
-}
-
-.discord-notification--hiding .discord-notification__backdrop {
-  opacity: 0;
-}
-
 .discord-notification__card {
   position: relative;
-  pointer-events: auto;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
-  max-width: 340px;
-  width: 100%;
-  overflow: hidden;
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  padding: 0.6rem 2rem 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  transform: translateY(16px);
+  opacity: 0;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out;
+}
+
+.discord-notification__img {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  flex-shrink: 0;
+  border-radius: 4px;
+}
+
+.discord-notification__body {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 1.5rem 1.5rem 1.5rem;
-  padding-top: 2.5rem;
-  transform: translateY(28px);
-  opacity: 0;
-  transition: transform 0.35s ease-out, opacity 0.35s ease-out;
+  gap: 0.2rem;
+  min-width: 0;
 }
 
 .discord-notification--visible .discord-notification__card {
@@ -435,77 +425,63 @@ html.nav-initial-collapsed #nav ~ .main {
 }
 
 .discord-notification--hiding .discord-notification__card {
-  transform: translateY(28px);
+  transform: translateY(16px);
   opacity: 0;
 }
 
 .discord-notification__close {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
-  z-index: 2;
-  width: 2rem;
-  height: 2rem;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  padding: 0;
   border: none;
   background: transparent;
   color: var(--palladium-dim);
-  font-size: 1.5rem;
+  font-size: 1.1rem;
   line-height: 1;
   cursor: pointer;
-  border-radius: var(--radius);
-  transition: color 0.2s, background 0.2s;
+  border-radius: 2px;
+  transition: color 0.15s, background 0.15s;
 }
 
 .discord-notification__close:hover {
   color: var(--palladium);
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.discord-notification__img {
-  width: 80px;
-  height: 80px;
-  object-fit: contain;
-  flex-shrink: 0;
-  margin-bottom: 1rem;
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .discord-notification__title {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--palladium);
-  margin: 0 0 0.5rem;
-  text-align: center;
-  letter-spacing: 0.02em;
 }
 
 .discord-notification__desc {
-  font-size: 0.9rem;
+  font-size: 0.7rem;
   font-weight: 400;
   color: var(--palladium-dim);
-  line-height: 1.45;
-  margin: 0 0 1.25rem;
-  text-align: center;
-  max-width: 300px;
 }
 
 .discord-notification__btn {
   display: inline-block;
-  padding: 0.65rem 1.75rem;
-  font-size: 0.9rem;
+  margin-top: 0.2rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.7rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.04em;
   color: var(--palladium);
   background: var(--accent-bright);
   border: none;
-  border-radius: var(--radius);
+  border-radius: 4px;
   text-decoration: none;
   cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
+  transition: background 0.2s;
+  align-self: flex-start;
 }
 
 .discord-notification__btn:hover {
   background: #3b82f6;
-  transform: translateY(-1px);
 }
 
 /* ——— Page content (games, placeholders) ——— */
