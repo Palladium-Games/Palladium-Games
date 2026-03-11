@@ -43,13 +43,13 @@ final class DiscordBotProcessManager implements AutoCloseable {
             return disabled("Discord bot autostart is disabled.");
         }
 
-        if (allBotTokensBlank(config)) {
-            return disabled("Discord bot tokens are not configured.");
-        }
-
         Path botsDir = config.discordBotsDir().toAbsolutePath().normalize();
         SidecarProvisioner.ensureDiscordBots(botsDir);
         validateBotsDirectory(botsDir);
+
+        if (allBotTokensBlank(config)) {
+            return disabled("Discord bot tokens are not configured.");
+        }
 
         Map<String, Process> started = new LinkedHashMap<>();
         try {
