@@ -11,7 +11,7 @@ Palladium now runs as a single Node monolith:
 
 | Path | Purpose |
 |------|--------|
-| `frontend/` | All website HTML/CSS/JS and static assets |
+| repo root (`.`) | Website HTML/CSS/JS and static assets (`index.html`, `ai.html`, `proxy.html`, `games/`, `images/`) |
 | `discord-bots/` | Discord bot scripts started by `apps.js` |
 | `scramjet-service/` | Scramjet proxy sidecar (port `1337` by default) |
 | `config/` | Runtime config (`palladium.env`) |
@@ -42,6 +42,7 @@ If `SCRAMJET_PORT` is already occupied by an incompatible process, the backend a
 
 ## Notes
 
-- Frontend HTML files are unchanged and served directly from `frontend/`.
-- Game catalog API reads from `frontend/games.html` so titles/authors stay aligned with the UI.
+- Frontend HTML files are served directly from the repo root (`FRONTEND_DIR=.`).
+- Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `scramjet-service/`, `services/`, dotfiles).
+- Game catalog API reads from `games.html` so titles/authors stay aligned with the UI.
 - Discord tokens/channels are configured in `config/palladium.env`.

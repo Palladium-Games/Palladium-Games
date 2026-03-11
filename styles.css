@@ -357,8 +357,125 @@ html.nav-initial-collapsed #nav ~ .main {
   transition: color 0.2s;
 }
 
+.footer-time {
+  position: fixed;
+  bottom: 1rem;
+  left: calc(var(--nav-width-collapsed) + 1rem);
+  z-index: 50;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--palladium-dim);
+}
+
+.nav-initial-expanded .footer-time {
+  left: calc(var(--nav-width-expanded) + 1rem);
+}
+
 .footer-github:hover {
   color: var(--accent-bright);
+}
+
+/* ——— Discord notification popup ——— */
+.discord-notification {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  animation: discord-notification-in 0.3s ease-out;
+}
+
+.discord-notification[hidden] {
+  display: none;
+}
+
+.discord-notification__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.discord-notification__card {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  max-width: 360px;
+  width: 100%;
+  overflow: hidden;
+}
+
+.discord-notification__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 2;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--palladium-dim);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: color 0.2s, background 0.2s;
+}
+
+.discord-notification__close:hover {
+  color: var(--palladium);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.discord-notification__link {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  padding-right: 3rem;
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.2s;
+}
+
+.discord-notification__link:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.discord-notification__img {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.discord-notification__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.discord-notification__title {
+  font-weight: 600;
+  color: var(--palladium);
+}
+
+.discord-notification__sub {
+  font-size: 0.875rem;
+  color: var(--palladium-dim);
+}
+
+@keyframes discord-notification-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* ——— Page content (games, placeholders) ——— */

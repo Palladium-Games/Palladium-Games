@@ -32,6 +32,27 @@ const MIME_TYPES = {
   ".woff2": "font/woff2"
 };
 
+const STATIC_BLOCKED_ROOTS = new Set([
+  ".git",
+  ".github",
+  ".vscode",
+  "config",
+  "discord-bots",
+  "node_modules",
+  "scramjet-service",
+  "services"
+]);
+
+const STATIC_BLOCKED_TOP_LEVEL_FILES = new Set([
+  ".discord-community-bot-state.json",
+  "agents.md",
+  "apps.js",
+  "package-lock.json",
+  "package.json",
+  "readme.md",
+  "start.sh"
+]);
+
 const PROVIDER_SIGNATURES = [
   { id: "securly", name: "Securly", signatures: [/securly/i, /blocked by securly/i, /securly\.com\/blocked/i] },
   { id: "lightspeed", name: "Lightspeed", signatures: [/lightspeed/i, /relay\.lightspeedsystems\.com/i, /blocked by lightspeed/i] },
@@ -79,8 +100,8 @@ async function main() {
     host: readString(env, "SITE_HOST", "0.0.0.0"),
     port: readInt(env, "SITE_PORT", 3000),
     corsOrigin: readString(env, "CORS_ORIGIN", "*"),
-    frontendDir: resolvePath(readString(env, "FRONTEND_DIR", "frontend")),
-    gamesDir: resolvePath(readString(env, "GAMES_DIR", "frontend/games")),
+    frontendDir: resolvePath(readString(env, "FRONTEND_DIR", ".")),
+    gamesDir: resolvePath(readString(env, "GAMES_DIR", "games")),
     requestTimeoutMs: readInt(env, "REQUEST_TIMEOUT_MS", 25_000),
     maxRequestBodyBytes: readInt(env, "MAX_REQUEST_BODY_BYTES", 131072),
     aiRequestTimeoutMs: readInt(env, "AI_REQUEST_TIMEOUT_MS", 120_000),
@@ -943,11 +964,21 @@ async function serveStatic(req, res, config, pathname, method) {
     return;
   }
 
-  const cleaned = decodeURIComponent(pathname);
+  let cleaned = "";
+  try {
+    cleaned = decodeURIComponent(pathname);
+  } catch {
+    sendText(res, 400, "Bad request", config);
+    return;
+  }
   const relativePath = cleaned === "/" ? "index.html" : cleaned.replace(/^\/+/, "");
+  if (isBlockedStaticPath(relativePath)) {
+    sendText(res, 404, "Not found", config);
+    return;
+  }
   const absolutePath = path.resolve(config.frontendDir, relativePath);
 
-  if (!absolutePath.startsWith(config.frontendDir)) {
+  if (!isPathInside(config.frontendDir, absolutePath)) {
     sendText(res, 403, "Forbidden", config);
     return;
   }
@@ -1003,6 +1034,24 @@ async function serveStatic(req, res, config, pathname, method) {
     }
   });
   stream.pipe(res);
+}
+
+function isBlockedStaticPath(relativePath) {
+  const normalized = normalizeSlash(relativePath).replace(/^\/+/, "").toLowerCase();
+  if (!normalized) return true;
+
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length === 0) return true;
+  if (segments.some((segment) => segment === "." || segment === "..")) return true;
+  if (segments.some((segment) => segment.startsWith("."))) return true;
+  if (STATIC_BLOCKED_ROOTS.has(segments[0])) return true;
+  if (segments.length === 1 && STATIC_BLOCKED_TOP_LEVEL_FILES.has(segments[0])) return true;
+  return false;
+}
+
+function isPathInside(baseDir, candidatePath) {
+  const relative = path.relative(baseDir, candidatePath);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
 async function walkFiles(root) {

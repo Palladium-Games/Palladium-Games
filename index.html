@@ -68,8 +68,59 @@
       </section>
     </main>
   </div>
+  <div id="discord-notification" class="discord-notification" role="dialog" aria-label="Join Discord" aria-modal="true" hidden>
+    <div class="discord-notification__backdrop"></div>
+    <div class="discord-notification__card">
+      <button type="button" class="discord-notification__close" aria-label="Dismiss">×</button>
+      <a href="https://discord.gg/BNU7A3CnjS" target="_blank" rel="noopener noreferrer" class="discord-notification__link">
+        <img src="images/discord.png" alt="" class="discord-notification__img" />
+        <div class="discord-notification__text">
+          <span class="discord-notification__title">Join The Discord!</span>
+          <span class="discord-notification__sub">Chat, updates & community — Palladium</span>
+        </div>
+      </a>
+    </div>
+  </div>
+  <time id="footer-time" class="footer-time" aria-live="polite"></time>
   <a href="https://github.com/Palladium-Games" target="_blank" rel="noopener noreferrer" class="footer-github" aria-label="Palladium Games on GitHub">GitHub</a>
+  <script>
+    (function() {
+      function pad(n) { return (n < 10 ? '0' : '') + n; }
+      function updateTime() {
+        var el = document.getElementById('footer-time');
+        if (!el) return;
+        var d = new Date();
+        var h = d.getHours();
+        var m = d.getMinutes();
+        var s = d.getSeconds();
+        var am = h < 12;
+        var h12 = h % 12 || 12;
+        el.textContent = pad(h12) + ':' + pad(m) + ':' + pad(s) + ' ' + (am ? 'AM' : 'PM');
+        el.setAttribute('datetime', d.toISOString());
+      }
+      updateTime();
+      setInterval(updateTime, 1000);
+    })();
+  </script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
+  <script>
+    (function() {
+      try {
+        if (sessionStorage.getItem('palladium-discord-dismissed')) return;
+        var el = document.getElementById('discord-notification');
+        if (!el) return;
+        var close = el.querySelector('.discord-notification__close');
+        var backdrop = el.querySelector('.discord-notification__backdrop');
+        function hide() {
+          el.setAttribute('hidden', '');
+          try { sessionStorage.setItem('palladium-discord-dismissed', '1'); } catch (e) {}
+        }
+        if (close) close.addEventListener('click', hide);
+        if (backdrop) backdrop.addEventListener('click', hide);
+        el.removeAttribute('hidden');
+      } catch (e) {}
+    })();
+  </script>
 </body>
 </html>
