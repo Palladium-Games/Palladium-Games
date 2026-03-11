@@ -42,25 +42,19 @@
   function decorateTitle(originalTitle) {
     var source = String(originalTitle || "").trim();
     var customTitle = getSettings().title;
-    if (!customTitle) return source;
-    if (!source) return customTitle;
-    if (source.indexOf(DEFAULT_TITLE) !== -1) {
-      return source.split(DEFAULT_TITLE).join(customTitle);
-    }
-    return source;
+    if (customTitle) return customTitle;
+    return source || DEFAULT_TITLE;
   }
 
   function applyTitle(customTitle) {
     var title = String(customTitle || "").trim();
-    if (!title) return;
-
-    var current = String(document.title || "").trim();
-    if (!current) {
+    if (title) {
       document.title = title;
       return;
     }
 
-    document.title = decorateTitle(current) || title;
+    var current = String(document.title || "").trim();
+    document.title = current || DEFAULT_TITLE;
   }
 
   function setLinkRel(rel, href, type) {
@@ -85,11 +79,6 @@
     setLinkRel("icon", href, "image/png");
     setLinkRel("shortcut icon", href, "image/x-icon");
     setLinkRel("apple-touch-icon", href, "image/png");
-
-    var logo = document.querySelector(".nav__logo-icon");
-    if (logo) {
-      logo.src = href;
-    }
   }
 
   function applyDocumentSettings() {
