@@ -36,6 +36,8 @@ cp config/backend.example.properties config/backend.properties
 ```
 
 Edit `config/backend.properties` for server settings and bot config values.
+If the file is missing at runtime, the backend JAR now auto-creates `config/backend.properties`
+from an embedded template on first start.
 
 Important production settings:
 

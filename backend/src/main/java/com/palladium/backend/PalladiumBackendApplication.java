@@ -335,20 +335,25 @@ public final class PalladiumBackendApplication {
             String discordWelcomeChannelId,
             String discordRulesChannelId
     ) {
+        private static final String DEFAULT_CONFIG_TEMPLATE_RESOURCE = "templates/config/backend.properties";
+
         static Config load() throws IOException {
             String configPathValue = System.getenv().getOrDefault("BACKEND_CONFIG", "config/backend.properties");
             return load(Paths.get(configPathValue), System.getenv());
         }
 
         static Config load(Path configPath, Map<String, String> environment) throws IOException {
+            Path normalizedConfigPath = configPath.toAbsolutePath().normalize();
+            ensureConfigExists(normalizedConfigPath);
+
             Properties properties = new Properties();
-            Path configDir = configPath.toAbsolutePath().getParent();
+            Path configDir = normalizedConfigPath.getParent();
             if (configDir == null) {
                 configDir = Paths.get(".").toAbsolutePath().normalize();
             }
 
-            if (Files.exists(configPath)) {
-                try (InputStream in = Files.newInputStream(configPath)) {
+            if (Files.exists(normalizedConfigPath)) {
+                try (InputStream in = Files.newInputStream(normalizedConfigPath)) {
                     properties.load(in);
                 }
             }
@@ -504,6 +509,31 @@ public final class PalladiumBackendApplication {
                     welcomeChannelId,
                     rulesChannelId
             );
+        }
+
+        private static void ensureConfigExists(Path configPath) throws IOException {
+            Path parent = configPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+
+            if (Files.isRegularFile(configPath)) {
+                return;
+            }
+            if (Files.exists(configPath) && !Files.isRegularFile(configPath)) {
+                throw new IOException("Configured backend config path is not a file: " + configPath);
+            }
+
+            try (InputStream template = PalladiumBackendApplication.class
+                    .getClassLoader()
+                    .getResourceAsStream(DEFAULT_CONFIG_TEMPLATE_RESOURCE)) {
+                if (template == null) {
+                    throw new IOException(
+                            "Missing embedded backend config template: " + DEFAULT_CONFIG_TEMPLATE_RESOURCE
+                    );
+                }
+                Files.copy(template, configPath);
+            }
         }
 
         private static String readValue(Properties properties, Map<String, String> environment, String key, String fallback) {

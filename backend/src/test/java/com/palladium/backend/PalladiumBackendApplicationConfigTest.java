@@ -22,6 +22,22 @@ class PalladiumBackendApplicationConfigTest {
     Path tempDir;
 
     @Test
+    void loadCreatesConfigFolderAndFileWhenMissing() throws IOException {
+        Path configPath = tempDir.resolve("fresh-config/backend.properties");
+        assertFalse(Files.exists(configPath.getParent()));
+        assertFalse(Files.exists(configPath));
+
+        PalladiumBackendApplication.Config config = PalladiumBackendApplication.Config.load(configPath, Map.of());
+
+        assertTrue(Files.isDirectory(configPath.getParent()));
+        assertTrue(Files.isRegularFile(configPath));
+        String content = Files.readString(configPath, StandardCharsets.UTF_8);
+        assertTrue(content.contains("discord.commit.bot.token="));
+        assertTrue(content.contains("ollama.base.url=http://127.0.0.1:11434"));
+        assertEquals("http://127.0.0.1:11434", config.ollamaBaseUrl());
+    }
+
+    @Test
     void loadUsesScramjetDefaultsWhenUnset() throws IOException {
         Path configDir = tempDir.resolve("config");
         Files.createDirectories(configDir);
