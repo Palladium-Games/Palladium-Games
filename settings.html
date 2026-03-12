@@ -57,34 +57,75 @@
         <section class="settings-shell">
           <header class="settings-shell__header">
             <h1 class="settings-shell__title">Website Settings</h1>
-            <p class="settings-shell__subtitle">Customize tab title, favicon, and launch in about:blank.</p>
+            <p class="settings-shell__subtitle">Customize tab title, favicon, presets, and launch in about:blank.</p>
           </header>
 
           <div class="settings-grid">
             <form id="settings-form" class="settings-card settings-form">
-              <label class="settings-field">
-                <span class="settings-field__label">Website title</span>
-                <input id="settings-title" class="settings-input" type="text" placeholder="Palladium Games" autocomplete="off" />
-              </label>
-              <div class="settings-divider" aria-hidden="true"></div>
-
-              <label class="settings-field">
-                <span class="settings-field__label">Favicon URL/path or website URL</span>
-                <div class="settings-fetch__row">
-                  <input id="settings-favicon-source" class="settings-input" type="text" placeholder="images/favicon.png or https://schoology.com" autocomplete="off" />
-                  <button type="button" id="settings-detect-btn" class="settings-btn">Detect</button>
-                </div>
-              </label>
-              <div class="settings-divider" aria-hidden="true"></div>
-
-              <div class="settings-field settings-upload">
-                <span class="settings-field__label">Upload favicon image</span>
-                <input id="settings-favicon-file" class="settings-file-input" type="file" accept="image/*" />
-                <div class="settings-upload__row">
-                  <label for="settings-favicon-file" class="settings-btn settings-btn--file">Choose image</label>
-                  <span id="settings-file-name" class="settings-upload__name">No file selected</span>
-                </div>
+              <div class="settings-tabs" role="tablist" aria-label="Settings views">
+                <button
+                  type="button"
+                  id="settings-tab-custom"
+                  class="settings-tab settings-tab--active"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="settings-panel-custom"
+                >
+                  Customize
+                </button>
+                <button
+                  type="button"
+                  id="settings-tab-presets"
+                  class="settings-tab"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="settings-panel-presets"
+                >
+                  Presets
+                </button>
               </div>
+
+              <section
+                id="settings-panel-custom"
+                class="settings-panel settings-panel--active"
+                role="tabpanel"
+                aria-labelledby="settings-tab-custom"
+              >
+                <label class="settings-field">
+                  <span class="settings-field__label">Website title</span>
+                  <input id="settings-title" class="settings-input" type="text" placeholder="Palladium Games" autocomplete="off" />
+                </label>
+                <div class="settings-divider" aria-hidden="true"></div>
+
+                <label class="settings-field">
+                  <span class="settings-field__label">Favicon URL/path or website URL</span>
+                  <div class="settings-fetch__row">
+                    <input id="settings-favicon-source" class="settings-input" type="text" placeholder="images/favicon.png or https://schoology.com" autocomplete="off" />
+                    <button type="button" id="settings-detect-btn" class="settings-btn">Detect</button>
+                  </div>
+                </label>
+                <div class="settings-divider" aria-hidden="true"></div>
+
+                <div class="settings-field settings-upload">
+                  <span class="settings-field__label">Upload favicon image</span>
+                  <input id="settings-favicon-file" class="settings-file-input" type="file" accept="image/*" />
+                  <div class="settings-upload__row">
+                    <label for="settings-favicon-file" class="settings-btn settings-btn--file">Choose image</label>
+                    <span id="settings-file-name" class="settings-upload__name">No file selected</span>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                id="settings-panel-presets"
+                class="settings-panel"
+                role="tabpanel"
+                aria-labelledby="settings-tab-presets"
+                hidden
+              >
+                <p class="settings-presets__hint">Choose a preset to instantly apply both title and favicon.</p>
+                <div id="settings-presets-grid" class="settings-presets-grid"></div>
+              </section>
               <div class="settings-divider" aria-hidden="true"></div>
 
               <div class="settings-actions">
@@ -125,6 +166,50 @@
       var previewIcon = document.getElementById('settings-preview-icon');
       var previewTitle = document.getElementById('settings-preview-title');
       var statusEl = document.getElementById('settings-status');
+      var tabCustomBtn = document.getElementById('settings-tab-custom');
+      var tabPresetsBtn = document.getElementById('settings-tab-presets');
+      var panelCustom = document.getElementById('settings-panel-custom');
+      var panelPresets = document.getElementById('settings-panel-presets');
+      var presetsGrid = document.getElementById('settings-presets-grid');
+      var activePresetId = '';
+
+      var PRESETS = [
+        {
+          id: 'schoology',
+          name: 'Schoology',
+          title: 'Home | Schoology',
+          favicon: 'images/cloak-favicons/schoology.ico',
+          note: 'LMS'
+        },
+        {
+          id: 'google',
+          name: 'Google',
+          title: 'Google',
+          favicon: 'https://www.google.com/favicon.ico',
+          note: 'Search'
+        },
+        {
+          id: 'google-docs',
+          name: 'Google Docs',
+          title: 'Google Docs',
+          favicon: 'https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico',
+          note: 'Docs'
+        },
+        {
+          id: 'google-drive',
+          name: 'Google Drive',
+          title: 'My Drive - Google Drive',
+          favicon: 'https://ssl.gstatic.com/images/branding/product/2x/drive_2020q4_32dp.png',
+          note: 'Drive'
+        },
+        {
+          id: 'gmail',
+          name: 'Gmail',
+          title: 'Inbox',
+          favicon: 'https://ssl.gstatic.com/ui/v1/icons/mail/rfr/gmail.ico',
+          note: 'Mail'
+        }
+      ];
 
       if (!api) return;
 
@@ -132,6 +217,138 @@
         if (!statusEl) return;
         statusEl.textContent = String(text || '');
         statusEl.classList.toggle('settings-status--error', Boolean(isError));
+      }
+
+      function normalizePresetCompareValue(value) {
+        return String(value || '')
+          .trim()
+          .replace(/^https?:\/\/localhost(?=[:/]|$)/i, '')
+          .replace(/^https?:\/\/127\.0\.0\.1(?=[:/]|$)/i, '')
+          .replace(/^\/+/, '')
+          .toLowerCase();
+      }
+
+      function setActiveTab(tabId) {
+        var isPresets = tabId === 'presets';
+
+        if (tabCustomBtn) {
+          tabCustomBtn.classList.toggle('settings-tab--active', !isPresets);
+          tabCustomBtn.setAttribute('aria-selected', String(!isPresets));
+        }
+        if (tabPresetsBtn) {
+          tabPresetsBtn.classList.toggle('settings-tab--active', isPresets);
+          tabPresetsBtn.setAttribute('aria-selected', String(isPresets));
+        }
+        if (panelCustom) {
+          panelCustom.classList.toggle('settings-panel--active', !isPresets);
+          panelCustom.hidden = isPresets;
+        }
+        if (panelPresets) {
+          panelPresets.classList.toggle('settings-panel--active', isPresets);
+          panelPresets.hidden = !isPresets;
+        }
+      }
+
+      function getPresetById(id) {
+        for (var i = 0; i < PRESETS.length; i += 1) {
+          if (PRESETS[i].id === id) return PRESETS[i];
+        }
+        return null;
+      }
+
+      function setActivePreset(id) {
+        activePresetId = String(id || '');
+        if (!presetsGrid) return;
+        var cards = presetsGrid.querySelectorAll('.settings-preset');
+        for (var i = 0; i < cards.length; i += 1) {
+          var cardId = cards[i].getAttribute('data-preset-id') || '';
+          var isActive = cardId === activePresetId;
+          cards[i].classList.toggle('settings-preset--active', isActive);
+          cards[i].setAttribute('aria-pressed', String(isActive));
+        }
+      }
+
+      function detectMatchingPresetId(titleValue, faviconValue) {
+        var normalizedTitle = String(titleValue || '').trim().toLowerCase();
+        var normalizedFavicon = normalizePresetCompareValue(faviconValue);
+
+        for (var i = 0; i < PRESETS.length; i += 1) {
+          var preset = PRESETS[i];
+          if (
+            normalizedTitle === String(preset.title || '').trim().toLowerCase() &&
+            normalizedFavicon === normalizePresetCompareValue(preset.favicon)
+          ) {
+            return preset.id;
+          }
+        }
+        return '';
+      }
+
+      function applyPreset(presetId) {
+        var preset = getPresetById(presetId);
+        if (!preset) return;
+
+        api.setTitle(preset.title);
+        api.setFavicon(preset.favicon);
+
+        if (titleInput) titleInput.value = preset.title;
+        if (sourceInput) sourceInput.value = preset.favicon;
+        if (fileInput) fileInput.value = '';
+        if (fileNameEl) fileNameEl.textContent = 'No file selected';
+
+        setActivePreset(preset.id);
+        renderPreview();
+        setStatus('Applied preset: ' + preset.name + '.', false);
+      }
+
+      function renderPresets() {
+        if (!presetsGrid) return;
+        presetsGrid.innerHTML = '';
+
+        for (var i = 0; i < PRESETS.length; i += 1) {
+          (function (preset) {
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'settings-preset';
+            button.setAttribute('data-preset-id', preset.id);
+            button.setAttribute('aria-pressed', 'false');
+
+            var icon = document.createElement('img');
+            icon.className = 'settings-preset__icon';
+            icon.alt = preset.name + ' icon';
+            icon.src = preset.favicon;
+
+            var textWrap = document.createElement('div');
+            textWrap.className = 'settings-preset__text';
+
+            var name = document.createElement('div');
+            name.className = 'settings-preset__name';
+            name.textContent = preset.name;
+
+            var meta = document.createElement('div');
+            meta.className = 'settings-preset__meta';
+            meta.textContent = preset.title;
+
+            textWrap.appendChild(name);
+            textWrap.appendChild(meta);
+
+            if (preset.note) {
+              var badge = document.createElement('span');
+              badge.className = 'settings-preset__badge';
+              badge.textContent = preset.note;
+              button.appendChild(badge);
+            }
+
+            button.appendChild(icon);
+            button.appendChild(textWrap);
+
+            button.addEventListener('click', function () {
+              applyPreset(preset.id);
+            });
+
+            presetsGrid.appendChild(button);
+          })(PRESETS[i]);
+        }
       }
 
       function currentSourceValue() {
@@ -373,6 +590,7 @@
           var icon = currentSourceValue() || api.getSettings().favicon || api.defaultFavicon;
           previewIcon.src = icon;
         }
+        setActivePreset(detectMatchingPresetId(currentTitleValue(), currentSourceValue()));
       }
 
       function loadIntoForm() {
@@ -443,7 +661,7 @@
             var resolved = await resolveFaviconSource(currentSourceValue());
             if (sourceInput) sourceInput.value = resolved;
             renderPreview();
-            setStatus('Favicon detected. Click Apply Favicon to save.', false);
+            setStatus('Favicon detected. Click Save to apply.', false);
           } catch (error) {
             setStatus(String((error && error.message) || error || 'Failed to detect favicon.'), true);
           }
@@ -461,7 +679,7 @@
             if (typeof reader.result === 'string' && sourceInput) {
               sourceInput.value = reader.result;
               renderPreview();
-              setStatus('Image loaded. Click Apply Favicon to save.', false);
+              setStatus('Image loaded. Click Save to apply.', false);
             }
           };
           reader.onerror = function () {
@@ -471,6 +689,20 @@
         });
       }
 
+      if (tabCustomBtn) {
+        tabCustomBtn.addEventListener('click', function () {
+          setActiveTab('custom');
+        });
+      }
+
+      if (tabPresetsBtn) {
+        tabPresetsBtn.addEventListener('click', function () {
+          setActiveTab('presets');
+        });
+      }
+
+      renderPresets();
+      setActiveTab('custom');
       loadIntoForm();
       setStatus('Ready.', false);
     })();
