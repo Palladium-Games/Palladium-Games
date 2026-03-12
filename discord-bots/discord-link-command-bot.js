@@ -61,6 +61,9 @@ function resolveAppsBases() {
     process.env.PALLADIUM_APPS_URL,
     process.env.PALLADIUM_BACKEND_BASE,
     process.env.BACKEND_BASE_URL,
+    process.env.PALLADIUM_PUBLIC_BASE,
+    "https://127.0.0.1:443",
+    "https://localhost:443",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:8080"
   ]

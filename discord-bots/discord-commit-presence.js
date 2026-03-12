@@ -270,6 +270,7 @@ function withActiveBranch(routeTemplate, branch) {
 
 async function fetchRecentCommits() {
   const branchCandidates = [];
+  let repoDefaultBranch = "";
   const pushBranch = (branch) => {
     const normalized = normalizeBranchName(branch);
     if (!normalized) return;
@@ -278,19 +279,20 @@ async function fetchRecentCommits() {
     }
   };
 
-  pushBranch(activeBranch);
-
   try {
-    pushBranch(await fetchRepoDefaultBranch());
+    repoDefaultBranch = normalizeBranchName(await fetchRepoDefaultBranch());
+    pushBranch(repoDefaultBranch);
   } catch (error) {
     const msg = String(error && error.message ? error.message : error);
     console.warn(`Unable to fetch repo default branch for ${REPO}: ${msg}`);
   }
 
+  pushBranch(activeBranch);
   pushBranch("main");
   pushBranch("master");
 
   let lastError = null;
+  const results = [];
 
   for (const candidate of branchCandidates) {
     const route = withActiveBranch(
@@ -300,11 +302,10 @@ async function fetchRecentCommits() {
 
     try {
       const payload = await githubRequest(route);
-      if (candidate !== activeBranch) {
-        console.warn(`Commit bot switched branches: ${activeBranch} -> ${candidate} for ${REPO}.`);
-        activeBranch = candidate;
-      }
-      return Array.isArray(payload) ? payload : [];
+      results.push({
+        branch: candidate,
+        commits: Array.isArray(payload) ? payload : []
+      });
     } catch (error) {
       lastError = error;
       if (!isBranchNotFoundError(error)) {
@@ -313,7 +314,49 @@ async function fetchRecentCommits() {
     }
   }
 
-  throw lastError || new Error(`Unable to resolve a valid branch for ${REPO}.`);
+  if (!results.length) {
+    throw lastError || new Error(`Unable to resolve a valid branch for ${REPO}.`);
+  }
+
+  const commitTimestamp = (commit) => {
+    const rawDate =
+      (commit && commit.commit && commit.commit.author && commit.commit.author.date) ||
+      (commit && commit.commit && commit.commit.committer && commit.commit.committer.date) ||
+      "";
+    const parsed = Date.parse(String(rawDate || ""));
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  let chosen = results[0];
+  for (const result of results) {
+    const chosenHead = chosen.commits[0] || null;
+    const currentHead = result.commits[0] || null;
+    const chosenTime = commitTimestamp(chosenHead);
+    const currentTime = commitTimestamp(currentHead);
+    if (currentTime > chosenTime) {
+      chosen = result;
+    }
+  }
+
+  if (repoDefaultBranch) {
+    const defaultResult = results.find((result) => result.branch === repoDefaultBranch);
+    if (defaultResult && !defaultResult.commits.length && chosen.commits.length) {
+      // Keep chosen branch with commits when default branch is empty.
+    } else if (defaultResult && defaultResult.commits.length) {
+      const defaultTime = commitTimestamp(defaultResult.commits[0]);
+      const chosenTime = commitTimestamp((chosen.commits && chosen.commits[0]) || null);
+      if (defaultTime >= chosenTime) {
+        chosen = defaultResult;
+      }
+    }
+  }
+
+  if (chosen.branch !== activeBranch) {
+    console.warn(`Commit bot switched branches: ${activeBranch} -> ${chosen.branch} for ${REPO}.`);
+    activeBranch = chosen.branch;
+  }
+
+  return chosen.commits;
 }
 
 async function fetchCommitDetail(sha) {
