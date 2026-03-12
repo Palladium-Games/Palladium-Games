@@ -59,6 +59,16 @@ html, body {
   overflow: hidden;
 }
 
+/* Keep sidebar pinned in all states. */
+.nav.nav--collapsed,
+html.nav-initial-collapsed #nav,
+html.nav-initial-expanded #nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+}
+
 .nav.nav--collapsed {
   width: var(--nav-width-collapsed);
 }
