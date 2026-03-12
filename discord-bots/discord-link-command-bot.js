@@ -6,8 +6,9 @@ const { execSync } = require("child_process");
 const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
-const POLL_MS = Number(process.env.DISCORD_LINK_POLL_MS || 3500);
-const COMMAND_SYNC_MS = Number(process.env.DISCORD_LINK_COMMAND_SYNC_MS || 10 * 60 * 1000);
+const POLL_MS = Math.max(5000, Number(process.env.DISCORD_LINK_POLL_MS || 60_000));
+const COMMAND_SYNC_MS = Math.max(60_000, Number(process.env.DISCORD_LINK_COMMAND_SYNC_MS || 60 * 60 * 1000));
+const LEGACY_POLLING_ENABLED = parseBool(process.env.DISCORD_LINK_LEGACY_POLLING_ENABLED, false);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
 const LINK_COMMAND_NAME = "link";
 
@@ -88,6 +89,13 @@ function parseChannelIds(raw) {
     .split(/[\s,]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parseBool(raw, fallback = false) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (value === "1" || value === "true" || value === "yes" || value === "on") return true;
+  if (value === "0" || value === "false" || value === "no" || value === "off") return false;
+  return fallback;
 }
 
 function unique(values) {
@@ -328,11 +336,11 @@ function safeHost(url) {
 }
 
 function providerStatus(provider) {
-  const status = provider && provider.status ? provider.status : "unknown";
-  if (status === "detected") {
+  const status = String(provider && provider.status ? provider.status : "unknown").toLowerCase();
+  if (status === "detected" || status === "blocked") {
     return { mark: "⛔", label: "Blocked", pass: false };
   }
-  if (status === "not_detected") {
+  if (status === "not_detected" || status === "allowed") {
     return { mark: "✅", label: "Allowed", pass: true };
   }
   return { mark: "⚪", label: "Unknown", pass: false, unknown: true };
@@ -340,11 +348,12 @@ function providerStatus(provider) {
 
 function providerCategory(provider) {
   if (!provider || typeof provider !== "object") return "Unknown";
+  if (provider.category) return String(provider.category);
 
-  if (provider.status === "detected") {
+  if (provider.status === "detected" || provider.status === "blocked") {
     return "Known block-page signature";
   }
-  if (provider.status === "not_detected") {
+  if (provider.status === "not_detected" || provider.status === "allowed") {
     return "No known block signature detected";
   }
 
@@ -719,6 +728,14 @@ async function mainLoop() {
   await ensureSlashCommands();
   console.log(`Palladium link command bot running for channels: ${CHANNEL_IDS.join(", ")}`);
   console.log(`Palladium link checker backends: ${APPS_BASES.join(", ")}`);
+  console.log(
+    LEGACY_POLLING_ENABLED
+      ? `Legacy /link message polling enabled (${POLL_MS}ms interval).`
+      : "Legacy /link message polling disabled (slash commands only)."
+  );
+
+  const loopSleepMs = LEGACY_POLLING_ENABLED ? POLL_MS : Math.min(COMMAND_SYNC_MS, 60_000);
+
   while (true) {
     const shouldSyncCommands = !lastCommandSyncAt || (Date.now() - lastCommandSyncAt) >= COMMAND_SYNC_MS;
     if (shouldSyncCommands) {
@@ -730,15 +747,18 @@ async function mainLoop() {
       }
     }
 
-    for (const channelId of CHANNEL_IDS) {
-      try {
-        await pollChannel(channelId);
-      } catch (error) {
-        const msg = error && error.message ? error.message : String(error);
-        console.error(`Channel ${channelId} poll error: ${msg}`);
+    if (LEGACY_POLLING_ENABLED) {
+      for (const channelId of CHANNEL_IDS) {
+        try {
+          await pollChannel(channelId);
+        } catch (error) {
+          const msg = error && error.message ? error.message : String(error);
+          console.error(`Channel ${channelId} poll error: ${msg}`);
+        }
       }
     }
-    await sleep(POLL_MS);
+
+    await sleep(loopSleepMs);
   }
 }
 

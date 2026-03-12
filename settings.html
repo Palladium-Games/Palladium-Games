@@ -252,16 +252,57 @@
         return /\.(ico|png|svg|jpg|jpeg|gif|webp)([?#].*)?$/i.test(String(urlValue || ''));
       }
 
-      async function verifyFaviconCandidate(urlValue) {
+      async function closeBody(response) {
+        if (!response || !response.body || typeof response.body.cancel !== 'function') return;
         try {
-          var headResponse = await fetchViaProxy(urlValue, 'HEAD');
-          if (!headResponse.ok) return false;
+          await response.body.cancel();
+        } catch (error) {
+          // Ignore body cancellation failures.
+        }
+      }
 
-          var contentType = String(headResponse.headers.get('content-type') || '');
-          if (isLikelyImageContentType(contentType)) return true;
+      function shouldFallbackAfterHead(response) {
+        if (!response) return true;
+        return [400, 403, 405, 429, 500, 501, 502, 503, 504].indexOf(response.status) !== -1;
+      }
 
-          if (isLikelyIconUrl(urlValue) && !contentType) return true;
-          if (isLikelyIconUrl(urlValue) && /text\/plain/i.test(contentType)) return true;
+      async function verifyFaviconCandidate(urlValue) {
+        if (!urlValue) return false;
+        if (/^data:image\//i.test(String(urlValue))) return true;
+
+        var headResponse = null;
+        try {
+          headResponse = await fetchViaProxy(urlValue, 'HEAD');
+          if (headResponse.ok) {
+            var headType = String(headResponse.headers.get('content-type') || '');
+            var headFinalUrl = String(headResponse.headers.get('x-palladium-final-url') || urlValue);
+
+            if (isLikelyImageContentType(headType)) return true;
+            if (isLikelyIconUrl(headFinalUrl) && (!headType || /text\/plain/i.test(headType))) return true;
+            if (isLikelyIconUrl(urlValue) && !headType) return true;
+          } else if (!shouldFallbackAfterHead(headResponse)) {
+            return false;
+          }
+        } catch (error) {
+          // Fallback to GET check.
+        } finally {
+          await closeBody(headResponse);
+        }
+
+        try {
+          var getResponse = await fetchViaProxy(urlValue, 'GET');
+          if (!getResponse.ok) {
+            await closeBody(getResponse);
+            return false;
+          }
+
+          var getType = String(getResponse.headers.get('content-type') || '');
+          var getFinalUrl = String(getResponse.headers.get('x-palladium-final-url') || urlValue);
+          await closeBody(getResponse);
+
+          if (isLikelyImageContentType(getType)) return true;
+          if (isLikelyIconUrl(getFinalUrl) && (!getType || /text\/plain/i.test(getType))) return true;
+          if (isLikelyIconUrl(urlValue) && !getType) return true;
           return false;
         } catch (error) {
           return false;

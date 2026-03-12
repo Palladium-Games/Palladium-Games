@@ -58,18 +58,90 @@ const STATIC_BLOCKED_TOP_LEVEL_FILES = new Set([
 ]);
 
 const PROVIDER_SIGNATURES = [
-  { id: "securly", name: "Securly", signatures: [/securly/i, /blocked by securly/i, /securly\.com\/blocked/i] },
-  { id: "lightspeed", name: "Lightspeed", signatures: [/lightspeed/i, /relay\.lightspeedsystems\.com/i, /blocked by lightspeed/i] },
-  { id: "goguardian", name: "GoGuardian", signatures: [/goguardian/i, /goguardian\.com/i, /blocked by administrator/i] },
-  { id: "palo_alto", name: "Palo Alto", signatures: [/palo alto/i, /url filtering/i, /urlfiltering\.paloaltonetworks\.com/i] },
-  { id: "contentkeeper", name: "ContentKeeper", signatures: [/contentkeeper/i, /ckauth/i, /blocked by content keeper/i] },
-  { id: "fortiguard", name: "FortiGuard", signatures: [/fortiguard/i, /fortinet/i, /fortigate/i] },
-  { id: "blocksi", name: "Blocksi", signatures: [/blocksi/i, /blocksi\.net/i] },
-  { id: "linewize", name: "Linewize", signatures: [/linewize/i, /familyzone/i] },
-  { id: "cisco_talos", name: "Cisco Talos", signatures: [/cisco umbrella/i, /talos/i, /opendns/i] },
-  { id: "aristotle", name: "Aristotle", signatures: [/aristotle/i, /aristotlek12/i] },
-  { id: "lanschool", name: "LanSchool", signatures: [/lanschool/i, /lenovo classroom manager/i] },
-  { id: "deledao", name: "Deledao", signatures: [/deledao/i, /deledao education/i] }
+  {
+    id: "securly",
+    name: "Securly",
+    blockedCategory: "Anonymous proxies",
+    allowedCategory: "No signature detected",
+    signatures: [/securly/i, /blocked by securly/i, /securly\.com\/blocked/i]
+  },
+  {
+    id: "lightspeed",
+    name: "Lightspeed",
+    blockedCategory: "Web filtering policy",
+    allowedCategory: "No signature detected",
+    signatures: [/lightspeed/i, /relay\.lightspeedsystems\.com/i, /blocked by lightspeed/i]
+  },
+  {
+    id: "goguardian",
+    name: "GoGuardian",
+    blockedCategory: "School admin policy",
+    allowedCategory: "No signature detected",
+    signatures: [/goguardian/i, /goguardian\.com/i, /blocked by school admin/i, /blocked by administrator/i]
+  },
+  {
+    id: "palo_alto",
+    name: "Palo Alto",
+    blockedCategory: "URL filtering",
+    allowedCategory: "No signature detected",
+    signatures: [/palo alto/i, /url filtering/i, /urlfiltering\.paloaltonetworks\.com/i]
+  },
+  {
+    id: "contentkeeper",
+    name: "ContentKeeper",
+    blockedCategory: "Web access policy",
+    allowedCategory: "No signature detected",
+    signatures: [/contentkeeper/i, /ckauth/i, /blocked by content keeper/i]
+  },
+  {
+    id: "fortiguard",
+    name: "FortiGuard",
+    blockedCategory: "FortiGuard category filter",
+    allowedCategory: "No signature detected",
+    signatures: [/fortiguard/i, /fortinet/i, /fortigate/i]
+  },
+  {
+    id: "blocksi",
+    name: "Blocksi",
+    blockedCategory: "School filtering policy",
+    allowedCategory: "No signature detected",
+    signatures: [/blocksi/i, /blocksi\.net/i]
+  },
+  {
+    id: "linewize",
+    name: "Linewize",
+    blockedCategory: "Policy block",
+    allowedCategory: "No signature detected",
+    signatures: [/linewize/i, /familyzone/i]
+  },
+  {
+    id: "cisco_talos",
+    name: "Cisco Talos",
+    blockedCategory: "Cisco Umbrella policy",
+    allowedCategory: "No signature detected",
+    signatures: [/cisco umbrella/i, /talos/i, /opendns/i]
+  },
+  {
+    id: "aristotle",
+    name: "Aristotle",
+    blockedCategory: "K12 policy filter",
+    allowedCategory: "No signature detected",
+    signatures: [/aristotle/i, /aristotlek12/i]
+  },
+  {
+    id: "lanschool",
+    name: "LanSchool",
+    blockedCategory: "Classroom restriction",
+    allowedCategory: "No signature detected",
+    signatures: [/lanschool/i, /lenovo classroom manager/i]
+  },
+  {
+    id: "deledao",
+    name: "Deledao",
+    blockedCategory: "Education filter policy",
+    allowedCategory: "No signature detected",
+    signatures: [/deledao/i, /deledao education/i]
+  }
 ];
 
 const managed = {
@@ -146,6 +218,9 @@ async function main() {
     discordCommitBranch: readString(env, "DISCORD_COMMIT_BRANCH", ""),
     discordCommitPollMs: readInt(env, "DISCORD_COMMIT_POLL_MS", 15_000),
     discordCommitGithubToken: readString(env, "DISCORD_COMMIT_GITHUB_TOKEN", ""),
+    discordLinkPollMs: readInt(env, "DISCORD_LINK_POLL_MS", 60_000),
+    discordLinkCommandSyncMs: readInt(env, "DISCORD_LINK_COMMAND_SYNC_MS", 60 * 60 * 1000),
+    discordLinkLegacyPollingEnabled: readBool(env, "DISCORD_LINK_LEGACY_POLLING_ENABLED", false),
     discordLinkCommandChannelIds: readString(env, "DISCORD_LINK_COMMAND_CHANNEL_IDS", "1480327216826155059,1480329637660983408"),
     discordWelcomeChannelId: readString(env, "DISCORD_WELCOME_CHANNEL_ID", "1480334877961355304"),
     discordRulesChannelId: readString(env, "DISCORD_RULES_CHANNEL_ID", "1480324913561862184")
@@ -507,6 +582,9 @@ async function startDiscordBotsIfNeeded(config) {
     DISCORD_GUILD_ID: config.discordGuildId,
     DISCORD_RULES_TEXT: config.discordRulesText,
     DISCORD_COMMIT_CHANNEL_ID: config.discordCommitChannelId,
+    DISCORD_LINK_POLL_MS: String(Math.max(5000, config.discordLinkPollMs)),
+    DISCORD_LINK_COMMAND_SYNC_MS: String(Math.max(60_000, config.discordLinkCommandSyncMs)),
+    DISCORD_LINK_LEGACY_POLLING_ENABLED: config.discordLinkLegacyPollingEnabled ? "true" : "false",
     DISCORD_LINK_COMMAND_CHANNEL_IDS: config.discordLinkCommandChannelIds,
     DISCORD_WELCOME_CHANNEL_ID: config.discordWelcomeChannelId,
     DISCORD_RULES_CHANNEL_ID: config.discordRulesChannelId,
@@ -760,18 +838,40 @@ async function routeRequest(req, res, config) {
     }
 
     const upstreamMethod = method === "HEAD" ? "HEAD" : "GET";
-    const response = await fetch(target, {
+    const requestHeaders = {
+      "user-agent": BROWSER_FETCH_USER_AGENT,
+      accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/*,*/*;q=0.8",
+      "accept-language": "en-US,en;q=0.9"
+    };
+
+    let response = await fetch(target, {
       method: upstreamMethod,
-      headers: {
-        "user-agent": BROWSER_FETCH_USER_AGENT,
-        accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/*,*/*;q=0.8",
-        "accept-language": "en-US,en;q=0.9"
-      },
+      headers: requestHeaders,
       redirect: "follow",
       signal: AbortSignal.timeout(config.requestTimeoutMs)
     });
 
+    if (method === "HEAD" && [400, 403, 405, 501].includes(response.status)) {
+      try {
+        response = await fetch(target, {
+          method: "GET",
+          headers: requestHeaders,
+          redirect: "follow",
+          signal: AbortSignal.timeout(config.requestTimeoutMs)
+        });
+      } catch {
+        // Keep the original HEAD response.
+      }
+    }
+
     if (method === "HEAD") {
+      if (response.body && typeof response.body.cancel === "function") {
+        try {
+          await response.body.cancel();
+        } catch {
+          // Ignore cancellation issues.
+        }
+      }
       sendHeadFromUpstream(res, response, config);
       return;
     }
@@ -954,9 +1054,80 @@ function humanizeFilename(name) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function isTextLikeContentType(contentType) {
+  const value = String(contentType || "").toLowerCase();
+  if (!value) return true;
+  if (value.includes("text/")) return true;
+  if (value.includes("json")) return true;
+  if (value.includes("xml")) return true;
+  if (value.includes("javascript")) return true;
+  if (value.includes("html")) return true;
+  if (value.includes("svg")) return true;
+  return false;
+}
+
+async function readResponseSnippet(response, maxChars = 220_000) {
+  if (!response || !response.body) return "";
+
+  const contentType = response.headers.get("content-type") || "";
+  if (!isTextLikeContentType(contentType)) {
+    if (typeof response.body.cancel === "function") {
+      try {
+        await response.body.cancel();
+      } catch {
+        // Ignore cancellation failures.
+      }
+    }
+    return "";
+  }
+
+  if (typeof response.body.getReader !== "function") {
+    try {
+      const text = await response.text();
+      return text.slice(0, maxChars);
+    } catch {
+      return "";
+    }
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = "";
+
+  try {
+    while (text.length < maxChars) {
+      const chunk = await reader.read();
+      if (!chunk || chunk.done) break;
+      if (!chunk.value) continue;
+      text += decoder.decode(chunk.value, { stream: true });
+    }
+    text += decoder.decode();
+  } catch {
+    // Best effort snippet reader.
+  } finally {
+    if (typeof reader.cancel === "function") {
+      try {
+        await reader.cancel();
+      } catch {
+        // Ignore cancellation failures.
+      }
+    }
+  }
+
+  return text.slice(0, maxChars);
+}
+
 async function runLinkCheck(targetUrl, timeoutMs) {
+  const probeTimeoutMs = Math.max(4_000, Math.min(60_000, Number(timeoutMs) || 25_000));
+  const requestHeaders = {
+    "user-agent": BROWSER_FETCH_USER_AGENT,
+    accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "accept-language": "en-US,en;q=0.9"
+  };
+
   const output = {
     url: targetUrl,
+    checkedAt: new Date().toISOString(),
     probes: {
       direct: {
         reachable: false,
@@ -982,9 +1153,9 @@ async function runLinkCheck(targetUrl, timeoutMs) {
   try {
     const response = await fetch(targetUrl, {
       method: "GET",
-      headers: { "user-agent": "PalladiumLinkChecker/1.0" },
+      headers: requestHeaders,
       redirect: "follow",
-      signal: AbortSignal.timeout(Math.max(4000, timeoutMs))
+      signal: AbortSignal.timeout(probeTimeoutMs)
     });
 
     output.probes.direct.reachable = true;
@@ -994,21 +1165,45 @@ async function runLinkCheck(targetUrl, timeoutMs) {
     finalUrl = output.probes.direct.finalUrl;
 
     responseHeaders = [...response.headers.entries()].map(([k, v]) => `${k}: ${v}`).join("\n");
-    responseText = await response.text();
+    responseText = await readResponseSnippet(response);
   } catch (error) {
     output.probes.direct.error = String(error?.message || error);
+  }
+
+  if (!output.probes.direct.reachable) {
+    try {
+      const headResponse = await fetch(targetUrl, {
+        method: "HEAD",
+        headers: requestHeaders,
+        redirect: "follow",
+        signal: AbortSignal.timeout(Math.max(3_000, Math.floor(probeTimeoutMs * 0.6)))
+      });
+
+      output.probes.direct.reachable = true;
+      output.probes.direct.ok = headResponse.ok;
+      output.probes.direct.status = headResponse.status;
+      output.probes.direct.finalUrl = headResponse.url || targetUrl;
+      output.probes.direct.error = "";
+      finalUrl = output.probes.direct.finalUrl;
+      responseHeaders = [...headResponse.headers.entries()].map(([k, v]) => `${k}: ${v}`).join("\n");
+    } catch {
+      // Keep original GET error details.
+    }
   }
 
   const haystack = `${responseText}\n${responseHeaders}\n${finalUrl}`;
   let passCount = 0;
   let blockedCount = 0;
+  let unknownCount = 0;
 
   output.providers = PROVIDER_SIGNATURES.map((provider) => {
     if (!output.probes.direct.reachable) {
+      unknownCount += 1;
       return {
         id: provider.id,
         name: provider.name,
         status: "unknown",
+        category: "Probe unavailable",
         note: "Probe could not be completed"
       };
     }
@@ -1019,7 +1214,8 @@ async function runLinkCheck(targetUrl, timeoutMs) {
       return {
         id: provider.id,
         name: provider.name,
-        status: "detected",
+        status: "blocked",
+        category: provider.blockedCategory || "Blocked by signature",
         note: `Matched signature: ${String(matched)}`
       };
     }
@@ -1028,7 +1224,8 @@ async function runLinkCheck(targetUrl, timeoutMs) {
     return {
       id: provider.id,
       name: provider.name,
-      status: "not_detected",
+      status: "allowed",
+      category: provider.allowedCategory || "No signature detected",
       note: "No known block-page signature detected"
     };
   });
@@ -1056,7 +1253,9 @@ async function runLinkCheck(targetUrl, timeoutMs) {
     verdict,
     text: `${headline} • ${clearPct}% clear • ${passCount}/${total} passed`,
     passCount,
-    total
+    total,
+    blockedCount,
+    unknownCount
   };
 
   return output;
