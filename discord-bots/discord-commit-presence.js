@@ -5,9 +5,10 @@ const path = require("node:path");
 const { execSync } = require("node:child_process");
 const { startDiscordPresence } = require("./discord-gateway-presence");
 
+const OFFICIAL_REPO_FALLBACK = "Palladium-Games/Palladium-Games";
+const OFFICIAL_BRANCH_FALLBACK = "main";
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
 const GITHUB_API_BASE = (process.env.DISCORD_COMMIT_GITHUB_API_BASE || "https://api.github.com").replace(/\/+$/, "");
-const POLL_MS = Math.max(5000, Number(process.env.DISCORD_COMMIT_POLL_MS || 15000));
 const FETCH_LIMIT = Math.max(5, Math.min(40, Number(process.env.DISCORD_COMMIT_FETCH_LIMIT || 20)));
 const POST_ON_BOOTSTRAP = String(process.env.DISCORD_COMMIT_POST_ON_BOOTSTRAP || "true").toLowerCase() !== "false";
 const BOOTSTRAP_POST_COUNT = Math.max(1, Math.min(5, Number(process.env.DISCORD_COMMIT_BOOTSTRAP_POST_COUNT || 1)));
@@ -132,17 +133,21 @@ const GITHUB_TOKEN =
   process.env.GITHUB_TOKEN ||
   tryReadGitConfig("discord.commitGithubToken") ||
   "";
+const HAS_GITHUB_TOKEN = Boolean(String(GITHUB_TOKEN || "").trim());
+const DEFAULT_POLL_MS = HAS_GITHUB_TOKEN ? 15_000 : 120_000;
+const POLL_MS = Math.max(5000, Number(process.env.DISCORD_COMMIT_POLL_MS || DEFAULT_POLL_MS));
 
 const resolvedRepo =
   parseGithubRepo(process.env.DISCORD_COMMIT_REPO || "") ||
   parseGithubRepo(tryReadGitConfig("discord.commitRepo")) ||
-  parseGithubRepo(tryReadOriginRemote());
+  parseGithubRepo(tryReadOriginRemote()) ||
+  parseGithubRepo(OFFICIAL_REPO_FALLBACK);
 
 const CONFIGURED_BRANCH = normalizeBranchName(
   process.env.DISCORD_COMMIT_BRANCH ||
   tryReadGitConfig("discord.commitBranch") ||
   tryReadCurrentBranch() ||
-  "main"
+  OFFICIAL_BRANCH_FALLBACK
 );
 
 if (!BOT_TOKEN) {
@@ -547,6 +552,12 @@ process.on("SIGTERM", () => shutdown(0));
 console.log(
   `Palladium commit bot running for ${REPO}@${activeBranch} (poll ${POLL_MS}ms, channel ${CHANNEL_ID}, state ${STATE_PATH}).`
 );
+if (!HAS_GITHUB_TOKEN) {
+  console.warn(
+    "Commit bot is running without DISCORD_COMMIT_GITHUB_TOKEN/GITHUB_TOKEN. " +
+    "Using slower polling to reduce GitHub rate-limit issues."
+  );
+}
 
 (async function loop() {
   while (true) {
