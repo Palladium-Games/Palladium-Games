@@ -9,6 +9,7 @@ const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/ap
 const POLL_MS = Number(process.env.DISCORD_COMMUNITY_POLL_MS || 5000);
 const RULES_CHECK_MS = Number(process.env.DISCORD_RULES_CHECK_MS || 5 * 60 * 1000);
 const ROLE_CACHE_MS = Number(process.env.DISCORD_ROLE_CACHE_MS || 10 * 60 * 1000);
+const COMMUNITY_GATEWAY_INTENTS = Number(process.env.DISCORD_COMMUNITY_GATEWAY_INTENTS || 3);
 const MODERATION_ENABLED = String(process.env.DISCORD_MODERATION_ENABLED || "true").toLowerCase() !== "false";
 const MODERATION_TIMEOUT_MINUTES = Number(process.env.DISCORD_MODERATION_TIMEOUT_MINUTES || 15);
 const MODERATION_LOOKBACK_MS = Number(process.env.DISCORD_MODERATION_LOOKBACK_MS || 12_000);
@@ -136,6 +137,7 @@ if (!state.commandBootstrapped || typeof state.commandBootstrapped !== "object")
 if (!state.moderationLastMessageIds || typeof state.moderationLastMessageIds !== "object") state.moderationLastMessageIds = {};
 if (!state.moderationBootstrapped || typeof state.moderationBootstrapped !== "object") state.moderationBootstrapped = {};
 if (!state.inviteSnapshot || typeof state.inviteSnapshot !== "object") state.inviteSnapshot = {};
+if (!Array.isArray(state.welcomedMemberIds)) state.welcomedMemberIds = [];
 
 let botUser = null;
 let memberPollingEnabled = true;
@@ -236,6 +238,24 @@ function limitKnownMembers(ids, max = 15000) {
   if (ids.length <= max) return ids;
   const sorted = sortSnowflakeAsc(ids);
   return sorted.slice(sorted.length - max);
+}
+
+function hasWelcomedMember(memberId) {
+  const id = String(memberId || "").trim();
+  if (!id) return false;
+  return state.welcomedMemberIds.includes(id);
+}
+
+function markMemberWelcomed(memberId) {
+  const id = String(memberId || "").trim();
+  if (!id) return;
+  if (!state.welcomedMemberIds.includes(id)) {
+    state.welcomedMemberIds.push(id);
+  }
+  if (state.welcomedMemberIds.length > 5000) {
+    state.welcomedMemberIds = state.welcomedMemberIds.slice(state.welcomedMemberIds.length - 5000);
+  }
+  saveState();
 }
 
 function parsePermissionBits(raw) {
@@ -648,9 +668,28 @@ async function refreshInviteSnapshot() {
   }
 }
 
+async function resolveInviteContextForJoin() {
+  const previousInviteSnapshot = state.inviteSnapshot && typeof state.inviteSnapshot === "object"
+    ? state.inviteSnapshot
+    : {};
+  const refreshedInviteSnapshot = await refreshInviteSnapshot().catch((error) => {
+    const msg = String(error && error.message ? error.message : error);
+    console.warn(`Invite context refresh error: ${msg}`);
+    return previousInviteSnapshot;
+  });
+
+  const queue = buildInviteAttributionQueue(previousInviteSnapshot, refreshedInviteSnapshot);
+  if (queue.length > 0) {
+    return queue[0];
+  }
+
+  return { inviterName: "Unknown", invites: 0 };
+}
+
 async function postWelcome(member, inviteContext) {
   const memberId = extractMemberId(member);
   if (!memberId) return;
+  if (hasWelcomedMember(memberId)) return;
 
   const memberName = memberDisplayName(member, memberId);
   const inviterName = inviteContext && inviteContext.inviterName ? String(inviteContext.inviterName) : "Unknown";
@@ -659,8 +698,10 @@ async function postWelcome(member, inviteContext) {
     : 0;
 
   await discordRequest("POST", `/channels/${WELCOME_CHANNEL_ID}/messages`, {
-    content: `Welcome ${memberName} to Palladium Games! You were invited by ${inviterName}, who now has ${inviteCount} invites.`,
+    content: `Welcome ${memberName} to Palladium Games! You were invited by ${inviterName}, who now has ${inviteCount} invites.\n\n(<@${memberId}>)`,
   });
+
+  markMemberWelcomed(memberId);
 }
 
 async function postRulesMessage(requestedById) {
@@ -1092,15 +1133,24 @@ async function handleRulesSlashInteraction(interaction) {
 }
 
 async function handleGatewayDispatch(eventType, eventData) {
-  if (eventType !== "INTERACTION_CREATE") return;
-  if (!eventData || eventData.type !== 2 || !eventData.data) return;
-  if (String(eventData.data.name || "").toLowerCase() !== RULES_COMMAND_NAME) return;
-  await handleRulesSlashInteraction(eventData);
+  if (eventType === "INTERACTION_CREATE") {
+    if (!eventData || eventData.type !== 2 || !eventData.data) return;
+    if (String(eventData.data.name || "").toLowerCase() !== RULES_COMMAND_NAME) return;
+    await handleRulesSlashInteraction(eventData);
+    return;
+  }
+
+  if (eventType === "GUILD_MEMBER_ADD") {
+    if (!eventData || String(eventData.guild_id || "") !== String(GUILD_ID)) return;
+
+    const inviteContext = await resolveInviteContextForJoin();
+    await postWelcome(eventData, inviteContext);
+  }
 }
 
 const presence = startDiscordPresence({
   token: BOT_TOKEN,
-  intents: 1,
+  intents: COMMUNITY_GATEWAY_INTENTS,
   status: "online",
   logPrefix: "Palladium Community",
   activity: {

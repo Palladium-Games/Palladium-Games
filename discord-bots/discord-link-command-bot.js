@@ -6,7 +6,6 @@ const { execSync } = require("child_process");
 const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
-const APPS_BASE = (process.env.PALLADIUM_APPS_URL || "http://127.0.0.1:3000").replace(/\/$/, "");
 const POLL_MS = Number(process.env.DISCORD_LINK_POLL_MS || 3500);
 const COMMAND_SYNC_MS = Number(process.env.DISCORD_LINK_COMMAND_SYNC_MS || 10 * 60 * 1000);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
@@ -41,6 +40,35 @@ if (!state.bootstrapped || typeof state.bootstrapped !== "object") state.bootstr
 let appId = "";
 let guildIds = [];
 let lastCommandSyncAt = 0;
+const channelAllowCache = new Map();
+
+function normalizeBaseUrl(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return "";
+  const value = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`;
+  try {
+    const parsed = new URL(value);
+    return parsed.origin.replace(/\/+$/, "");
+  } catch {
+    return "";
+  }
+}
+
+function resolveAppsBases() {
+  const candidates = [
+    process.env.PALLADIUM_APPS_URL,
+    process.env.PALLADIUM_BACKEND_BASE,
+    process.env.BACKEND_BASE_URL,
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:8080"
+  ]
+    .map(normalizeBaseUrl)
+    .filter(Boolean);
+
+  return unique(candidates);
+}
+
+const APPS_BASES = resolveAppsBases();
 
 function tryReadGitConfig(key) {
   if (!key) return "";
@@ -234,18 +262,33 @@ function getSlashOptionValue(interactionData, name) {
 }
 
 async function runLinkCheck(url) {
-  const endpoint = `${APPS_BASE}/link-check?url=${encodeURIComponent(url)}`;
-  const response = await fetch(endpoint, { method: "GET" });
-  let data = {};
-  try {
-    data = await response.json();
-  } catch {
-    data = {};
+  const errors = [];
+
+  for (const base of APPS_BASES) {
+    const endpoint = `${base}/link-check?url=${encodeURIComponent(url)}`;
+
+    try {
+      const response = await fetch(endpoint, { method: "GET", signal: AbortSignal.timeout(20_000) });
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (!response.ok || !data || data.ok !== true) {
+        errors.push(`${base}: ${(data && data.error) || `HTTP ${response.status}`}`);
+        continue;
+      }
+
+      return data;
+    } catch (error) {
+      const msg = error && error.message ? error.message : String(error);
+      errors.push(`${base}: ${msg}`);
+    }
   }
-  if (!response.ok || !data || data.ok !== true) {
-    throw new Error((data && data.error) || `Link check failed with HTTP ${response.status}`);
-  }
-  return data;
+
+  throw new Error(`Link check backend unavailable. Tried ${APPS_BASES.length} base(s). ${errors.join(" | ")}`);
 }
 
 const PROVIDER_STYLE = {
@@ -550,6 +593,33 @@ async function ensureSlashCommands() {
   lastCommandSyncAt = Date.now();
 }
 
+async function isAllowedChannel(channelId) {
+  const normalized = String(channelId || "").trim();
+  if (!normalized) return false;
+  if (CHANNEL_IDS.includes(normalized)) return true;
+
+  const cached = channelAllowCache.get(normalized);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.allowed;
+  }
+
+  let allowed = false;
+  try {
+    const channel = await discordRequest("GET", `/channels/${normalized}`);
+    const parentId = channel && channel.parent_id ? String(channel.parent_id) : "";
+    allowed = parentId ? CHANNEL_IDS.includes(parentId) : false;
+  } catch {
+    allowed = false;
+  }
+
+  channelAllowCache.set(normalized, {
+    allowed,
+    expiresAt: Date.now() + 5 * 60 * 1000
+  });
+
+  return allowed;
+}
+
 function interactionUserId(interaction) {
   if (interaction && interaction.member && interaction.member.user && interaction.member.user.id) {
     return String(interaction.member.user.id);
@@ -564,7 +634,7 @@ async function handleSlashLinkInteraction(interaction) {
   const channelId = String(interaction && interaction.channel_id ? interaction.channel_id : "");
   if (!channelId) return;
 
-  if (!CHANNEL_IDS.includes(channelId)) {
+  if (!(await isAllowedChannel(channelId))) {
     await interactionCallback(interaction.id, interaction.token, {
       type: 4,
       data: {
@@ -648,6 +718,7 @@ const presence = startDiscordPresence({
 async function mainLoop() {
   await ensureSlashCommands();
   console.log(`Palladium link command bot running for channels: ${CHANNEL_IDS.join(", ")}`);
+  console.log(`Palladium link checker backends: ${APPS_BASES.join(", ")}`);
   while (true) {
     const shouldSyncCommands = !lastCommandSyncAt || (Date.now() - lastCommandSyncAt) >= COMMAND_SYNC_MS;
     if (shouldSyncCommands) {
