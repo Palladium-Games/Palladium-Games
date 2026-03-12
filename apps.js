@@ -815,8 +815,13 @@ async function routeRequest(req, res, config) {
 
     const normalized = normalizeAiPayload(parsed, config.ollamaModel);
     const baseUrl = config.ollamaBaseUrl.replace(/\/+$/, "");
-    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 12_000);
-    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 25_000);
+    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 10_000);
+    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 18_000);
+
+    if (normalized.stream) {
+      await streamAiChat(req, res, config, normalized, `${baseUrl}/api/chat`, chatTimeoutMs);
+      return;
+    }
 
     // Try /api/chat first; if it times out or returns empty content, fall back to /api/generate.
     const chatAttempt = await postJsonWithTimeout(`${baseUrl}/api/chat`, normalized, chatTimeoutMs);
@@ -1438,12 +1443,12 @@ function normalizeAiPayload(payload, fallbackModel) {
 
   const numPredict = Number(options.num_predict);
   if (!Number.isFinite(numPredict) || numPredict <= 0) {
-    options.num_predict = 120;
+    options.num_predict = 96;
   }
 
   const numCtx = Number(options.num_ctx);
   if (!Number.isFinite(numCtx) || numCtx <= 0) {
-    options.num_ctx = 2048;
+    options.num_ctx = 1024;
   }
 
   const temperature = Number(options.temperature);
@@ -1577,6 +1582,163 @@ async function postJsonWithTimeout(targetUrl, payload, timeoutMs) {
       data: {},
       error: timeoutLike ? "AI upstream request timed out." : message
     };
+  }
+}
+
+async function streamAiChat(req, res, config, payload, targetUrl, timeoutMs) {
+  const controller = new AbortController();
+  const safeTimeoutMs = Math.max(3000, Number(timeoutMs) || 10_000);
+  const timeoutHandle = setTimeout(() => controller.abort(new Error("AI stream timed out.")), safeTimeoutMs);
+  const onClientClose = () => controller.abort(new Error("Client disconnected."));
+  req.once("close", onClientClose);
+
+  try {
+    const response = await fetch(targetUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/x-ndjson,application/json,text/plain"
+      },
+      body: JSON.stringify({ ...(payload || {}), stream: true }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const rawText = await response.text().catch(() => "");
+      const parsed = parseJsonMaybe(rawText);
+      const errorText = extractUpstreamError(parsed, rawText, `Upstream stream request failed (${response.status}).`);
+      sendJson(
+        res,
+        502,
+        {
+          ok: false,
+          error: errorText,
+          details: {
+            chatStatus: response.status
+          }
+        },
+        config
+      );
+      return;
+    }
+
+    addCors(res, config);
+    addSecurityHeaders(res);
+    res.writeHead(200, {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-cache, no-transform",
+      "x-accel-buffering": "no"
+    });
+
+    if (!response.body) {
+      res.write(`${JSON.stringify({ ok: false, error: "AI upstream stream body is empty.", done: true })}\n`);
+      res.end();
+      return;
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let gotContent = false;
+
+    const extractChunkText = (parsed) => {
+      if (!parsed || typeof parsed !== "object") return "";
+      if (parsed.message && typeof parsed.message === "object") {
+        if (typeof parsed.message.content === "string") return parsed.message.content;
+        if (Array.isArray(parsed.message.content)) {
+          return parsed.message.content
+            .map((item) => {
+              if (typeof item === "string") return item;
+              if (item && typeof item.text === "string") return item.text;
+              if (item && typeof item.content === "string") return item.content;
+              return "";
+            })
+            .join("");
+        }
+      }
+      if (typeof parsed.response === "string") return parsed.response;
+      if (typeof parsed.content === "string") return parsed.content;
+      if (typeof parsed.delta === "string") return parsed.delta;
+      return "";
+    };
+
+    const writeDelta = (deltaText) => {
+      const delta = String(deltaText || "");
+      if (!delta) return;
+      gotContent = true;
+      res.write(`${JSON.stringify({ ok: true, delta, done: false })}\n`);
+    };
+
+    while (true) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+
+      let newlineIndex = buffer.indexOf("\n");
+      while (newlineIndex !== -1) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        newlineIndex = buffer.indexOf("\n");
+        if (!line) continue;
+
+        let parsed = null;
+        try {
+          parsed = JSON.parse(line);
+        } catch {
+          continue;
+        }
+
+        if (parsed && typeof parsed.error === "string" && parsed.error.trim()) {
+          throw new Error(parsed.error.trim());
+        }
+
+        if (parsed && typeof parsed.delta === "string") {
+          writeDelta(parsed.delta);
+        } else {
+          writeDelta(extractChunkText(parsed));
+        }
+
+        if (parsed && parsed.done === true) {
+          buffer = "";
+          break;
+        }
+      }
+    }
+
+    if (buffer.trim()) {
+      try {
+        const tail = JSON.parse(buffer.trim());
+        if (tail && typeof tail.error === "string" && tail.error.trim()) {
+          throw new Error(tail.error.trim());
+        }
+        if (tail && typeof tail.delta === "string") {
+          writeDelta(tail.delta);
+        } else {
+          writeDelta(extractChunkText(tail));
+        }
+      } catch {
+        // Ignore non-JSON tail chunks.
+      }
+    }
+
+    if (!gotContent) {
+      res.write(`${JSON.stringify({ ok: true, delta: "", done: false })}\n`);
+    }
+    res.write(
+      `${JSON.stringify({ ok: true, done: true, source: "chat", model: String((payload && payload.model) || "") })}\n`
+    );
+    res.end();
+  } catch (error) {
+    const message = extractUpstreamError(null, String(error?.message || error || ""), "AI stream request failed.");
+    if (!res.headersSent) {
+      sendJson(res, 502, { ok: false, error: message }, config);
+    } else {
+      res.write(`${JSON.stringify({ ok: false, error: message, done: true })}\n`);
+      res.end();
+    }
+  } finally {
+    clearTimeout(timeoutHandle);
+    req.off("close", onClientClose);
   }
 }
 

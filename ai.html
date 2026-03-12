@@ -82,7 +82,7 @@
       var sendButton = document.getElementById('ai-send');
 
       var memory = [];
-      var maxMemoryItems = 4;
+      var maxMemoryItems = 2;
       var gamesCache = null;
       var busy = false;
 
@@ -190,12 +190,21 @@
       }
 
       function addMessage(role, text) {
-        if (!messagesEl) return;
+        if (!messagesEl) return null;
         var bubble = document.createElement('article');
         bubble.className = 'ai-message ai-message--' + role;
-        bubble.innerHTML = '<div class="ai-message__label">' + (role === 'user' ? 'You' : 'Palladium AI') + '</div><div class="ai-message__body">' + renderMarkdown(text) + '</div>';
+        bubble.innerHTML = '<div class="ai-message__label">' + (role === 'user' ? 'You' : 'Palladium AI') + '</div><div class="ai-message__body">' + renderMarkdown(text || '') + '</div>';
         messagesEl.appendChild(bubble);
         messagesEl.scrollTop = messagesEl.scrollHeight;
+        return bubble;
+      }
+
+      function updateMessageText(bubble, text) {
+        if (!bubble) return;
+        var body = bubble.querySelector('.ai-message__body');
+        if (!body) return;
+        body.innerHTML = renderMarkdown(text || '');
+        if (messagesEl) messagesEl.scrollTop = messagesEl.scrollHeight;
       }
 
       function setBusy(value) {
@@ -302,24 +311,91 @@
         return '';
       }
 
-      async function requestAi(payload) {
+      async function requestAi(payload, onDelta) {
         var response = await fetch(window.PalladiumBackend.apiUrl('/api/ai/chat'), {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(payload)
         });
 
-        var raw = await response.text();
         if (!response.ok) {
-          var upstream = extractErrorText(raw);
-          throw new Error(upstream || raw || ('AI request failed: ' + response.status));
+          var errRaw = await response.text();
+          var upstream = extractErrorText(errRaw);
+          throw new Error(upstream || errRaw || ('AI request failed: ' + response.status));
         }
 
+        var wantsStream = Boolean(payload && payload.stream);
+        if (wantsStream && response.body && typeof response.body.getReader === 'function') {
+          var reader = response.body.getReader();
+          var decoder = new TextDecoder();
+          var buffer = '';
+          var combined = '';
+
+          function applySegment(segment) {
+            if (!segment) return;
+            combined += segment;
+            if (typeof onDelta === 'function') {
+              onDelta(combined, segment);
+            }
+          }
+
+          while (true) {
+            var chunk = await reader.read();
+            if (chunk.done) break;
+            buffer += decoder.decode(chunk.value, { stream: true });
+
+            var newlineIndex = buffer.indexOf('\n');
+            while (newlineIndex !== -1) {
+              var line = buffer.slice(0, newlineIndex).trim();
+              buffer = buffer.slice(newlineIndex + 1);
+              if (line) {
+                try {
+                  var part = JSON.parse(line);
+                  if (part && part.error) {
+                    throw new Error(String(part.error));
+                  }
+
+                  if (part && typeof part.delta === 'string') {
+                    applySegment(part.delta);
+                  } else {
+                    applySegment(extractAssistantText(JSON.stringify(part)));
+                  }
+                } catch (error) {
+                  if (error && error.message && String(error.message).trim()) {
+                    if (/^{/.test(line) && !/Unexpected token|JSON/.test(String(error.message))) {
+                      throw error;
+                    }
+                  }
+                }
+              }
+              newlineIndex = buffer.indexOf('\n');
+            }
+          }
+
+          var flushed = decoder.decode();
+          if (flushed) {
+            buffer += flushed;
+          }
+          if (String(buffer || '').trim()) {
+            try {
+              var tail = JSON.parse(buffer.trim());
+              if (tail && tail.error) throw new Error(String(tail.error));
+              if (tail && typeof tail.delta === 'string') {
+                applySegment(tail.delta);
+              } else {
+                applySegment(extractAssistantText(JSON.stringify(tail)));
+              }
+            } catch (error) {
+              // Ignore non-JSON trailing bytes.
+            }
+          }
+
+          return combined;
+        }
+
+        var raw = await response.text();
         var upstreamError = extractErrorText(raw);
-        if (upstreamError) {
-          throw new Error(upstreamError);
-        }
-
+        if (upstreamError) throw new Error(upstreamError);
         return extractAssistantText(raw);
       }
 
@@ -373,7 +449,7 @@
         return lines.join('\n');
       }
 
-      async function sendChat(userText) {
+      async function sendChat(userText, onProgress) {
         if (!window.PalladiumBackend) {
           throw new Error('Backend helper not loaded.');
         }
@@ -388,18 +464,18 @@
         messages.push({ role: 'user', content: userText });
 
         var primaryPayload = {
-          stream: false,
+          stream: true,
           messages: messages,
           think: false,
           keep_alive: '30m',
           options: {
             temperature: 0.1,
-            num_predict: 120,
-            num_ctx: 1536
+            num_predict: 96,
+            num_ctx: 1024
           }
         };
 
-        var answer = await requestAi(primaryPayload);
+        var answer = await requestAi(primaryPayload, onProgress);
         if (String(answer || '').trim()) {
           return answer;
         }
@@ -468,19 +544,28 @@
           autoGrow();
           setBusy(true);
           setStatus('Thinking (fast mode)...', false);
+          var liveAssistant = addMessage('assistant', '...');
+          var gotProgress = false;
 
           try {
-            var answer = await sendChat(text);
-            addMessage('assistant', answer);
+            var answer = await sendChat(text, function (partial) {
+              gotProgress = true;
+              setStatus('Streaming reply...', false);
+              updateMessageText(liveAssistant, partial || '...');
+            });
+            if (!String(answer || '').trim()) {
+              throw new Error('AI returned an empty response.');
+            }
+            updateMessageText(liveAssistant, answer);
 
             memory.push({ role: 'user', content: text });
             memory.push({ role: 'assistant', content: answer });
             trimMemory();
 
-            setStatus('Online', false);
+            setStatus(gotProgress ? 'Online • streamed' : 'Online', false);
           } catch (error) {
             console.error(error);
-            addMessage('assistant', 'I hit an error reaching the backend AI.\n\n```text\n' + String(error.message || error) + '\n```');
+            updateMessageText(liveAssistant, 'I hit an error reaching the backend AI.\n\n```text\n' + String(error.message || error) + '\n```');
             setStatus('Error: ' + String(error.message || error), true);
           } finally {
             setBusy(false);

@@ -110,6 +110,7 @@ We source our games from GN-Math (`gn-math.dev`) and other websites.
 - `/link-check?url=...`
 
 `/link-check` is a server-side signature probe. It can detect known block pages, but it cannot guarantee a URL is unblocked on every school network.
+`/api/ai/chat` supports streaming NDJSON when request payload includes `"stream": true`.
 
 ## Settings Page
 
