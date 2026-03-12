@@ -168,7 +168,7 @@ async function main() {
     rootDir: ROOT_DIR,
     configPath: path.resolve(configPath),
     host: readString(env, "SITE_HOST", "0.0.0.0"),
-    port: readInt(env, "SITE_PORT", 8080),
+    port: readInt(env, "SITE_PORT", 443),
     corsOrigin: readString(env, "CORS_ORIGIN", "*"),
     frontendDir: resolvePath(readString(env, "FRONTEND_DIR", ".")),
     gamesDir: resolvePath(readString(env, "GAMES_DIR", "games")),
