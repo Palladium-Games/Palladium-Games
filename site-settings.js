@@ -14,7 +14,10 @@
     "sunset": true,
     "forest": true,
     "oceanic": true,
-    "graphite": true
+    "graphite": true,
+    "arctic": true,
+    "ember": true,
+    "neon": true
   };
 
   function safeGetStorage(key) {

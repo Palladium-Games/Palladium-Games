@@ -177,6 +177,63 @@ html[data-theme="graphite"] {
   --theme-dot-strong: rgba(147, 197, 253, 0.24);
 }
 
+html[data-theme="arctic"] {
+  --bg-deep: #07131a;
+  --bg-card: #10222f;
+  --bg-elevated: #173042;
+  --palladium: #eef9ff;
+  --palladium-dim: #9ec4dd;
+  --accent: #06b6d4;
+  --accent-bright: #67e8f9;
+  --accent-glow: rgba(103, 232, 249, 0.28);
+  --navy: #173748;
+  --navy-light: #24526a;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-navy: rgba(103, 232, 249, 0.38);
+  --theme-wash-a: rgba(103, 232, 249, 0.2);
+  --theme-wash-b: rgba(56, 189, 248, 0.18);
+  --theme-dot: rgba(158, 196, 221, 0.17);
+  --theme-dot-strong: rgba(103, 232, 249, 0.3);
+}
+
+html[data-theme="ember"] {
+  --bg-deep: #140907;
+  --bg-card: #26110c;
+  --bg-elevated: #341813;
+  --palladium: #fff5ef;
+  --palladium-dim: #ddb6a8;
+  --accent: #ef4444;
+  --accent-bright: #fb923c;
+  --accent-glow: rgba(251, 146, 60, 0.3);
+  --navy: #412019;
+  --navy-light: #572d23;
+  --border: rgba(255, 255, 255, 0.12);
+  --border-navy: rgba(251, 146, 60, 0.4);
+  --theme-wash-a: rgba(251, 146, 60, 0.24);
+  --theme-wash-b: rgba(239, 68, 68, 0.18);
+  --theme-dot: rgba(221, 182, 168, 0.16);
+  --theme-dot-strong: rgba(251, 146, 60, 0.32);
+}
+
+html[data-theme="neon"] {
+  --bg-deep: #040a0c;
+  --bg-card: #0a1519;
+  --bg-elevated: #102025;
+  --palladium: #eafffb;
+  --palladium-dim: #93d9cf;
+  --accent: #22c55e;
+  --accent-bright: #2dd4bf;
+  --accent-glow: rgba(45, 212, 191, 0.28);
+  --navy: #14332f;
+  --navy-light: #1c4a43;
+  --border: rgba(255, 255, 255, 0.11);
+  --border-navy: rgba(45, 212, 191, 0.4);
+  --theme-wash-a: rgba(45, 212, 191, 0.22);
+  --theme-wash-b: rgba(34, 197, 94, 0.18);
+  --theme-dot: rgba(147, 217, 207, 0.15);
+  --theme-dot-strong: rgba(45, 212, 191, 0.31);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -421,6 +478,7 @@ html.nav-initial-collapsed #nav .nav__link-text {
     radial-gradient(60% 50% at 86% 82%, var(--theme-wash-b), transparent 74%);
   opacity: 0.92;
   animation: ambient-wash 14s ease-in-out infinite;
+  will-change: transform, opacity, background-position;
 }
 
 .main::after {
@@ -436,6 +494,7 @@ html.nav-initial-collapsed #nav .nav__link-text {
   background-size: 38px 38px, 26px 26px;
   background-position: 0 0, 14px 15px;
   animation: ambient-dots-pulse 7s ease-in-out infinite, ambient-dots-drift 30s linear infinite;
+  will-change: opacity, background-position;
 }
 
 .main > * {
@@ -466,6 +525,135 @@ html.nav-initial-collapsed #nav .nav__link-text {
 @keyframes ambient-dots-drift {
   from { background-position: 0 0, 14px 15px; }
   to { background-position: 160px 120px, 190px 145px; }
+}
+
+html[data-theme="oceanic"] .main::before {
+  background:
+    radial-gradient(74% 56% at 18% 18%, rgba(56, 189, 248, 0.25), transparent 72%),
+    radial-gradient(66% 54% at 85% 80%, rgba(14, 165, 233, 0.2), transparent 76%);
+  animation: oceanic-wash 15s ease-in-out infinite;
+}
+
+html[data-theme="oceanic"] .main::after {
+  opacity: 0.52;
+  background-image:
+    radial-gradient(130% 92% at 50% 118%, rgba(56, 189, 248, 0.22) 0%, rgba(56, 189, 248, 0.22) 8.5%, transparent 9.6%),
+    radial-gradient(130% 92% at 50% 120%, rgba(14, 165, 233, 0.15) 0%, rgba(14, 165, 233, 0.15) 7.2%, transparent 8.4%),
+    radial-gradient(circle at center, rgba(159, 186, 214, 0.17) 1px, transparent 1.2px);
+  background-size: 320px 118px, 260px 96px, 34px 34px;
+  background-position: 0 100%, 120px 102%, 14px 14px;
+  animation: ocean-ripple-shift 20s linear infinite, ocean-ripple-pulse 7.5s ease-in-out infinite;
+}
+
+html[data-theme="rainbow"] .main::before {
+  background: linear-gradient(
+    120deg,
+    rgba(239, 68, 68, 0.23),
+    rgba(249, 115, 22, 0.2),
+    rgba(250, 204, 21, 0.2),
+    rgba(34, 197, 94, 0.2),
+    rgba(59, 130, 246, 0.2),
+    rgba(236, 72, 153, 0.2)
+  );
+  background-size: 260% 260%;
+  animation: rainbow-wash-shift 16s linear infinite;
+}
+
+html[data-theme="rainbow"] .main::after {
+  opacity: 0.56;
+  background-image:
+    radial-gradient(circle at center, rgba(239, 68, 68, 0.26) 1.2px, transparent 1.35px),
+    radial-gradient(circle at center, rgba(250, 204, 21, 0.22) 1.05px, transparent 1.25px),
+    radial-gradient(circle at center, rgba(34, 197, 94, 0.24) 1.2px, transparent 1.35px),
+    radial-gradient(circle at center, rgba(59, 130, 246, 0.22) 1px, transparent 1.2px);
+  background-size: 34px 34px, 40px 40px, 30px 30px, 46px 46px;
+  background-position: 0 0, 18px 20px, 8px 12px, 26px 14px;
+  animation: rainbow-dots-drift 26s linear infinite, rainbow-dots-pulse 5.5s ease-in-out infinite;
+}
+
+html[data-theme="ember"] .main::before {
+  animation: ember-wash 13s ease-in-out infinite;
+}
+
+html[data-theme="neon"] .main::after {
+  opacity: 0.5;
+  background-image:
+    repeating-linear-gradient(
+      180deg,
+      rgba(45, 212, 191, 0) 0px,
+      rgba(45, 212, 191, 0) 12px,
+      rgba(45, 212, 191, 0.14) 13px,
+      rgba(45, 212, 191, 0) 14px,
+      rgba(45, 212, 191, 0) 24px
+    ),
+    radial-gradient(circle at center, rgba(45, 212, 191, 0.22) 1px, transparent 1.2px);
+  background-size: 100% 120px, 28px 28px;
+  background-position: 0 0, 6px 10px;
+  animation: neon-scan 5.8s linear infinite, ambient-dots-drift 24s linear infinite;
+}
+
+@keyframes oceanic-wash {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.85;
+  }
+  50% {
+    transform: translate3d(-1.2%, 1.8%, 0) scale(1.06);
+    opacity: 1;
+  }
+}
+
+@keyframes ocean-ripple-shift {
+  from { background-position: 0 100%, 120px 102%, 14px 14px; }
+  to { background-position: 220px 100%, 340px 102%, 176px 126px; }
+}
+
+@keyframes ocean-ripple-pulse {
+  0%, 100% { opacity: 0.42; }
+  50% { opacity: 0.62; }
+}
+
+@keyframes rainbow-wash-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes rainbow-dots-drift {
+  from { background-position: 0 0, 18px 20px, 8px 12px, 26px 14px; }
+  to { background-position: 170px 120px, 220px 168px, 140px 110px, 260px 180px; }
+}
+
+@keyframes rainbow-dots-pulse {
+  0%, 100% { opacity: 0.44; }
+  50% { opacity: 0.66; }
+}
+
+@keyframes ember-wash {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.86;
+  }
+  25% {
+    transform: translate3d(0.8%, -1.2%, 0) scale(1.04);
+    opacity: 0.96;
+  }
+  65% {
+    transform: translate3d(-1.2%, 1.1%, 0) scale(1.07);
+    opacity: 1;
+  }
+}
+
+@keyframes neon-scan {
+  from { background-position: 0 0, 6px 10px; }
+  to { background-position: 0 120px, 166px 130px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main::before,
+  .main::after {
+    animation: none !important;
+  }
 }
 
 /* ——— Home / Hero ——— */
@@ -1654,6 +1842,9 @@ html.nav-initial-collapsed #nav .nav__link-text {
 .settings-theme-chip--forest { background: linear-gradient(135deg, #16a34a, #84cc16); }
 .settings-theme-chip--oceanic { background: linear-gradient(135deg, #38bdf8, #0ea5e9); }
 .settings-theme-chip--graphite { background: linear-gradient(135deg, #93c5fd, #64748b); }
+.settings-theme-chip--arctic { background: linear-gradient(135deg, #67e8f9, #38bdf8); }
+.settings-theme-chip--ember { background: linear-gradient(135deg, #fb923c, #ef4444); }
+.settings-theme-chip--neon { background: linear-gradient(135deg, #2dd4bf, #22c55e); }
 
 .settings-input:focus,
 .settings-file:focus {
