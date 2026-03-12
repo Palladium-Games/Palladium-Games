@@ -46,7 +46,7 @@ If you want your own public URL (domain/subdomain) for this site:
 
 Minimum requirement: it must proxy both static pages and API routes (including `/api/*` and `/link-check`), not just a single page.
 
-### Fastly-style checklist
+### Fastly checklist
 
 - Backend origin: your server/domain running Palladium
 - Service domain: your custom public hostname
