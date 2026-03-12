@@ -74,8 +74,8 @@
   if (nav && btn) {
     ensureSettingsLink();
     syncActiveLink();
-    document.documentElement.classList.remove('nav-initial-collapsed', 'nav-initial-expanded');
     setExpanded(getExpanded());
+    document.documentElement.classList.remove('nav-initial-collapsed', 'nav-initial-expanded');
     btn.addEventListener('click', toggle);
   }
 })();

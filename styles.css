@@ -125,17 +125,25 @@ html.nav-initial-collapsed #nav ~ .main {
 }
 
 .nav__logo-text {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
   font-family: 'Bebas Neue', sans-serif;
   font-size: 1.25rem;
   letter-spacing: 0.08em;
   color: var(--palladium);
   opacity: 0;
-  transition: opacity var(--transition-nav);
+  visibility: hidden;
+  transform: translateX(-3px);
+  transition: opacity var(--transition-nav), max-width var(--transition-nav), transform var(--transition-nav);
   pointer-events: none;
 }
 
 .nav:not(.nav--collapsed) .nav__logo-text {
   opacity: 1;
+  visibility: visible;
+  max-width: 180px;
+  transform: translateX(0);
 }
 
 .nav__links {
@@ -179,13 +187,30 @@ html.nav-initial-collapsed #nav ~ .main {
 }
 
 .nav__link-text {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
   opacity: 0;
-  transition: opacity var(--transition-nav);
+  visibility: hidden;
+  transform: translateX(-2px);
+  transition: opacity var(--transition-nav), max-width var(--transition-nav), transform var(--transition-nav);
   pointer-events: none;
 }
 
 .nav:not(.nav--collapsed) .nav__link-text {
   opacity: 1;
+  visibility: visible;
+  max-width: 150px;
+  transform: translateX(0);
+}
+
+/* Force-hide labels while initial collapsed class is active, before nav.js applies classes. */
+html.nav-initial-collapsed #nav .nav__logo-text,
+html.nav-initial-collapsed #nav .nav__link-text {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  max-width: 0 !important;
+  transform: translateX(-3px) !important;
 }
 
 /* Main content area */
