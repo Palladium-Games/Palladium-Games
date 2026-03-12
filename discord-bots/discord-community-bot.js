@@ -24,6 +24,7 @@ const STATE_PATH = process.env.DISCORD_COMMUNITY_STATE_PATH || path.join(__dirna
 const RULES_EMBED_TITLE = "Palladium Rules";
 const RULES_SIGNATURE = "palladium-rules-v1";
 const RULES_COMMAND_NAME = "rules";
+const INVITES_COMMAND_NAME = "invites";
 
 const BOT_TOKEN =
   process.env.DISCORD_COMMUNITY_BOT_TOKEN ||
@@ -447,7 +448,22 @@ function buildRulesCommandPayload() {
   };
 }
 
-async function upsertRulesCommand() {
+function buildInvitesCommandPayload() {
+  return {
+    name: INVITES_COMMAND_NAME,
+    description: "Check how many invites a member has.",
+    options: [
+      {
+        type: 3,
+        name: "username",
+        description: "Username, @mention, or user ID (optional). Defaults to you.",
+        required: false,
+      },
+    ],
+  };
+}
+
+async function ensureAppId() {
   if (!GUILD_ID) return;
 
   if (!appId) {
@@ -456,20 +472,28 @@ async function upsertRulesCommand() {
   }
 
   if (!appId) return;
+}
 
+async function upsertGuildCommand(commandName, payload) {
+  await ensureAppId();
+  if (!GUILD_ID || !appId) return;
   const commands = await discordRequest("GET", `/applications/${appId}/guilds/${GUILD_ID}/commands`);
   const list = Array.isArray(commands) ? commands : [];
-  const existing = list.find((cmd) => cmd && cmd.name === RULES_COMMAND_NAME);
-  const payload = buildRulesCommandPayload();
+  const existing = list.find((cmd) => cmd && cmd.name === commandName);
 
   if (!existing || !existing.id) {
     await discordRequest("POST", `/applications/${appId}/guilds/${GUILD_ID}/commands`, payload);
-    console.log(`Registered /${RULES_COMMAND_NAME} in guild ${GUILD_ID}`);
+    console.log(`Registered /${commandName} in guild ${GUILD_ID}`);
     return;
   }
 
   await discordRequest("PATCH", `/applications/${appId}/guilds/${GUILD_ID}/commands/${existing.id}`, payload);
-  console.log(`Updated /${RULES_COMMAND_NAME} in guild ${GUILD_ID}`);
+  console.log(`Updated /${commandName} in guild ${GUILD_ID}`);
+}
+
+async function syncSlashCommands() {
+  await upsertGuildCommand(RULES_COMMAND_NAME, buildRulesCommandPayload());
+  await upsertGuildCommand(INVITES_COMMAND_NAME, buildInvitesCommandPayload());
 }
 
 function isAccessDeniedError(error) {
@@ -795,6 +819,62 @@ function interactionUserId(interaction) {
     return String(interaction.user.id);
   }
   return "";
+}
+
+function interactionDisplayName(interaction) {
+  const member = interaction && interaction.member ? interaction.member : null;
+  const user = (member && member.user) || (interaction && interaction.user) || null;
+  if (!user) return "Unknown";
+  if (user.global_name) return String(user.global_name);
+  if (user.username) return String(user.username);
+  return user.id ? `User-${user.id}` : "Unknown";
+}
+
+function getSlashOptionValue(interactionData, optionName) {
+  const options = interactionData && Array.isArray(interactionData.options) ? interactionData.options : [];
+  const option = options.find((item) => item && item.name === optionName);
+  return option && typeof option.value !== "undefined" ? String(option.value) : "";
+}
+
+function normalizeNameKey(value) {
+  return String(value || "").trim().replace(/^@+/, "").toLowerCase();
+}
+
+function parseMentionOrUserId(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const mention = raw.match(/^<@!?(\d+)>$/);
+  if (mention) return mention[1];
+  if (/^\d+$/.test(raw)) return raw;
+  return "";
+}
+
+function summarizeInvites(snapshot) {
+  const byId = new Map();
+  const byName = new Map();
+
+  for (const entry of Object.values(snapshot && typeof snapshot === "object" ? snapshot : {})) {
+    if (!entry || typeof entry !== "object") continue;
+    const uses = parseInviteUses(entry.uses);
+    const inviterId = entry.inviterId ? String(entry.inviterId) : "";
+    const inviterName = entry.inviterName ? String(entry.inviterName) : "Unknown";
+
+    if (inviterId) {
+      const current = byId.get(inviterId) || { invites: 0, name: inviterName };
+      current.invites += uses;
+      if ((!current.name || current.name === "Unknown") && inviterName) {
+        current.name = inviterName;
+      }
+      byId.set(inviterId, current);
+    }
+
+    const nameKey = normalizeNameKey(inviterName);
+    if (nameKey) {
+      byName.set(nameKey, (byName.get(nameKey) || 0) + uses);
+    }
+  }
+
+  return { byId, byName };
 }
 
 async function isAdminByUserId(userId, permissionBitsFromPayload) {
@@ -1140,11 +1220,110 @@ async function handleRulesSlashInteraction(interaction) {
   });
 }
 
+async function handleInvitesSlashInteraction(interaction) {
+  const channelId = String(interaction && interaction.channel_id ? interaction.channel_id : "");
+  const commandChannels = await resolveCommandChannels();
+
+  if (channelId && commandChannels.length && !commandChannels.includes(channelId)) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "This command is not enabled in this channel.",
+      },
+    });
+    return;
+  }
+
+  const requesterId = interactionUserId(interaction);
+  const requesterName = interactionDisplayName(interaction);
+  const requestedRaw = getSlashOptionValue(interaction.data, "username").trim();
+  const requestedId = parseMentionOrUserId(requestedRaw);
+  const requestedName = requestedRaw || requesterName;
+
+  let snapshot = {};
+  try {
+    snapshot = await refreshInviteSnapshot();
+  } catch (error) {
+    const msg = String(error && error.message ? error.message : error);
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: `Invite lookup failed: ${msg.slice(0, 240)}`,
+      },
+    });
+    return;
+  }
+
+  if (!inviteTrackingEnabled && Object.keys(snapshot || {}).length === 0) {
+    await interactionCallback(interaction.id, interaction.token, {
+      type: 4,
+      data: {
+        flags: 64,
+        content: "Invite tracking is unavailable. Grant the bot **Manage Server** permission to read invites.",
+      },
+    });
+    return;
+  }
+
+  const summary = summarizeInvites(snapshot);
+  let invites = 0;
+  let targetName = requestedName;
+  let targetMention = "";
+  let found = false;
+
+  const fallbackRequesterId = requestedId || requesterId;
+  if (fallbackRequesterId && summary.byId.has(fallbackRequesterId)) {
+    const item = summary.byId.get(fallbackRequesterId);
+    invites = Number(item && item.invites ? item.invites : 0);
+    targetName = item && item.name ? String(item.name) : targetName;
+    targetMention = `<@${fallbackRequesterId}>`;
+    found = true;
+  } else if (requestedRaw) {
+    const key = normalizeNameKey(requestedRaw);
+    if (key && summary.byName.has(key)) {
+      invites = Number(summary.byName.get(key) || 0);
+      targetName = requestedRaw.replace(/^@+/, "");
+      found = true;
+    }
+  } else {
+    targetMention = requesterId ? `<@${requesterId}>` : "";
+  }
+
+  if (!found && !requestedRaw && fallbackRequesterId && summary.byId.has(fallbackRequesterId)) {
+    const item = summary.byId.get(fallbackRequesterId);
+    invites = Number(item && item.invites ? item.invites : 0);
+    targetName = item && item.name ? String(item.name) : targetName;
+    targetMention = `<@${fallbackRequesterId}>`;
+    found = true;
+  }
+
+  const label = targetMention || `**${targetName || "Unknown"}**`;
+  const content = found
+    ? `${label} has **${invites}** invite${invites === 1 ? "" : "s"}.`
+    : `No invite data found for **${targetName || "that user"}** yet.`;
+
+  await interactionCallback(interaction.id, interaction.token, {
+    type: 4,
+    data: {
+      content,
+    },
+  });
+}
+
 async function handleGatewayDispatch(eventType, eventData) {
   if (eventType === "INTERACTION_CREATE") {
     if (!eventData || eventData.type !== 2 || !eventData.data) return;
-    if (String(eventData.data.name || "").toLowerCase() !== RULES_COMMAND_NAME) return;
-    await handleRulesSlashInteraction(eventData);
+    const commandName = String(eventData.data.name || "").toLowerCase();
+    if (commandName === RULES_COMMAND_NAME) {
+      await handleRulesSlashInteraction(eventData);
+      return;
+    }
+    if (commandName === INVITES_COMMAND_NAME) {
+      await handleInvitesSlashInteraction(eventData);
+      return;
+    }
     return;
   }
 
@@ -1169,7 +1348,7 @@ function createPresence(intents) {
       type: 3,
     },
     onReady: async () => {
-      await upsertRulesCommand();
+      await syncSlashCommands();
     },
     onDispatch: handleGatewayDispatch,
     onFatal: ({ code }) => {
@@ -1229,7 +1408,7 @@ async function initialize() {
   }
 
   await ensureRulesMessage();
-  await upsertRulesCommand();
+  await syncSlashCommands();
 
   console.log(
     `Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}` +
