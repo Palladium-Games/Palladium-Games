@@ -204,6 +204,43 @@ html.nav-initial-collapsed #nav ~ .main {
   transform: translateX(0);
 }
 
+/* Center controls/icons in collapsed mode (including first paint collapsed state). */
+.nav.nav--collapsed .nav__toggle,
+html.nav-initial-collapsed #nav .nav__toggle {
+  justify-content: center;
+  padding: 0;
+}
+
+.nav.nav--collapsed .nav__logo,
+html.nav-initial-collapsed #nav .nav__logo {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+}
+
+.nav.nav--collapsed .nav__logo-icon,
+html.nav-initial-collapsed #nav .nav__logo-icon {
+  margin: 0 auto;
+}
+
+.nav.nav--collapsed .nav__link,
+html.nav-initial-collapsed #nav .nav__link {
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  border-left-width: 0;
+}
+
+.nav.nav--collapsed .nav__link-icon,
+html.nav-initial-collapsed #nav .nav__link-icon {
+  margin: 0 auto;
+}
+
+.nav.nav--collapsed .nav__link.nav__link--active,
+html.nav-initial-collapsed #nav .nav__link.nav__link--active {
+  border-left-color: transparent;
+}
+
 /* Force-hide labels while initial collapsed class is active, before nav.js applies classes. */
 html.nav-initial-collapsed #nav .nav__logo-text,
 html.nav-initial-collapsed #nav .nav__link-text {
