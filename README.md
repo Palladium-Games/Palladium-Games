@@ -113,6 +113,8 @@ If `SCRAMJET_PORT` is occupied by an incompatible process, backend startup will 
 - `/api/ai/chat`
 - `/link-check?url=...`
 
+`/link-check` is a server-side signature probe. It can detect known block pages, but it cannot guarantee a URL is unblocked on every school network.
+
 ## Settings Page
 
 `/settings.html` lets users:

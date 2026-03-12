@@ -62,84 +62,84 @@ const PROVIDER_SIGNATURES = [
     id: "securly",
     name: "Securly",
     blockedCategory: "Anonymous proxies",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/securly/i, /blocked by securly/i, /securly\.com\/blocked/i]
   },
   {
     id: "lightspeed",
     name: "Lightspeed",
     blockedCategory: "Web filtering policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/lightspeed/i, /relay\.lightspeedsystems\.com/i, /blocked by lightspeed/i]
   },
   {
     id: "goguardian",
     name: "GoGuardian",
     blockedCategory: "School admin policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/goguardian/i, /goguardian\.com/i, /blocked by school admin/i, /blocked by administrator/i]
   },
   {
     id: "palo_alto",
     name: "Palo Alto",
     blockedCategory: "URL filtering",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/palo alto/i, /url filtering/i, /urlfiltering\.paloaltonetworks\.com/i]
   },
   {
     id: "contentkeeper",
     name: "ContentKeeper",
     blockedCategory: "Web access policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/contentkeeper/i, /ckauth/i, /blocked by content keeper/i]
   },
   {
     id: "fortiguard",
     name: "FortiGuard",
     blockedCategory: "FortiGuard category filter",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/fortiguard/i, /fortinet/i, /fortigate/i]
   },
   {
     id: "blocksi",
     name: "Blocksi",
     blockedCategory: "School filtering policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/blocksi/i, /blocksi\.net/i]
   },
   {
     id: "linewize",
     name: "Linewize",
     blockedCategory: "Policy block",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/linewize/i, /familyzone/i]
   },
   {
     id: "cisco_talos",
     name: "Cisco Talos",
     blockedCategory: "Cisco Umbrella policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/cisco umbrella/i, /talos/i, /opendns/i]
   },
   {
     id: "aristotle",
     name: "Aristotle",
     blockedCategory: "K12 policy filter",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/aristotle/i, /aristotlek12/i]
   },
   {
     id: "lanschool",
     name: "LanSchool",
     blockedCategory: "Classroom restriction",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/lanschool/i, /lenovo classroom manager/i]
   },
   {
     id: "deledao",
     name: "Deledao",
     blockedCategory: "Education filter policy",
-    allowedCategory: "No signature detected",
+    allowedCategory: "No signal from server-side probe",
     signatures: [/deledao/i, /deledao education/i]
   }
 ];
@@ -1156,6 +1156,7 @@ async function runLinkCheck(targetUrl, timeoutMs) {
   const output = {
     url: targetUrl,
     checkedAt: new Date().toISOString(),
+    scope: "server_network_only",
     probes: {
       direct: {
         reachable: false,
@@ -1170,7 +1171,8 @@ async function runLinkCheck(targetUrl, timeoutMs) {
       verdict: "unknown",
       text: "No provider data available.",
       passCount: 0,
-      total: PROVIDER_SIGNATURES.length
+      total: PROVIDER_SIGNATURES.length,
+      scope: "server_network_only"
     }
   };
 
@@ -1248,18 +1250,17 @@ async function runLinkCheck(targetUrl, timeoutMs) {
       };
     }
 
-    passCount += 1;
+    unknownCount += 1;
     return {
       id: provider.id,
       name: provider.name,
-      status: "allowed",
-      category: provider.allowedCategory || "No signature detected",
-      note: "No known block-page signature detected"
+      status: "unknown",
+      category: provider.allowedCategory || "No signal from server-side probe",
+      note: "No known block-page signature detected from the server-side probe"
     };
   });
 
   const total = output.providers.length;
-  const clearPct = total > 0 ? Math.round((passCount / total) * 100) : 0;
 
   let verdict = "unknown";
   let headline = "Inconclusive";
@@ -1267,23 +1268,35 @@ async function runLinkCheck(targetUrl, timeoutMs) {
     headline = "Inconclusive";
     verdict = "unknown";
   } else if (blockedCount === 0) {
-    headline = "Likely Unblocked";
-    verdict = "likely_unblocked";
+    headline = "Inconclusive (Server-Side Only)";
+    verdict = "inconclusive";
   } else if (blockedCount === total) {
     headline = "Likely Blocked";
     verdict = "likely_blocked";
   } else {
-    headline = "Partially Blocked";
+    headline = "Potentially Blocked";
     verdict = "partial";
+  }
+
+  let summaryText = "No provider data available.";
+  if (!output.probes.direct.reachable) {
+    summaryText = `${headline} • direct probe failed • provider checks unavailable`;
+  } else if (blockedCount === 0) {
+    summaryText = `${headline} • ${blockedCount} blocked signatures • ${unknownCount}/${total} no-signal`;
+  } else if (blockedCount === total) {
+    summaryText = `${headline} • ${blockedCount}/${total} blocked signatures`;
+  } else {
+    summaryText = `${headline} • ${blockedCount}/${total} blocked signatures • ${unknownCount}/${total} no-signal`;
   }
 
   output.summary = {
     verdict,
-    text: `${headline} • ${clearPct}% clear • ${passCount}/${total} passed`,
+    text: summaryText,
     passCount,
     total,
     blockedCount,
-    unknownCount
+    unknownCount,
+    scope: "server_network_only"
   };
 
   return output;

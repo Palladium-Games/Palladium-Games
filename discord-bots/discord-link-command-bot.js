@@ -349,6 +349,7 @@ function verdictColor(result) {
   const verdict = result && result.summary ? result.summary.verdict : "unknown";
   if (verdict === "likely_unblocked") return 0x22c55e;
   if (verdict === "likely_blocked") return 0xef4444;
+  if (verdict === "partial") return 0xf59e0b;
   return 0xf59e0b;
 }
 
@@ -371,8 +372,8 @@ function providerStatus(provider) {
   if (status === "detected" || status === "blocked") {
     return { mark: "⛔", label: "Blocked", pass: false };
   }
-  if (status === "not_detected" || status === "allowed") {
-    return { mark: "✅", label: "Allowed", pass: true };
+  if (status === "not_detected" || status === "allowed" || status === "unknown") {
+    return { mark: "❔", label: "No Signal", pass: false, unknown: true };
   }
   return { mark: "⚪", label: "Unknown", pass: false, unknown: true };
 }
@@ -384,8 +385,8 @@ function providerCategory(provider) {
   if (provider.status === "detected" || provider.status === "blocked") {
     return "Known block-page signature";
   }
-  if (provider.status === "not_detected" || provider.status === "allowed") {
-    return "No known block signature detected";
+  if (provider.status === "not_detected" || provider.status === "allowed" || provider.status === "unknown") {
+    return "No signal from server-side probe";
   }
 
   const note = String(provider && provider.note ? provider.note : "").toLowerCase();
@@ -411,15 +412,12 @@ function overallLine(providers) {
     else blockedCount += 1;
   }
 
-  const clearPct = Math.round((passCount / total) * 100);
-  let headline = "Inconclusive";
-  if (blockedCount === 0 && unknownCount === 0) headline = "Likely Unblocked";
-  else if (blockedCount === total) headline = "Likely Blocked";
-  else if (blockedCount > 0 && passCount > 0) headline = "Partially Blocked";
-  else if (blockedCount > 0) headline = "Likely Blocked";
+  let headline = "Inconclusive (Server-Side Only)";
+  if (blockedCount === total) headline = "Likely Blocked";
+  else if (blockedCount > 0) headline = "Potentially Blocked";
 
   return {
-    text: `${headline} • ${clearPct}% clear • ${passCount}/${total} passed`,
+    text: `${headline} • ${blockedCount}/${total} blocked signatures • ${unknownCount}/${total} no-signal`,
     passCount,
     total,
   };
@@ -478,6 +476,7 @@ function buildResultPayload(requesterMention, url, result, errorText) {
   const fields = [
     { name: "Requested By", value: requesterMention, inline: true },
     { name: "Direct Probe", value: clamp(directState, 900), inline: true },
+    { name: "Scope", value: "Server-side probe only (school network filtering may differ).", inline: false },
     { name: "URL", value: clamp(url, 900), inline: false },
     ...providerFields,
   ].slice(0, 25);
