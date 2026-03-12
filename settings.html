@@ -93,17 +93,61 @@
               >
                 <label class="settings-field">
                   <span class="settings-field__label">Website theme</span>
-                  <select id="settings-theme" class="settings-input settings-select">
-                    <option value="default">Default</option>
-                    <option value="color-wash">Color Wash</option>
-                    <option value="miami">Miami</option>
-                    <option value="rainbow">Rainbow</option>
-                    <option value="aurora">Aurora</option>
-                    <option value="sunset">Sunset</option>
-                    <option value="forest">Forest</option>
-                    <option value="oceanic">Oceanic</option>
-                    <option value="graphite">Graphite</option>
-                  </select>
+                  <input id="settings-theme" type="hidden" value="default" />
+                  <div id="settings-theme-picker" class="settings-theme-picker">
+                    <button
+                      type="button"
+                      id="settings-theme-toggle"
+                      class="settings-theme-toggle"
+                      aria-haspopup="listbox"
+                      aria-expanded="false"
+                      aria-controls="settings-theme-menu"
+                    >
+                      <span id="settings-theme-chip" class="settings-theme-chip settings-theme-chip--default" aria-hidden="true"></span>
+                      <span id="settings-theme-label" class="settings-theme-label">Default</span>
+                      <svg class="settings-theme-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                      </svg>
+                    </button>
+                    <div id="settings-theme-menu" class="settings-theme-menu" role="listbox" aria-label="Theme options">
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="default" data-theme-label="Default" aria-selected="true">
+                        <span class="settings-theme-chip settings-theme-chip--default" aria-hidden="true"></span>
+                        <span>Default</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="color-wash" data-theme-label="Color Wash" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--color-wash" aria-hidden="true"></span>
+                        <span>Color Wash</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="miami" data-theme-label="Miami" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--miami" aria-hidden="true"></span>
+                        <span>Miami</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="rainbow" data-theme-label="Rainbow" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--rainbow" aria-hidden="true"></span>
+                        <span>Rainbow</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="aurora" data-theme-label="Aurora" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--aurora" aria-hidden="true"></span>
+                        <span>Aurora</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="sunset" data-theme-label="Sunset" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--sunset" aria-hidden="true"></span>
+                        <span>Sunset</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="forest" data-theme-label="Forest" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--forest" aria-hidden="true"></span>
+                        <span>Forest</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="oceanic" data-theme-label="Oceanic" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--oceanic" aria-hidden="true"></span>
+                        <span>Oceanic</span>
+                      </button>
+                      <button type="button" class="settings-theme-option" role="option" data-theme-value="graphite" data-theme-label="Graphite" aria-selected="false">
+                        <span class="settings-theme-chip settings-theme-chip--graphite" aria-hidden="true"></span>
+                        <span>Graphite</span>
+                      </button>
+                    </div>
+                  </div>
                 </label>
                 <div class="settings-divider" aria-hidden="true"></div>
 
@@ -172,6 +216,11 @@
       var api = window.PalladiumSiteSettings;
       var form = document.getElementById('settings-form');
       var themeInput = document.getElementById('settings-theme');
+      var themePicker = document.getElementById('settings-theme-picker');
+      var themeToggle = document.getElementById('settings-theme-toggle');
+      var themeMenu = document.getElementById('settings-theme-menu');
+      var themeLabel = document.getElementById('settings-theme-label');
+      var themeChip = document.getElementById('settings-theme-chip');
       var titleInput = document.getElementById('settings-title');
       var sourceInput = document.getElementById('settings-favicon-source');
       var detectBtn = document.getElementById('settings-detect-btn');
@@ -312,7 +361,7 @@
         api.setTitle(preset.title);
         api.setFavicon(preset.favicon);
 
-        if (themeInput) themeInput.value = currentThemeValue();
+        setThemePickerValue(currentThemeValue());
         if (titleInput) titleInput.value = preset.title;
         if (sourceInput) sourceInput.value = preset.favicon;
         if (fileInput) fileInput.value = '';
@@ -386,6 +435,65 @@
       function currentTitleValue() {
         var raw = titleInput ? titleInput.value : '';
         return String(raw || '').trim();
+      }
+
+      function getThemeOptions() {
+        if (!themeMenu) return [];
+        return Array.prototype.slice.call(themeMenu.querySelectorAll('.settings-theme-option[data-theme-value]'));
+      }
+
+      function normalizeThemeValue(themeValue) {
+        var raw = String(themeValue || '').trim().toLowerCase();
+        if (!raw) return api.defaultTheme || 'default';
+        var options = getThemeOptions();
+        for (var i = 0; i < options.length; i += 1) {
+          var candidate = String(options[i].getAttribute('data-theme-value') || '').trim().toLowerCase();
+          if (candidate === raw) return raw;
+        }
+        return api.defaultTheme || 'default';
+      }
+
+      function closeThemeMenu() {
+        if (!themePicker || !themeToggle) return;
+        themePicker.classList.remove('settings-theme-picker--open');
+        themeToggle.setAttribute('aria-expanded', 'false');
+      }
+
+      function openThemeMenu() {
+        if (!themePicker || !themeToggle) return;
+        themePicker.classList.add('settings-theme-picker--open');
+        themeToggle.setAttribute('aria-expanded', 'true');
+      }
+
+      function setThemePickerValue(themeValue) {
+        var next = normalizeThemeValue(themeValue);
+        if (themeInput) themeInput.value = next;
+
+        var options = getThemeOptions();
+        var nextLabel = next;
+
+        for (var i = 0; i < options.length; i += 1) {
+          var option = options[i];
+          var optionValue = String(option.getAttribute('data-theme-value') || '').trim().toLowerCase();
+          var isMatch = optionValue === next;
+          option.setAttribute('aria-selected', String(isMatch));
+          option.classList.toggle('settings-theme-option--active', isMatch);
+          if (isMatch) {
+            nextLabel = String(option.getAttribute('data-theme-label') || option.textContent || next).trim();
+          }
+        }
+
+        if (themeLabel) themeLabel.textContent = nextLabel;
+        if (themeChip) themeChip.className = 'settings-theme-chip settings-theme-chip--' + next;
+      }
+
+      function applyThemeSelection(themeValue) {
+        setThemePickerValue(themeValue);
+        if (typeof api.setTheme === 'function') {
+          api.setTheme(currentThemeValue());
+        }
+        setStatus('Theme auto-saved.', false);
+        renderPreview();
       }
 
       function queueTitleAutoSave() {
@@ -661,7 +769,7 @@
 
       function loadIntoForm() {
         var settings = api.getSettings();
-        if (themeInput) themeInput.value = settings.theme || (api.defaultTheme || 'default');
+        setThemePickerValue(settings.theme || (api.defaultTheme || 'default'));
         if (titleInput) titleInput.value = settings.title || '';
         if (sourceInput) sourceInput.value = settings.favicon || '';
         if (fileInput) fileInput.value = '';
@@ -715,13 +823,42 @@
         });
       }
 
-      if (themeInput) {
-        themeInput.addEventListener('change', function () {
-          if (typeof api.setTheme === 'function') {
-            api.setTheme(currentThemeValue());
+      if (themeToggle && themeMenu) {
+        themeToggle.addEventListener('click', function () {
+          var expanded = themeToggle.getAttribute('aria-expanded') === 'true';
+          if (expanded) {
+            closeThemeMenu();
+          } else {
+            openThemeMenu();
           }
-          setStatus('Theme auto-saved.', false);
-          renderPreview();
+        });
+
+        themeMenu.addEventListener('click', function (event) {
+          var target = event.target && event.target.closest
+            ? event.target.closest('.settings-theme-option[data-theme-value]')
+            : null;
+          if (!target) return;
+          var next = String(target.getAttribute('data-theme-value') || '').trim();
+          if (!next) return;
+          applyThemeSelection(next);
+          closeThemeMenu();
+        });
+
+        themeMenu.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') {
+            closeThemeMenu();
+            themeToggle.focus();
+          }
+        });
+
+        document.addEventListener('click', function (event) {
+          if (!themePicker || !themePicker.contains(event.target)) {
+            closeThemeMenu();
+          }
+        });
+
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') closeThemeMenu();
         });
       }
 
