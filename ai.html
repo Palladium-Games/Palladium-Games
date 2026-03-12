@@ -337,24 +337,40 @@
         }
       }
 
-      function buildSystemPrompt(games) {
-        var catalogLines = games.slice(0, 48).map(function (entry) {
-          return '- ' + entry.title + ' | ' + entry.author + ' | ' + entry.playerPath;
-        });
-        var truncated = games.length > 48 ? 'Catalog is truncated in prompt for speed; rely on exact provided entries only.' : '';
+      function isGameCatalogQuery(userText) {
+        var text = String(userText || '').toLowerCase();
+        if (!text) return false;
+        return /\b(game|games|catalog|library|what do we have|what games|play|title|author)\b/.test(text);
+      }
 
-        return [
+      function buildSystemPrompt(games, userText) {
+        var includeCatalog = isGameCatalogQuery(userText);
+        var lines = [
           'You are PalladiumAI for the Palladium Games website.',
           'Never make up games, links, authors, or site features.',
-          'When users ask about games, use ONLY this catalog.',
-          'If a requested game is missing from catalog, clearly say it is not listed.',
-          'Prefer short, direct answers.',
           'Always format replies in Markdown.',
-          truncated,
-          '',
-          'Catalog:',
-          catalogLines.join('\n')
-        ].join('\n');
+          'Prefer short, direct answers.'
+        ];
+
+        if (!includeCatalog) {
+          lines.push('If asked about the site game list, ask the user to re-ask and include "games" so you can use the live catalog.');
+          return lines.join('\n');
+        }
+
+        var catalogLines = games.slice(0, 32).map(function (entry) {
+          return '- ' + entry.title + ' | ' + entry.author + ' | ' + entry.playerPath;
+        });
+
+        if (games.length > 32) {
+          lines.push('Catalog in this request is intentionally truncated for speed. Do not guess missing items.');
+        }
+
+        lines.push('When users ask about games, use ONLY this catalog.');
+        lines.push('If a requested game is missing from catalog, clearly say it is not listed.');
+        lines.push('');
+        lines.push('Catalog:');
+        lines.push(catalogLines.join('\n'));
+        return lines.join('\n');
       }
 
       async function sendChat(userText) {
@@ -363,7 +379,7 @@
         }
 
         var games = await getGamesCatalog();
-        var system = buildSystemPrompt(games);
+        var system = buildSystemPrompt(games, userText);
 
         var messages = [{ role: 'system', content: system }];
         for (var i = 0; i < memory.length; i += 1) {
@@ -375,10 +391,11 @@
           stream: false,
           messages: messages,
           think: false,
-          keep_alive: '15m',
+          keep_alive: '30m',
           options: {
-            temperature: 0.15,
-            num_predict: 160
+            temperature: 0.1,
+            num_predict: 120,
+            num_ctx: 1536
           }
         };
 
@@ -450,7 +467,7 @@
           input.value = '';
           autoGrow();
           setBusy(true);
-          setStatus('Thinking...', false);
+          setStatus('Thinking (fast mode)...', false);
 
           try {
             var answer = await sendChat(text);

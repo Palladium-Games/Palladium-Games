@@ -815,8 +815,8 @@ async function routeRequest(req, res, config) {
 
     const normalized = normalizeAiPayload(parsed, config.ollamaModel);
     const baseUrl = config.ollamaBaseUrl.replace(/\/+$/, "");
-    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 18_000);
-    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 45_000);
+    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 12_000);
+    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 25_000);
 
     // Try /api/chat first; if it times out or returns empty content, fall back to /api/generate.
     const chatAttempt = await postJsonWithTimeout(`${baseUrl}/api/chat`, normalized, chatTimeoutMs);
@@ -1430,6 +1430,36 @@ function normalizeAiPayload(payload, fallbackModel) {
 
   if (typeof normalized.stream !== "boolean") {
     normalized.stream = false;
+  }
+
+  const options = normalized.options && typeof normalized.options === "object"
+    ? { ...normalized.options }
+    : {};
+
+  const numPredict = Number(options.num_predict);
+  if (!Number.isFinite(numPredict) || numPredict <= 0) {
+    options.num_predict = 120;
+  }
+
+  const numCtx = Number(options.num_ctx);
+  if (!Number.isFinite(numCtx) || numCtx <= 0) {
+    options.num_ctx = 2048;
+  }
+
+  const temperature = Number(options.temperature);
+  if (!Number.isFinite(temperature) || temperature < 0) {
+    options.temperature = 0.1;
+  }
+
+  normalized.options = options;
+
+  const keepAlive = String(normalized.keep_alive || "").trim();
+  if (!keepAlive) {
+    normalized.keep_alive = "30m";
+  }
+
+  if (typeof normalized.think !== "boolean") {
+    normalized.think = false;
   }
 
   return normalized;
