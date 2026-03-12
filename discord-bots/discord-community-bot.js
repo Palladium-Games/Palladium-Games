@@ -6,10 +6,11 @@ const { execSync } = require("child_process");
 const { startDiscordPresence } = require("./discord-gateway-presence");
 
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/api/v10";
-const POLL_MS = Number(process.env.DISCORD_COMMUNITY_POLL_MS || 5000);
+const POLL_MS = Math.max(5000, Number(process.env.DISCORD_COMMUNITY_POLL_MS || 30_000));
+const MEMBER_SYNC_MS = Math.max(POLL_MS, Number(process.env.DISCORD_MEMBER_SYNC_MS || 120_000));
 const RULES_CHECK_MS = Number(process.env.DISCORD_RULES_CHECK_MS || 5 * 60 * 1000);
 const ROLE_CACHE_MS = Number(process.env.DISCORD_ROLE_CACHE_MS || 10 * 60 * 1000);
-const COMMUNITY_GATEWAY_INTENTS = Number(process.env.DISCORD_COMMUNITY_GATEWAY_INTENTS || 3);
+const COMMUNITY_GATEWAY_INTENTS = Number(process.env.DISCORD_COMMUNITY_GATEWAY_INTENTS || 1);
 const MODERATION_ENABLED = String(process.env.DISCORD_MODERATION_ENABLED || "true").toLowerCase() !== "false";
 const MODERATION_TIMEOUT_MINUTES = Number(process.env.DISCORD_MODERATION_TIMEOUT_MINUTES || 15);
 const MODERATION_LOOKBACK_MS = Number(process.env.DISCORD_MODERATION_LOOKBACK_MS || 12_000);
@@ -147,6 +148,8 @@ let guildRolesById = new Map();
 let guildRolesFetchedAt = 0;
 let guildInfo = null;
 let appId = "";
+let lastMemberSyncAt = 0;
+let activeGatewayIntents = COMMUNITY_GATEWAY_INTENTS;
 const recentMessagesByUser = new Map();
 const recentModerationActions = new Map();
 
@@ -1153,20 +1156,44 @@ async function handleGatewayDispatch(eventType, eventData) {
   }
 }
 
-const presence = startDiscordPresence({
-  token: BOT_TOKEN,
-  intents: COMMUNITY_GATEWAY_INTENTS,
-  status: "online",
-  logPrefix: "Palladium Community",
-  activity: {
-    name: "server rules",
-    type: 3,
-  },
-  onReady: async () => {
-    await upsertRulesCommand();
-  },
-  onDispatch: handleGatewayDispatch,
-});
+let presence = null;
+
+function createPresence(intents) {
+  return startDiscordPresence({
+    token: BOT_TOKEN,
+    intents,
+    status: "online",
+    logPrefix: "Palladium Community",
+    activity: {
+      name: "server rules",
+      type: 3,
+    },
+    onReady: async () => {
+      await upsertRulesCommand();
+    },
+    onDispatch: handleGatewayDispatch,
+    onFatal: ({ code }) => {
+      if ((code === 4013 || code === 4014) && intents !== 1) {
+        console.warn(
+          "Community gateway intents were rejected; falling back to intents=1 " +
+          "to prevent reconnect spam. Set DISCORD_COMMUNITY_GATEWAY_INTENTS=1 " +
+          "or enable privileged intents in the Discord Developer Portal."
+        );
+        activeGatewayIntents = 1;
+        try {
+          if (presence && typeof presence.stop === "function") {
+            presence.stop();
+          }
+        } catch {
+          // Ignore cleanup errors.
+        }
+        presence = createPresence(1);
+      }
+    },
+  });
+}
+
+presence = createPresence(activeGatewayIntents);
 
 async function initialize() {
   await resolveGuildId();
@@ -1208,6 +1235,9 @@ async function initialize() {
     `Community bot ready as ${botUser && botUser.username ? botUser.username : "bot"} in guild ${GUILD_ID}` +
     (memberPollingEnabled ? "" : " (rules-only mode)")
   );
+  console.log(
+    `Community polling: loop ${POLL_MS}ms, member sync ${MEMBER_SYNC_MS}ms, gateway intents ${activeGatewayIntents}`
+  );
   console.log(`Community /rules command channels: ${COMMAND_CHANNEL_IDS.join(", ")}`);
   console.log(`Community moderation channels: ${MODERATION_CHANNEL_IDS.join(", ")}`);
 }
@@ -1215,7 +1245,10 @@ async function initialize() {
 async function pollLoop() {
   while (true) {
     try {
-      if (memberPollingEnabled) {
+      const shouldSyncMembers =
+        memberPollingEnabled && (!lastMemberSyncAt || (Date.now() - lastMemberSyncAt) >= MEMBER_SYNC_MS);
+
+      if (shouldSyncMembers) {
         const members = await fetchAllMembers(GUILD_ID);
         const membersById = new Map();
         for (const member of members) {
@@ -1249,6 +1282,7 @@ async function pollLoop() {
         }
 
         state.knownMemberIds = limitKnownMembers(Array.from(new Set(currentIds.map(String))));
+        lastMemberSyncAt = Date.now();
         saveState();
       }
 

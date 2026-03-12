@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const DEFAULT_GATEWAY = "wss://gateway.discord.gg/?v=10&encoding=json";
+const FATAL_CLOSE_CODES = new Set([4004, 4010, 4011, 4012, 4013, 4014]);
 
 function resolveWebSocketClass() {
   if (typeof WebSocket !== "undefined") return WebSocket;
@@ -22,6 +23,10 @@ function startDiscordPresence(options = {}) {
   const activity = options.activity && typeof options.activity === "object" ? options.activity : null;
   const onDispatch = typeof options.onDispatch === "function" ? options.onDispatch : null;
   const onReady = typeof options.onReady === "function" ? options.onReady : null;
+  const onClose = typeof options.onClose === "function" ? options.onClose : null;
+  const onFatal = typeof options.onFatal === "function" ? options.onFatal : null;
+  const minReconnectDelayMs = Math.max(500, Number(options.minReconnectDelayMs || 1500));
+  const maxReconnectDelayMs = Math.max(minReconnectDelayMs, Number(options.maxReconnectDelayMs || 60_000));
 
   const WebSocketImpl = resolveWebSocketClass();
   if (!token || !WebSocketImpl) {
@@ -37,6 +42,7 @@ function startDiscordPresence(options = {}) {
   let sequence = null;
   let stopped = false;
   let readyLogged = false;
+  let reconnectAttempt = 0;
 
   function clearHeartbeat() {
     if (heartbeatTimer) {
@@ -55,14 +61,24 @@ function startDiscordPresence(options = {}) {
     safeSend({ op: 1, d: sequence });
   }
 
-  function scheduleReconnect(delayMs = 2500) {
+  function scheduleReconnect(delayMs) {
     if (stopped) return;
     if (reconnectTimer) return;
     clearHeartbeat();
+
+    let reconnectDelayMs = Number(delayMs);
+    if (!Number.isFinite(reconnectDelayMs) || reconnectDelayMs <= 0) {
+      const exp = Math.min(8, reconnectAttempt);
+      const baseDelay = Math.min(maxReconnectDelayMs, minReconnectDelayMs * (2 ** exp));
+      const jitter = Math.floor(Math.random() * Math.max(250, Math.floor(baseDelay * 0.2)));
+      reconnectDelayMs = Math.min(maxReconnectDelayMs, baseDelay + jitter);
+    }
+
+    reconnectAttempt += 1;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       connect();
-    }, delayMs);
+    }, reconnectDelayMs);
   }
 
   function identify() {
@@ -110,6 +126,12 @@ function startDiscordPresence(options = {}) {
     }
 
     if (packet.op === 7) {
+      // Reconnect requested by gateway.
+      try {
+        if (ws && ws.readyState === WebSocketImpl.OPEN) ws.close(1012, "Gateway requested reconnect");
+      } catch {
+        // Ignore close errors.
+      }
       scheduleReconnect(1000);
       return;
     }
@@ -126,6 +148,7 @@ function startDiscordPresence(options = {}) {
       const username = user && user.username ? user.username : "bot";
       console.log(`${logPrefix}: gateway presence online as ${username}`);
       readyLogged = true;
+      reconnectAttempt = 0;
       if (onReady) {
         Promise.resolve(onReady(packet.d || {})).catch((error) => {
           const msg = error && error.message ? error.message : String(error);
@@ -166,9 +189,39 @@ function startDiscordPresence(options = {}) {
       // Close will trigger reconnect.
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       ws = null;
-      scheduleReconnect(2000);
+      const code = Number(event && typeof event.code !== "undefined" ? event.code : 0);
+      const reason = String(event && event.reason ? event.reason : "");
+
+      if (onClose) {
+        try {
+          onClose({ code, reason, fatal: FATAL_CLOSE_CODES.has(code) });
+        } catch {
+          // Ignore onClose callback errors.
+        }
+      }
+
+      if (FATAL_CLOSE_CODES.has(code)) {
+        stopped = true;
+        clearHeartbeat();
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        const reasonText = reason ? ` (${reason})` : "";
+        console.error(`${logPrefix}: gateway closed with fatal code ${code}${reasonText}. Reconnect disabled.`);
+        if (onFatal) {
+          try {
+            onFatal({ code, reason });
+          } catch {
+            // Ignore onFatal callback errors.
+          }
+        }
+        return;
+      }
+
+      scheduleReconnect();
     };
   }
 

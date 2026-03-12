@@ -37,14 +37,32 @@ On first run, `config/palladium.env` is auto-created from `config/palladium.env.
 
 If you want your own public URL (domain/subdomain) for this site:
 
-1. Run Palladium on your server (it listens on `SITE_PORT`, default `3000`).
+1. Run Palladium on your server (it listens on `SITE_PORT`, default `8080`).
 2. Point DNS for your hostname to that server (A/AAAA record).
 3. Put a reverse proxy/CDN in front (Nginx, Caddy, Fastly, Cloudflare, etc.).
-4. Forward all routes to your Palladium origin (`http://127.0.0.1:3000` or your internal origin).
+4. Forward all routes to your Palladium origin (`http://127.0.0.1:8080` or your internal origin).
 5. Keep original host/proto headers (`Host`, `X-Forwarded-Host`, `X-Forwarded-Proto`) so generated URLs stay correct.
 6. Enable TLS on the public hostname (HTTPS certificate).
 
 Minimum requirement: it must proxy both static pages and API routes (including `/api/*` and `/link-check`), not just a single page.
+
+### Nginx example
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.example;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
 
 ### Fastly checklist
 
@@ -66,7 +84,7 @@ We source our games from GN-Math (`gn-math.dev`) and other websites.
 
 ## Ports
 
-- Site/API: `3000` (`SITE_PORT`, default)
+- Site/API: `8080` (`SITE_PORT`, default)
 - Scramjet sidecar: `1337` (`SCRAMJET_PORT`, default)
 - Ollama: `11434` (`OLLAMA_BASE_URL`, default)
 
