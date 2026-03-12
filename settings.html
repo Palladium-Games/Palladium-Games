@@ -57,7 +57,7 @@
         <section class="settings-shell">
           <header class="settings-shell__header">
             <h1 class="settings-shell__title">Website Settings</h1>
-            <p class="settings-shell__subtitle">Customize website themes, tab title, favicon presets, and launch in about:blank.</p>
+            <p class="settings-shell__subtitle">Customize website themes, tab title, favicon presets, and launch in about:blank. Changes auto-save.</p>
           </header>
 
           <div class="settings-grid">
@@ -98,6 +98,11 @@
                     <option value="color-wash">Color Wash</option>
                     <option value="miami">Miami</option>
                     <option value="rainbow">Rainbow</option>
+                    <option value="aurora">Aurora</option>
+                    <option value="sunset">Sunset</option>
+                    <option value="forest">Forest</option>
+                    <option value="oceanic">Oceanic</option>
+                    <option value="graphite">Graphite</option>
                   </select>
                 </label>
                 <div class="settings-divider" aria-hidden="true"></div>
@@ -140,7 +145,6 @@
               <div class="settings-divider" aria-hidden="true"></div>
 
               <div class="settings-actions">
-                <button type="submit" class="settings-btn settings-btn--primary">Save</button>
                 <button type="button" id="settings-reset" class="settings-btn">Reset</button>
                 <button type="button" id="settings-aboutblank" class="settings-btn">Open in about:blank</button>
               </div>
@@ -184,6 +188,8 @@
       var panelPresets = document.getElementById('settings-panel-presets');
       var presetsGrid = document.getElementById('settings-presets-grid');
       var activePresetId = '';
+      var titleSaveTimer = 0;
+      var sourceSaveTimer = 0;
 
       var PRESETS = [
         {
@@ -314,7 +320,7 @@
 
         setActivePreset(preset.id);
         renderPreview();
-        setStatus('Applied preset: ' + preset.name + '.', false);
+        setStatus('Applied preset and auto-saved: ' + preset.name + '.', false);
       }
 
       function renderPresets() {
@@ -380,6 +386,45 @@
       function currentTitleValue() {
         var raw = titleInput ? titleInput.value : '';
         return String(raw || '').trim();
+      }
+
+      function queueTitleAutoSave() {
+        if (titleSaveTimer) window.clearTimeout(titleSaveTimer);
+        titleSaveTimer = window.setTimeout(function () {
+          api.setTitle(currentTitleValue());
+          renderPreview();
+          setStatus('Title auto-saved.', false);
+        }, 180);
+      }
+
+      function queueDirectFaviconAutoSave() {
+        if (sourceSaveTimer) window.clearTimeout(sourceSaveTimer);
+        sourceSaveTimer = window.setTimeout(function () {
+          var sourceValue = currentSourceValue();
+          if (!sourceValue) {
+            api.setFavicon('');
+            renderPreview();
+            setStatus('Favicon reset to default.', false);
+            return;
+          }
+
+          if (!isDirectFaviconValue(sourceValue)) {
+            setStatus('Website URL detected. Click Detect to fetch favicon.', false);
+            return;
+          }
+
+          var canAutoSaveDirect =
+            /^data:image\//i.test(sourceValue) ||
+            hasImageExtension(sourceValue) ||
+            /^(\/|\.{1,2}\/)/.test(sourceValue);
+          if (!canAutoSaveDirect) {
+            return;
+          }
+
+          api.setFavicon(sourceValue);
+          renderPreview();
+          setStatus('Favicon auto-saved.', false);
+        }, 220);
       }
 
       function normalizeUrl(value) {
@@ -625,22 +670,8 @@
       }
 
       if (form) {
-        form.addEventListener('submit', async function (event) {
+        form.addEventListener('submit', function (event) {
           event.preventDefault();
-
-          try {
-            var resolved = await resolveFaviconSource(currentSourceValue());
-            if (typeof api.setTheme === 'function') {
-              api.setTheme(currentThemeValue());
-            }
-            api.setTitle(currentTitleValue());
-            api.setFavicon(resolved);
-            if (sourceInput) sourceInput.value = resolved;
-            renderPreview();
-            setStatus('Theme, title, and favicon applied.', false);
-          } catch (error) {
-            setStatus(String((error && error.message) || error || 'Failed to apply settings.'), true);
-          }
         });
       }
 
@@ -665,7 +696,10 @@
       }
 
       if (sourceInput) {
-        sourceInput.addEventListener('input', renderPreview);
+        sourceInput.addEventListener('input', function () {
+          renderPreview();
+          queueDirectFaviconAutoSave();
+        });
         sourceInput.addEventListener('keydown', function (event) {
           if (event.key === 'Enter') {
             event.preventDefault();
@@ -675,7 +709,10 @@
       }
 
       if (titleInput) {
-        titleInput.addEventListener('input', renderPreview);
+        titleInput.addEventListener('input', function () {
+          renderPreview();
+          queueTitleAutoSave();
+        });
       }
 
       if (themeInput) {
@@ -683,7 +720,7 @@
           if (typeof api.setTheme === 'function') {
             api.setTheme(currentThemeValue());
           }
-          setStatus('Theme applied. Click Save to apply title/favicon changes.', false);
+          setStatus('Theme auto-saved.', false);
           renderPreview();
         });
       }
@@ -695,8 +732,9 @@
           try {
             var resolved = await resolveFaviconSource(currentSourceValue());
             if (sourceInput) sourceInput.value = resolved;
+            api.setFavicon(resolved);
             renderPreview();
-            setStatus('Favicon detected. Click Save to apply.', false);
+            setStatus('Favicon detected and auto-saved.', false);
           } catch (error) {
             setStatus(String((error && error.message) || error || 'Failed to detect favicon.'), true);
           }
@@ -713,8 +751,9 @@
           reader.onload = function () {
             if (typeof reader.result === 'string' && sourceInput) {
               sourceInput.value = reader.result;
+              api.setFavicon(reader.result);
               renderPreview();
-              setStatus('Image loaded. Click Save to apply.', false);
+              setStatus('Uploaded favicon auto-saved.', false);
             }
           };
           reader.onerror = function () {
@@ -739,7 +778,7 @@
       renderPresets();
       setActiveTab('custom');
       loadIntoForm();
-      setStatus('Ready.', false);
+      setStatus('Ready. Changes auto-save.', false);
     })();
   </script>
 </body>

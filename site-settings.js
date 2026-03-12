@@ -9,7 +9,12 @@
     "default": true,
     "color-wash": true,
     "miami": true,
-    "rainbow": true
+    "rainbow": true,
+    "aurora": true,
+    "sunset": true,
+    "forest": true,
+    "oceanic": true,
+    "graphite": true
   };
 
   function safeGetStorage(key) {
