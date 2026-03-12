@@ -9,6 +9,8 @@ const DISCORD_API_BASE = process.env.DISCORD_API_BASE || "https://discord.com/ap
 const GITHUB_API_BASE = (process.env.DISCORD_COMMIT_GITHUB_API_BASE || "https://api.github.com").replace(/\/+$/, "");
 const POLL_MS = Math.max(5000, Number(process.env.DISCORD_COMMIT_POLL_MS || 15000));
 const FETCH_LIMIT = Math.max(5, Math.min(40, Number(process.env.DISCORD_COMMIT_FETCH_LIMIT || 20)));
+const POST_ON_BOOTSTRAP = String(process.env.DISCORD_COMMIT_POST_ON_BOOTSTRAP || "true").toLowerCase() !== "false";
+const BOOTSTRAP_POST_COUNT = Math.max(1, Math.min(5, Number(process.env.DISCORD_COMMIT_BOOTSTRAP_POST_COUNT || 1)));
 const STATE_PATH = process.env.DISCORD_COMMIT_STATE_PATH || path.join(__dirname, "..", ".discord-commit-bot-state.json");
 
 function tryReadGitConfig(key) {
@@ -106,8 +108,9 @@ function loadState() {
 function saveState(state) {
   try {
     fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
-  } catch {
-    // Non-fatal.
+  } catch (error) {
+    const msg = String(error && error.message ? error.message : error);
+    console.warn(`Unable to persist commit bot state at ${STATE_PATH}: ${msg}`);
   }
 }
 
@@ -408,6 +411,16 @@ async function pollRemoteCommits() {
   if (!newestSha) return;
 
   if (!lastSha) {
+    if (POST_ON_BOOTSTRAP) {
+      const toPost = commits.slice(0, BOOTSTRAP_POST_COUNT).reverse();
+      for (const commit of toPost) {
+        await postCommit(commit);
+      }
+      console.log(
+        `Commit bot bootstrap posted ${toPost.length} commit update(s) (${REPO}@${activeBranch}).`
+      );
+    }
+
     setLastSha(newestSha);
     console.log(`Commit bot bootstrapped at ${newestSha.slice(0, 7)} (${REPO}@${activeBranch}).`);
     return;
@@ -459,7 +472,9 @@ function shutdown(code) {
 process.on("SIGINT", () => shutdown(0));
 process.on("SIGTERM", () => shutdown(0));
 
-console.log(`Palladium commit bot running for ${REPO}@${activeBranch} (poll ${POLL_MS}ms).`);
+console.log(
+  `Palladium commit bot running for ${REPO}@${activeBranch} (poll ${POLL_MS}ms, channel ${CHANNEL_ID}, state ${STATE_PATH}).`
+);
 
 (async function loop() {
   while (true) {
