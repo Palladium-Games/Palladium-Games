@@ -1,8 +1,16 @@
 (function () {
   var TITLE_KEY = "palladium.site.title";
   var FAVICON_KEY = "palladium.site.favicon";
+  var THEME_KEY = "palladium.site.theme";
   var DEFAULT_TITLE = "Palladium Games";
   var DEFAULT_FAVICON = "images/favicon.png?v=3";
+  var DEFAULT_THEME = "default";
+  var ALLOWED_THEMES = {
+    "default": true,
+    "color-wash": true,
+    "miami": true,
+    "rainbow": true
+  };
 
   function safeGetStorage(key) {
     try {
@@ -54,10 +62,22 @@
     return raw + divider + "palladium_fv=" + Date.now();
   }
 
+  function normalizeTheme(value) {
+    var raw = String(value || "").trim().toLowerCase();
+    if (!raw) return DEFAULT_THEME;
+    return ALLOWED_THEMES[raw] ? raw : DEFAULT_THEME;
+  }
+
+  function applyTheme(themeName) {
+    var theme = normalizeTheme(themeName);
+    document.documentElement.setAttribute("data-theme", theme);
+  }
+
   function getSettings() {
     return {
       title: safeGetStorage(TITLE_KEY),
-      favicon: normalizeFavicon(safeGetStorage(FAVICON_KEY))
+      favicon: normalizeFavicon(safeGetStorage(FAVICON_KEY)),
+      theme: normalizeTheme(safeGetStorage(THEME_KEY))
     };
   }
 
@@ -107,6 +127,7 @@
 
   function applyDocumentSettings() {
     var settings = getSettings();
+    applyTheme(settings.theme);
     applyTitle(settings.title);
     applyFavicon(settings.favicon);
   }
@@ -121,9 +142,20 @@
     applyDocumentSettings();
   }
 
+  function setTheme(value) {
+    var normalized = normalizeTheme(value);
+    if (normalized === DEFAULT_THEME) {
+      safeSetStorage(THEME_KEY, "");
+    } else {
+      safeSetStorage(THEME_KEY, normalized);
+    }
+    applyDocumentSettings();
+  }
+
   function reset() {
     safeSetStorage(TITLE_KEY, "");
     safeSetStorage(FAVICON_KEY, "");
+    safeSetStorage(THEME_KEY, "");
     applyDocumentSettings();
   }
 
@@ -177,9 +209,11 @@
   window.PalladiumSiteSettings = {
     defaultTitle: DEFAULT_TITLE,
     defaultFavicon: DEFAULT_FAVICON,
+    defaultTheme: DEFAULT_THEME,
     getSettings: getSettings,
     setTitle: setTitle,
     setFavicon: setFavicon,
+    setTheme: setTheme,
     reset: reset,
     decorateTitle: decorateTitle,
     applyDocumentSettings: applyDocumentSettings,

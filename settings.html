@@ -57,7 +57,7 @@
         <section class="settings-shell">
           <header class="settings-shell__header">
             <h1 class="settings-shell__title">Website Settings</h1>
-            <p class="settings-shell__subtitle">Customize tab title, favicon, presets, and launch in about:blank.</p>
+            <p class="settings-shell__subtitle">Customize website themes, tab title, favicon presets, and launch in about:blank.</p>
           </header>
 
           <div class="settings-grid">
@@ -91,6 +91,17 @@
                 role="tabpanel"
                 aria-labelledby="settings-tab-custom"
               >
+                <label class="settings-field">
+                  <span class="settings-field__label">Website theme</span>
+                  <select id="settings-theme" class="settings-input settings-select">
+                    <option value="default">Default</option>
+                    <option value="color-wash">Color Wash</option>
+                    <option value="miami">Miami</option>
+                    <option value="rainbow">Rainbow</option>
+                  </select>
+                </label>
+                <div class="settings-divider" aria-hidden="true"></div>
+
                 <label class="settings-field">
                   <span class="settings-field__label">Website title</span>
                   <input id="settings-title" class="settings-input" type="text" placeholder="Palladium Games" autocomplete="off" />
@@ -156,6 +167,7 @@
     (function () {
       var api = window.PalladiumSiteSettings;
       var form = document.getElementById('settings-form');
+      var themeInput = document.getElementById('settings-theme');
       var titleInput = document.getElementById('settings-title');
       var sourceInput = document.getElementById('settings-favicon-source');
       var detectBtn = document.getElementById('settings-detect-btn');
@@ -288,9 +300,13 @@
         var preset = getPresetById(presetId);
         if (!preset) return;
 
+        if (typeof api.setTheme === 'function') {
+          api.setTheme(currentThemeValue());
+        }
         api.setTitle(preset.title);
         api.setFavicon(preset.favicon);
 
+        if (themeInput) themeInput.value = currentThemeValue();
         if (titleInput) titleInput.value = preset.title;
         if (sourceInput) sourceInput.value = preset.favicon;
         if (fileInput) fileInput.value = '';
@@ -354,6 +370,11 @@
       function currentSourceValue() {
         var raw = sourceInput ? sourceInput.value : '';
         return String(raw || '').trim();
+      }
+
+      function currentThemeValue() {
+        var raw = themeInput ? themeInput.value : '';
+        return String(raw || '').trim() || (api.defaultTheme || 'default');
       }
 
       function currentTitleValue() {
@@ -595,6 +616,7 @@
 
       function loadIntoForm() {
         var settings = api.getSettings();
+        if (themeInput) themeInput.value = settings.theme || (api.defaultTheme || 'default');
         if (titleInput) titleInput.value = settings.title || '';
         if (sourceInput) sourceInput.value = settings.favicon || '';
         if (fileInput) fileInput.value = '';
@@ -608,11 +630,14 @@
 
           try {
             var resolved = await resolveFaviconSource(currentSourceValue());
+            if (typeof api.setTheme === 'function') {
+              api.setTheme(currentThemeValue());
+            }
             api.setTitle(currentTitleValue());
             api.setFavicon(resolved);
             if (sourceInput) sourceInput.value = resolved;
             renderPreview();
-            setStatus('Title and favicon applied.', false);
+            setStatus('Theme, title, and favicon applied.', false);
           } catch (error) {
             setStatus(String((error && error.message) || error || 'Failed to apply settings.'), true);
           }
@@ -623,7 +648,7 @@
         resetBtn.addEventListener('click', function () {
           api.reset();
           loadIntoForm();
-          setStatus('Reset to default title and favicon.', false);
+          setStatus('Reset to default theme, title, and favicon.', false);
         });
       }
 
@@ -651,6 +676,16 @@
 
       if (titleInput) {
         titleInput.addEventListener('input', renderPreview);
+      }
+
+      if (themeInput) {
+        themeInput.addEventListener('change', function () {
+          if (typeof api.setTheme === 'function') {
+            api.setTheme(currentThemeValue());
+          }
+          setStatus('Theme applied. Click Save to apply title/favicon changes.', false);
+          renderPreview();
+        });
       }
 
       if (detectBtn) {

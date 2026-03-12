@@ -116,6 +116,7 @@ We source our games from GN-Math (`gn-math.dev`) and other websites.
 
 `/settings.html` lets users:
 
+- choose website themes (`Default`, `Color Wash`, `Miami`, `Rainbow`)
 - set a custom tab title
 - set a custom favicon (path/URL/data URL)
 - detect favicon from a website URL
