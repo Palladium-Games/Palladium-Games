@@ -136,6 +136,6 @@ The website-url detector only updates favicon, not title.
 - Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `services/`, dotfiles).
 - Game catalog API reads from `games.html` so titles/authors stay aligned with the UI.
 - Discord tokens/channels are configured in `config/palladium.env`.
-- Commit bot tracks remote GitHub commits (not local-only git state). Optional settings: `DISCORD_COMMIT_REPO`, `DISCORD_COMMIT_BRANCH`, `DISCORD_COMMIT_POLL_MS`, `DISCORD_COMMIT_GITHUB_TOKEN`, `DISCORD_COMMIT_POST_ON_BOOTSTRAP`, `DISCORD_COMMIT_BOOTSTRAP_POST_COUNT`.
+- Commit bot tracks remote GitHub commits (not local-only git state). Optional settings: `DISCORD_COMMIT_REPO`, `DISCORD_COMMIT_BRANCH`, `DISCORD_COMMIT_POLL_MS`, `DISCORD_COMMIT_GITHUB_TOKEN`, `DISCORD_COMMIT_POST_ON_BOOTSTRAP`, `DISCORD_COMMIT_BOOTSTRAP_POST_COUNT`, `DISCORD_COMMIT_PING_ROLE_NAME`, `DISCORD_COMMIT_PING_ROLE_ID`.
 - If `DISCORD_COMMIT_BRANCH` is wrong (for example `master` on a `main` repo), the bot auto-falls back to the repo default branch.
 - `config/palladium.env.example` contains all supported runtime settings.

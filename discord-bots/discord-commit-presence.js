@@ -77,6 +77,12 @@ function normalizeBranchName(value) {
   return branch;
 }
 
+function normalizeSnowflake(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^[0-9]{15,25}$/.test(raw) ? raw : "";
+}
+
 function truncate(value, max = 1000) {
   const text = String(value || "");
   if (text.length <= max) return text;
@@ -127,6 +133,16 @@ const CHANNEL_ID =
   process.env.DISCORD_COMMIT_CHANNEL_ID ||
   tryReadGitConfig("discord.commitChannelId") ||
   "";
+const COMMIT_PING_ROLE_NAME = String(
+  process.env.DISCORD_COMMIT_PING_ROLE_NAME ||
+    tryReadGitConfig("discord.commitPingRoleName") ||
+    "Dev Following"
+).trim();
+const COMMIT_PING_ROLE_ID = normalizeSnowflake(
+  process.env.DISCORD_COMMIT_PING_ROLE_ID ||
+    tryReadGitConfig("discord.commitPingRoleId") ||
+    ""
+);
 
 const GITHUB_TOKEN =
   process.env.DISCORD_COMMIT_GITHUB_TOKEN ||
@@ -173,6 +189,9 @@ const state = loadState();
 if (!state.byRef || typeof state.byRef !== "object") state.byRef = {};
 let activeBranch = CONFIGURED_BRANCH || "main";
 let defaultBranchCache = "";
+let channelGuildIdCache = "";
+let mentionRoleIdCache = COMMIT_PING_ROLE_ID;
+let mentionRoleResolutionAttempted = Boolean(mentionRoleIdCache);
 
 function branchRefKey(branch = activeBranch) {
   return `${REPO}#${branch}`;
@@ -408,7 +427,64 @@ async function discordRequest(method, route, body) {
       throw error;
     }
 
-    return;
+    if (response.status === 204) return null;
+    const contentType = String(response.headers.get("content-type") || "");
+    if (contentType.includes("application/json")) {
+      return response.json().catch(() => null);
+    }
+    return response.text().catch(() => null);
+  }
+}
+
+async function fetchCommitChannelGuildId() {
+  if (channelGuildIdCache) return channelGuildIdCache;
+  const channel = await discordRequest("GET", `/channels/${CHANNEL_ID}`);
+  const guildId = normalizeSnowflake(channel && channel.guild_id ? channel.guild_id : "");
+  if (!guildId) return "";
+  channelGuildIdCache = guildId;
+  return channelGuildIdCache;
+}
+
+async function resolveCommitMentionRoleId() {
+  if (mentionRoleIdCache) return mentionRoleIdCache;
+  if (mentionRoleResolutionAttempted) return "";
+  mentionRoleResolutionAttempted = true;
+
+  if (!COMMIT_PING_ROLE_NAME) return "";
+
+  let guildId = "";
+  try {
+    guildId = await fetchCommitChannelGuildId();
+  } catch (error) {
+    console.warn(`Unable to resolve commit channel guild id: ${String(error && error.message ? error.message : error)}`);
+    return "";
+  }
+  if (!guildId) {
+    console.warn("Unable to resolve commit mention role because the commit channel has no guild_id.");
+    return "";
+  }
+
+  try {
+    const roles = await discordRequest("GET", `/guilds/${guildId}/roles`);
+    if (!Array.isArray(roles)) return "";
+    const loweredTarget = COMMIT_PING_ROLE_NAME.toLowerCase();
+    const role = roles.find((candidate) => {
+      const name = String(candidate && candidate.name ? candidate.name : "").trim().toLowerCase();
+      return name === loweredTarget;
+    });
+    const roleId = normalizeSnowflake(role && role.id ? role.id : "");
+    if (!roleId) {
+      console.warn(`Commit mention role '${COMMIT_PING_ROLE_NAME}' was not found in guild ${guildId}.`);
+      return "";
+    }
+    mentionRoleIdCache = roleId;
+    console.log(`Commit bot mention role resolved: ${COMMIT_PING_ROLE_NAME} (${mentionRoleIdCache}).`);
+    return mentionRoleIdCache;
+  } catch (error) {
+    console.warn(
+      `Unable to resolve commit mention role '${COMMIT_PING_ROLE_NAME}': ${String(error && error.message ? error.message : error)}`
+    );
+    return "";
   }
 }
 
@@ -471,10 +547,16 @@ async function postCommit(commitSummary) {
     console.warn(`Failed to load commit details for ${commitSummary.sha}: ${String(error && error.message ? error.message : error)}`);
   }
 
+  const mentionRoleId = await resolveCommitMentionRoleId();
   const payload = {
     embeds: [buildCommitEmbed(commitSummary, detail)],
-    allowed_mentions: { parse: [] }
+    allowed_mentions: mentionRoleId
+      ? { parse: [], roles: [mentionRoleId] }
+      : { parse: [] }
   };
+  if (mentionRoleId) {
+    payload.content = `<@&${mentionRoleId}>`;
+  }
 
   await discordRequest("POST", `/channels/${CHANNEL_ID}/messages`, payload);
 }
@@ -552,6 +634,11 @@ process.on("SIGTERM", () => shutdown(0));
 console.log(
   `Palladium commit bot running for ${REPO}@${activeBranch} (poll ${POLL_MS}ms, channel ${CHANNEL_ID}, state ${STATE_PATH}).`
 );
+if (COMMIT_PING_ROLE_ID) {
+  console.log(`Commit update mention role ID configured: ${COMMIT_PING_ROLE_ID}.`);
+} else if (COMMIT_PING_ROLE_NAME) {
+  console.log(`Commit update mention role name configured: ${COMMIT_PING_ROLE_NAME}.`);
+}
 if (!HAS_GITHUB_TOKEN) {
   console.warn(
     "Commit bot is running without DISCORD_COMMIT_GITHUB_TOKEN/GITHUB_TOKEN. " +
