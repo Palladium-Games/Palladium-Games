@@ -12,10 +12,11 @@ const LEGACY_POLLING_ENABLED = parseBool(process.env.DISCORD_LINK_LEGACY_POLLING
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
 const LINK_COMMAND_NAME = "link";
 
-const BOT_TOKEN =
+const BOT_TOKEN = normalizeDiscordToken(
   process.env.DISCORD_BOT_TOKEN ||
   tryReadGitConfig("discord.botToken") ||
-  "";
+  ""
+);
 
 const CHANNEL_IDS = parseChannelIds(
   process.env.DISCORD_LINK_COMMAND_CHANNEL_IDS ||
@@ -150,9 +151,20 @@ async function discordRequest(method, route, body) {
       continue;
     }
 
+    if (response.status === 401) {
+      const text = await response.text().catch(() => "");
+      const error = new Error(
+        `Discord API ${method} ${route} failed (401): ${text || "Unauthorized"}`
+      );
+      error.code = "DISCORD_UNAUTHORIZED";
+      throw error;
+    }
+
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(`Discord API ${method} ${route} failed (${response.status}): ${text}`);
+      const error = new Error(`Discord API ${method} ${route} failed (${response.status}): ${text}`);
+      error.code = `DISCORD_HTTP_${response.status}`;
+      throw error;
     }
 
     const text = await response.text();
@@ -163,6 +175,25 @@ async function discordRequest(method, route, body) {
       return {};
     }
   }
+}
+
+function isUnauthorizedDiscordError(error) {
+  if (error && error.code === "DISCORD_UNAUTHORIZED") return true;
+  const message = String(error && error.message ? error.message : error || "");
+  return message.includes("failed (401)") || message.includes("401: Unauthorized");
+}
+
+function normalizeDiscordToken(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return "";
+
+  let token = raw.replace(/^bot\s+/i, "").trim();
+  token = token.split(/\s+/)[0] || "";
+  if (!token) return "";
+
+  const upper = token.toUpperCase();
+  if (upper.includes("YOUR_") || upper.includes("REPLACE_ME")) return "";
+  return token;
 }
 
 async function interactionCallback(interactionId, interactionToken, body) {
@@ -744,6 +775,11 @@ async function mainLoop() {
       } catch (error) {
         const msg = error && error.message ? error.message : String(error);
         console.warn(`Slash command sync error: ${msg}`);
+        if (isUnauthorizedDiscordError(error)) {
+          console.error("Link bot token unauthorized. Stopping bot to prevent reconnect spam.");
+          shutdown(1);
+          return;
+        }
       }
     }
 
@@ -754,6 +790,11 @@ async function mainLoop() {
         } catch (error) {
           const msg = error && error.message ? error.message : String(error);
           console.error(`Channel ${channelId} poll error: ${msg}`);
+          if (isUnauthorizedDiscordError(error)) {
+            console.error("Link bot token unauthorized. Stopping bot to prevent reconnect spam.");
+            shutdown(1);
+            return;
+          }
         }
       }
     }

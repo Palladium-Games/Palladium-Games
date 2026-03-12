@@ -26,12 +26,13 @@ const RULES_SIGNATURE = "palladium-rules-v1";
 const RULES_COMMAND_NAME = "rules";
 const INVITES_COMMAND_NAME = "invites";
 
-const BOT_TOKEN =
+const BOT_TOKEN = normalizeDiscordToken(
   process.env.DISCORD_COMMUNITY_BOT_TOKEN ||
   process.env.DISCORD_BOT_TOKEN ||
   tryReadGitConfig("discord.communityBotToken") ||
   tryReadGitConfig("discord.botToken") ||
-  "";
+  ""
+);
 
 const WELCOME_CHANNEL_ID =
   process.env.DISCORD_WELCOME_CHANNEL_ID ||
@@ -185,6 +186,25 @@ function unique(values) {
   return Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)));
 }
 
+function normalizeDiscordToken(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return "";
+
+  let token = raw.replace(/^bot\s+/i, "").trim();
+  token = token.split(/\s+/)[0] || "";
+  if (!token) return "";
+
+  const upper = token.toUpperCase();
+  if (upper.includes("YOUR_") || upper.includes("REPLACE_ME")) return "";
+  return token;
+}
+
+function isUnauthorizedDiscordError(error) {
+  if (error && error.code === "DISCORD_UNAUTHORIZED") return true;
+  const message = String(error && error.message ? error.message : error || "");
+  return message.includes("failed (401)") || message.includes("401: Unauthorized");
+}
+
 function loadState() {
   try {
     if (!fs.existsSync(STATE_PATH)) return {};
@@ -311,9 +331,20 @@ async function discordRequest(method, route, body) {
       continue;
     }
 
+    if (response.status === 401) {
+      const text = await response.text().catch(() => "");
+      const error = new Error(
+        `Discord API ${method} ${route} failed (401): ${text || "Unauthorized"}`
+      );
+      error.code = "DISCORD_UNAUTHORIZED";
+      throw error;
+    }
+
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(`Discord API ${method} ${route} failed (${response.status}): ${text}`);
+      const error = new Error(`Discord API ${method} ${route} failed (${response.status}): ${text}`);
+      error.code = `DISCORD_HTTP_${response.status}`;
+      throw error;
     }
 
     const text = await response.text();
@@ -1348,7 +1379,16 @@ function createPresence(intents) {
       type: 3,
     },
     onReady: async () => {
-      await syncSlashCommands();
+      try {
+        await syncSlashCommands();
+      } catch (error) {
+        if (isUnauthorizedDiscordError(error)) {
+          console.error("Community bot token unauthorized during slash command sync. Stopping bot.");
+          shutdown(1);
+          return;
+        }
+        throw error;
+      }
     },
     onDispatch: handleGatewayDispatch,
     onFatal: ({ code }) => {
@@ -1473,6 +1513,9 @@ async function pollLoop() {
           try {
             await pollModerationChannel(channelId);
           } catch (error) {
+            if (isUnauthorizedDiscordError(error)) {
+              throw error;
+            }
             const msg = error && error.message ? error.message : String(error);
             console.error(`Community moderation poll error in ${channelId}: ${msg}`);
           }
@@ -1484,12 +1527,21 @@ async function pollLoop() {
         try {
           await pollCommandChannel(channelId);
         } catch (error) {
+          if (isUnauthorizedDiscordError(error)) {
+            throw error;
+          }
           const msg = error && error.message ? error.message : String(error);
           console.error(`Community command poll error in ${channelId}: ${msg}`);
         }
       }
     } catch (error) {
       const msg = error && error.message ? error.message : String(error);
+      if (isUnauthorizedDiscordError(error)) {
+        console.error(`Community bot token unauthorized: ${msg}`);
+        console.error("Stopping community bot to prevent repeated unauthorized requests.");
+        shutdown(1);
+        return;
+      }
       if (memberPollingEnabled && isAccessDeniedError(error)) {
         memberPollingEnabled = false;
         console.warn(

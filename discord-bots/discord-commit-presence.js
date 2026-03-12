@@ -114,12 +114,13 @@ function saveState(state) {
   }
 }
 
-const BOT_TOKEN =
+const BOT_TOKEN = normalizeDiscordToken(
   process.env.DISCORD_COMMIT_BOT_TOKEN ||
   process.env.DISCORD_BOT_TOKEN ||
   tryReadGitConfig("discord.commitBotToken") ||
   tryReadGitConfig("discord.botToken") ||
-  "";
+  ""
+);
 
 const CHANNEL_ID =
   process.env.DISCORD_COMMIT_CHANNEL_ID ||
@@ -193,6 +194,25 @@ function githubHeaders() {
     headers.Authorization = `Bearer ${GITHUB_TOKEN}`;
   }
   return headers;
+}
+
+function normalizeDiscordToken(rawValue) {
+  const raw = String(rawValue || "").trim();
+  if (!raw) return "";
+
+  let token = raw.replace(/^bot\s+/i, "").trim();
+  token = token.split(/\s+/)[0] || "";
+  if (!token) return "";
+
+  const upper = token.toUpperCase();
+  if (upper.includes("YOUR_") || upper.includes("REPLACE_ME")) return "";
+  return token;
+}
+
+function isUnauthorizedDiscordError(error) {
+  if (error && error.code === "DISCORD_UNAUTHORIZED") return true;
+  const message = String(error && error.message ? error.message : error || "");
+  return message.includes("failed (401)") || message.includes("401: Unauthorized");
 }
 
 async function githubRequest(route) {
@@ -326,9 +346,18 @@ async function discordRequest(method, route, body) {
       continue;
     }
 
+    if (response.status === 401) {
+      const text = await response.text().catch(() => "");
+      const error = new Error(`Discord ${method} ${route} failed (401): ${text || "Unauthorized"}`);
+      error.code = "DISCORD_UNAUTHORIZED";
+      throw error;
+    }
+
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new Error(`Discord ${method} ${route} failed (${response.status}): ${text}`);
+      const error = new Error(`Discord ${method} ${route} failed (${response.status}): ${text}`);
+      error.code = `DISCORD_HTTP_${response.status}`;
+      throw error;
     }
 
     return;
@@ -483,6 +512,11 @@ console.log(
     } catch (error) {
       const message = String(error && error.message ? error.message : error);
       console.error(`Commit poll error: ${message}`);
+      if (isUnauthorizedDiscordError(error)) {
+        console.error("Commit bot token unauthorized. Stopping bot to prevent repeated 401 requests.");
+        shutdown(1);
+        return;
+      }
     }
     await sleep(POLL_MS);
   }
