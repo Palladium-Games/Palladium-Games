@@ -65,7 +65,7 @@
           </div>
           <div id="proxy-fallback" class="proxy-fallback" style="display: none;">
             <h2>Proxy failed to load</h2>
-            <p id="proxy-fallback-text">The Scramjet UI is not available right now.</p>
+            <p id="proxy-fallback-text">The proxy UI is not available right now.</p>
           </div>
         </div>
       </div>
@@ -77,7 +77,8 @@
   <script src="nav.js"></script>
   <script>
     (function () {
-      var DEFAULT_PROXY_PORT = 1337;
+      var DEFAULT_PROXY_PORT = 443;
+      var DEFAULT_PROXY_PROTOCOL = 'https:';
       var frame = document.getElementById('proxy-embed-frame');
       var statusEl = document.getElementById('proxy-status');
       var fallbackEl = document.getElementById('proxy-fallback');
@@ -153,7 +154,7 @@
           if (!uiOk) {
             return { ok: false, message: 'Proxy endpoint is reachable, but UI route / is returning invalid content.' };
           }
-          return { ok: true, message: 'Connected to Scramjet at ' + base };
+          return { ok: true, message: 'Connected to proxy at ' + base };
         } catch (error) {
           return { ok: false, message: 'Proxy is offline at ' + base + '. Start or restart the backend.' };
         }
@@ -166,7 +167,7 @@
         if (window.PalladiumBackend && typeof window.PalladiumBackend.getPublicConfig === 'function') {
           try {
             var config = await window.PalladiumBackend.getPublicConfig();
-            var fromConfig = normalizeBase(config && config.services && config.services.scramjetBase);
+            var fromConfig = normalizeBase(config && config.services && config.services.proxyBase);
             if (fromConfig) return fromConfig;
           } catch (error) {
             console.warn('Failed to load backend config:', error);
@@ -178,6 +179,7 @@
           if (backendBase) {
             try {
               var parsed = new URL(backendBase);
+              parsed.protocol = DEFAULT_PROXY_PROTOCOL;
               parsed.port = String(DEFAULT_PROXY_PORT);
               return parsed.origin;
             } catch (error) {
@@ -188,6 +190,7 @@
 
         try {
           var fallback = new URL(window.location.origin);
+          fallback.protocol = DEFAULT_PROXY_PROTOCOL;
           fallback.port = String(DEFAULT_PROXY_PORT);
           return fallback.origin;
         } catch (error) {

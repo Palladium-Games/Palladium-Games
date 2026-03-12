@@ -3,7 +3,6 @@
 const fs = require("node:fs");
 const fsp = require("node:fs/promises");
 const http = require("node:http");
-const net = require("node:net");
 const path = require("node:path");
 const { spawn } = require("node:child_process");
 
@@ -43,7 +42,6 @@ const STATIC_BLOCKED_ROOTS = new Set([
   "config",
   "discord-bots",
   "node_modules",
-  "scramjet-service",
   "services"
 ]);
 
@@ -148,13 +146,9 @@ const managed = {
   processes: [],
   httpServer: null,
   shuttingDown: false,
-  runtime: {
-    scramjetPort: null,
-    scramjetBase: ""
-  },
+  runtime: {},
   runtimeStatus: {
     ollama: "disabled",
-    scramjet: "disabled",
     discord: "disabled"
   }
 };
@@ -182,6 +176,7 @@ async function main() {
     maxRequestBodyBytes: readInt(env, "MAX_REQUEST_BODY_BYTES", 131072),
     aiRequestTimeoutMs: readInt(env, "AI_REQUEST_TIMEOUT_MS", 120_000),
     monochromeBaseUrl: readString(env, "MONOCHROME_BASE_URL", "https://monochrome.tf"),
+    proxyBaseUrl: readString(env, "PROXY_BASE_URL", ""),
 
     ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
     ollamaModel: readString(env, "OLLAMA_MODEL", "qwen3.5:0.8b"),
@@ -190,16 +185,6 @@ async function main() {
     ollamaStartupTimeoutSeconds: readInt(env, "OLLAMA_STARTUP_TIMEOUT_SECONDS", 45),
     ollamaPullModelOnStart: readBool(env, "OLLAMA_PULL_MODEL_ON_START", true),
     ollamaPullTimeoutSeconds: readInt(env, "OLLAMA_PULL_TIMEOUT_SECONDS", 600),
-
-    scramjetAutostart: readBool(env, "SCRAMJET_AUTOSTART", true),
-    scramjetDir: resolvePath(readString(env, "SCRAMJET_DIR", "scramjet-service")),
-    scramjetNodeCommand: readString(env, "SCRAMJET_NODE_COMMAND", "node"),
-    scramjetNpmCommand: readString(env, "SCRAMJET_NPM_COMMAND", "npm"),
-    scramjetHost: readString(env, "SCRAMJET_HOST", "0.0.0.0"),
-    scramjetPort: readInt(env, "SCRAMJET_PORT", 1337),
-    scramjetInstallDeps: readBool(env, "SCRAMJET_INSTALL_DEPS", true),
-    scramjetInstallTimeoutSeconds: readInt(env, "SCRAMJET_INSTALL_TIMEOUT_SECONDS", 300),
-    scramjetStartupTimeoutSeconds: readInt(env, "SCRAMJET_STARTUP_TIMEOUT_SECONDS", 20),
 
     discordBotsAutostart: readBool(env, "DISCORD_BOTS_AUTOSTART", true),
     discordBotsDir: resolvePath(readString(env, "DISCORD_BOTS_DIR", "discord-bots")),
@@ -253,7 +238,6 @@ async function main() {
   });
 
   await startOllamaIfNeeded(config);
-  await startScramjetIfNeeded(config);
   await startDiscordBotsIfNeeded(config);
 
   await startHttpServer(config);
@@ -264,7 +248,6 @@ async function main() {
   console.log(`Games:    ${config.gamesDir}`);
   console.log(`Config:   ${config.configPath}`);
   console.log(`Ollama:   ${managed.runtimeStatus.ollama}`);
-  console.log(`Scramjet: ${managed.runtimeStatus.scramjet}`);
   console.log(`Discord:  ${managed.runtimeStatus.discord}`);
 }
 
@@ -278,37 +261,6 @@ function displayHost(host) {
     return "127.0.0.1";
   }
   return host;
-}
-
-function isPrivateIPv4(hostname) {
-  const match = String(hostname || "").match(/^(\d+)\.(\d+)\.(\d+)\.(\d+)$/);
-  if (!match) return false;
-
-  const a = Number.parseInt(match[1], 10);
-  const b = Number.parseInt(match[2], 10);
-  if (a === 10) return true;
-  if (a === 127) return true;
-  if (a === 192 && b === 168) return true;
-  if (a === 169 && b === 254) return true;
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  return false;
-}
-
-function isLocalHostname(hostname) {
-  const host = String(hostname || "").trim().toLowerCase();
-  if (!host) return true;
-  if (host === "localhost" || host === "::1" || host === "[::1]") return true;
-  if (host.endsWith(".local")) return true;
-  return isPrivateIPv4(host);
-}
-
-function isLocalOrPrivateOrigin(originValue) {
-  try {
-    const parsed = new URL(originValue);
-    return isLocalHostname(parsed.hostname);
-  } catch {
-    return false;
-  }
 }
 
 function readForwardedHeader(value) {
@@ -345,16 +297,6 @@ function requestOrigin(req) {
     return new URL(`${proto}://${host}`).origin;
   } catch {
     return `http://${host || "localhost"}`;
-  }
-}
-
-function originWithPort(originValue, port) {
-  try {
-    const parsed = new URL(originValue);
-    parsed.port = String(port);
-    return parsed.origin;
-  } catch {
-    return originValue;
   }
 }
 
@@ -493,76 +435,6 @@ async function ensureOllamaModel(config, tagsUrl) {
     { cwd: config.rootDir, timeoutSeconds: Math.max(30, config.ollamaPullTimeoutSeconds) },
     "Ollama model pull"
   );
-}
-
-async function startScramjetIfNeeded(config) {
-  if (!config.scramjetAutostart) {
-    managed.runtimeStatus.scramjet = "disabled";
-    return;
-  }
-
-  await ensureDir(config.scramjetDir);
-
-  const preferredHost = displayHost(config.scramjetHost);
-  const preferredPort = config.scramjetPort;
-  const preferredBase = `http://${preferredHost}:${preferredPort}`;
-  const preferredProbe = await probeScramjet(preferredBase, 2000);
-
-  if (preferredProbe.healthOk && preferredProbe.uiOk) {
-    managed.runtime.scramjetPort = preferredPort;
-    managed.runtime.scramjetBase = preferredBase;
-    managed.runtimeStatus.scramjet = `external (${preferredBase})`;
-    return;
-  }
-
-  const entryPath = path.join(config.scramjetDir, "server.mjs");
-  if (!fs.existsSync(entryPath)) {
-    throw new Error(`Missing Scramjet entry script: ${entryPath}`);
-  }
-
-  let launchPort = preferredPort;
-  if (preferredProbe.reachable) {
-    launchPort = await findAvailablePort(config.scramjetHost, preferredPort + 1, 20);
-    console.warn(
-      `Scramjet port ${preferredPort} is occupied by an incompatible service. Launching managed Scramjet on ${launchPort}.`
-    );
-  }
-
-  if (config.scramjetInstallDeps && !fs.existsSync(path.join(config.scramjetDir, "node_modules"))) {
-    console.log("Installing Scramjet dependencies...");
-    await runCommandWithTimeout(
-      config.scramjetNpmCommand,
-      ["install", "--omit=dev", "--no-audit"],
-      { cwd: config.scramjetDir, timeoutSeconds: Math.max(10, config.scramjetInstallTimeoutSeconds) },
-      "Scramjet dependency install"
-    );
-  }
-
-  const child = spawn(config.scramjetNodeCommand, ["server.mjs"], {
-    cwd: config.scramjetDir,
-    stdio: ["ignore", "inherit", "inherit"],
-    env: {
-      ...process.env,
-      SCRAMJET_HOST: config.scramjetHost,
-      SCRAMJET_PORT: String(launchPort)
-    }
-  });
-
-  managed.processes.push({ name: "scramjet", process: child });
-  managed.runtimeStatus.scramjet = "starting";
-
-  const launchBase = `http://${preferredHost}:${launchPort}`;
-  const healthUrl = `${launchBase}/health`;
-  await waitForHttp(healthUrl, config.scramjetStartupTimeoutSeconds * 1000, "Scramjet");
-
-  const managedProbe = await probeScramjet(launchBase, 4000);
-  if (!managedProbe.uiOk) {
-    throw new Error(`Scramjet started on ${launchBase} but UI is not available at /.`);
-  }
-
-  managed.runtime.scramjetPort = launchPort;
-  managed.runtime.scramjetBase = launchBase;
-  managed.runtimeStatus.scramjet = `managed (${launchBase})`;
 }
 
 async function startDiscordBotsIfNeeded(config) {
@@ -783,10 +655,18 @@ async function routeRequest(req, res, config) {
 
   if (url.pathname === "/api/config/public") {
     const backendOrigin = requestOrigin(req);
-    const runtimePort = managed.runtime.scramjetPort || config.scramjetPort;
-    let scramjetOrigin = originWithPort(backendOrigin, runtimePort);
-    if (managed.runtime.scramjetBase && !isLocalOrPrivateOrigin(managed.runtime.scramjetBase)) {
-      scramjetOrigin = managed.runtime.scramjetBase;
+    const configuredProxyBase = String(config.proxyBaseUrl || "").trim();
+    let proxyBase = "";
+    if (configuredProxyBase) {
+      let candidate = configuredProxyBase;
+      if (!/^https?:\/\//i.test(candidate)) {
+        candidate = `https://${candidate}`;
+      }
+      try {
+        proxyBase = new URL(candidate).origin;
+      } catch {
+        proxyBase = "";
+      }
     }
 
     sendJson(
@@ -798,7 +678,7 @@ async function routeRequest(req, res, config) {
         services: {
           proxy: "/api/proxy/fetch",
           proxyFetch: "/api/proxy/fetch",
-          scramjetBase: scramjetOrigin,
+          proxyBase,
           aiChat: "/api/ai/chat",
           monochromeBase: config.monochromeBaseUrl,
           defaultAiModel: config.ollamaModel
@@ -1822,62 +1702,6 @@ function sendBinary(res, status, body, headers, config) {
   };
   res.writeHead(status, mergedHeaders);
   res.end(body);
-}
-
-async function probeScramjet(baseUrl, timeoutMs) {
-  const result = {
-    reachable: false,
-    healthOk: false,
-    uiOk: false
-  };
-
-  try {
-    const healthResponse = await fetch(`${baseUrl}/health`, {
-      method: "GET",
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-    result.reachable = true;
-    result.healthOk = healthResponse.ok;
-  } catch {
-    // Ignore and continue probing.
-  }
-
-  try {
-    const rootResponse = await fetch(`${baseUrl}/`, {
-      method: "GET",
-      signal: AbortSignal.timeout(timeoutMs)
-    });
-    result.reachable = true;
-    const contentType = String(rootResponse.headers.get("content-type") || "").toLowerCase();
-    result.uiOk = rootResponse.ok && contentType.includes("text/html");
-  } catch {
-    // Ignore root probe failures.
-  }
-
-  return result;
-}
-
-function canBindPort(host, port) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.once("error", () => {
-      resolve(false);
-    });
-    server.once("listening", () => {
-      server.close(() => resolve(true));
-    });
-    server.listen(port, host);
-  });
-}
-
-async function findAvailablePort(host, startPort, attempts) {
-  for (let i = 0; i < attempts; i += 1) {
-    const port = startPort + i;
-    if (await canBindPort(host, port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found for Scramjet after checking ${attempts} ports from ${startPort}.`);
 }
 
 async function shutdown(exitCode) {

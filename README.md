@@ -4,7 +4,7 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 
 - serves static frontend pages from repo root
 - exposes backend APIs for games, AI, proxy fetch, and link checks
-- optionally manages sidecars (Scramjet proxy, Ollama, Discord bots)
+- optionally manages runtime services (Ollama, Discord bots)
 - powers Settings-based tab cloaking (custom title/favicon + about:blank launcher)
 
 ## Deploy
@@ -19,7 +19,6 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 |------|--------|
 | repo root (`.`) | Website HTML/CSS/JS pages and shared assets (`index.html`, `games.html`, `proxy.html`, `ai.html`, `music.html`, `settings.html`, `games/`, `images/`) |
 | `discord-bots/` | Discord bot scripts started by `apps.js` |
-| `scramjet-service/` | Scramjet proxy sidecar (port `1337` by default) |
 | `config/` | Runtime config (`palladium.env`) |
 | `apps.js` | Main monolith runtime |
 | `start.sh` | Start script for production/local |
@@ -85,10 +84,7 @@ We source our games from GN-Math (`gn-math.dev`) and other websites.
 ## Ports
 
 - Site/API: `8080` (`SITE_PORT`, default)
-- Scramjet sidecar: `1337` (`SCRAMJET_PORT`, default)
 - Ollama: `11434` (`OLLAMA_BASE_URL`, default)
-
-If `SCRAMJET_PORT` is occupied by an incompatible process, backend startup will launch managed Scramjet on the next free port and expose that resolved value via `/api/config/public`.
 
 ## Core Routes
 
@@ -135,7 +131,9 @@ The website-url detector only updates favicon, not title.
 ## Configuration Notes
 
 - Frontend HTML files are served directly from the repo root (`FRONTEND_DIR=.`).
-- Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `scramjet-service/`, `services/`, dotfiles).
+- Proxy page can target your external proxy via `PROXY_BASE_URL` (recommended to use HTTPS/443).
+- If `PROXY_BASE_URL` is empty, `proxy.html` falls back to `https://<current-host>:443`.
+- Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `services/`, dotfiles).
 - Game catalog API reads from `games.html` so titles/authors stay aligned with the UI.
 - Discord tokens/channels are configured in `config/palladium.env`.
 - Commit bot tracks remote GitHub commits (not local-only git state). Optional settings: `DISCORD_COMMIT_REPO`, `DISCORD_COMMIT_BRANCH`, `DISCORD_COMMIT_POLL_MS`, `DISCORD_COMMIT_GITHUB_TOKEN`, `DISCORD_COMMIT_POST_ON_BOOTSTRAP`, `DISCORD_COMMIT_BOOTSTRAP_POST_COUNT`.
