@@ -58,10 +58,19 @@
         <div class="proxy-clean-shell">
           <div class="proxy-clean-top">
             <h1 class="proxy-clean-title">Palladium Browse</h1>
-            <div id="proxy-status" class="proxy-shell__status">Connecting...</div>
+            <div class="proxy-clean-meta">
+              <div id="proxy-status" class="proxy-shell__status">Connecting...</div>
+              <div id="proxy-guard-status" class="proxy-guard-status">Popup and redirect shield: ON (about:blank allowed)</div>
+            </div>
           </div>
           <div class="proxy-clean-frame-wrap">
-            <iframe id="proxy-embed-frame" title="Palladium Browse"></iframe>
+            <iframe
+              id="proxy-embed-frame"
+              title="Palladium Browse"
+              sandbox="allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation"
+              referrerpolicy="no-referrer"
+              allow="clipboard-read; clipboard-write; fullscreen"
+            ></iframe>
           </div>
           <div id="proxy-fallback" class="proxy-fallback" style="display: none;">
             <h2>Proxy failed to load</h2>
@@ -81,8 +90,12 @@
       var DEFAULT_PROXY_PROTOCOL = 'https:';
       var frame = document.getElementById('proxy-embed-frame');
       var statusEl = document.getElementById('proxy-status');
+      var guardStatusEl = document.getElementById('proxy-guard-status');
       var fallbackEl = document.getElementById('proxy-fallback');
       var fallbackTextEl = document.getElementById('proxy-fallback-text');
+      var nativeWindowOpen = (typeof window.open === 'function') ? window.open.bind(window) : null;
+      var SANDBOX_FLAGS = 'allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-pointer-lock allow-presentation';
+      var ABOUT_BLANK_RE = /^about:blank(?:[?#].*)?$/i;
 
       var params = new URLSearchParams(window.location.search);
       var initialUrl = params.get('url') || '';
@@ -118,6 +131,44 @@
         }
         statusEl.textContent = String(message || '');
         statusEl.classList.toggle('proxy-shell__status--error', Boolean(isError));
+      }
+
+      function setGuardStatus(message, isError) {
+        if (!guardStatusEl) return;
+        guardStatusEl.textContent = String(message || '');
+        guardStatusEl.classList.toggle('proxy-guard-status--error', Boolean(isError));
+      }
+
+      function isAboutBlankTarget(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return true;
+        return ABOUT_BLANK_RE.test(raw);
+      }
+
+      function summarizeUrl(value) {
+        var raw = String(value || '').trim();
+        if (!raw) return 'unknown URL';
+        if (raw.length <= 90) return raw;
+        return raw.slice(0, 87) + '...';
+      }
+
+      function applyFrameGuards() {
+        if (!frame) return;
+        frame.setAttribute('sandbox', SANDBOX_FLAGS);
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        frame.setAttribute('allow', 'clipboard-read; clipboard-write; fullscreen');
+      }
+
+      function installTopWindowGuards() {
+        if (!nativeWindowOpen) return;
+        window.open = function (url, target, features) {
+          var desired = String(url || '').trim();
+          if (isAboutBlankTarget(desired)) {
+            return nativeWindowOpen('about:blank', target || '_blank', features || '');
+          }
+          setGuardStatus('Blocked popup to ' + summarizeUrl(desired), true);
+          return null;
+        };
       }
 
       function buildFrameSrc(base, targetUrl) {
@@ -206,6 +257,7 @@
           return;
         }
 
+        applyFrameGuards();
         if (frame) {
           frame.src = buildFrameSrc(base, targetUrl || '');
         }
@@ -221,6 +273,9 @@
       }
 
       (async function init() {
+        installTopWindowGuards();
+        applyFrameGuards();
+        setGuardStatus('Popup and redirect shield: ON (about:blank allowed)', false);
         var resolvedBase = await resolveProxyBase();
         var startupTarget = normalizeTarget(initialUrl);
         await connect(resolvedBase, startupTarget);

@@ -868,6 +868,23 @@ html.nav-initial-collapsed #nav ~ .main {
   font-size: 1.35rem;
 }
 
+.proxy-clean-meta {
+  display: grid;
+  justify-items: end;
+  gap: 0.25rem;
+}
+
+.proxy-guard-status {
+  font-size: 0.78rem;
+  line-height: 1.2;
+  letter-spacing: 0.015em;
+  color: var(--text-dim);
+}
+
+.proxy-guard-status--error {
+  color: #fca5a5;
+}
+
 .proxy-clean-frame-wrap {
   min-height: 0;
   border: 1px solid var(--border);
@@ -1354,6 +1371,10 @@ html.nav-initial-collapsed #nav ~ .main {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.3rem;
+  }
+
+  .proxy-clean-meta {
+    justify-items: start;
   }
 
   .page--music {
