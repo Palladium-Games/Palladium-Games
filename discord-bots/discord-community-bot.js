@@ -642,6 +642,7 @@ function buildInviteAttributionQueue(previousSnapshot, currentSnapshot) {
 
     for (let index = 0; index < delta; index += 1) {
       queue.push({
+        inviterId: currentEntry.inviterId || "",
         inviterName: currentEntry.inviterName || "Unknown",
         invites: inviterTotalInvites
       });
@@ -683,7 +684,7 @@ async function resolveInviteContextForJoin() {
     return queue[0];
   }
 
-  return { inviterName: "Unknown", invites: 0 };
+  return { inviterId: "", inviterName: "Unknown", invites: 0 };
 }
 
 async function postWelcome(member, inviteContext) {
@@ -692,13 +693,17 @@ async function postWelcome(member, inviteContext) {
   if (hasWelcomedMember(memberId)) return;
 
   const memberName = memberDisplayName(member, memberId);
+  const memberMention = `<@${memberId}>`;
+  const inviterId = inviteContext && inviteContext.inviterId ? String(inviteContext.inviterId) : "";
+  const inviterMention = inviterId ? `<@${inviterId}>` : "";
   const inviterName = inviteContext && inviteContext.inviterName ? String(inviteContext.inviterName) : "Unknown";
   const inviteCount = inviteContext && Number.isFinite(Number(inviteContext.invites))
     ? Number(inviteContext.invites)
     : 0;
+  const inviterDisplay = inviterMention || inviterName;
 
   await discordRequest("POST", `/channels/${WELCOME_CHANNEL_ID}/messages`, {
-    content: `Welcome ${memberName} to Palladium Games! You were invited by ${inviterName}, who now has ${inviteCount} invites.\n\n(<@${memberId}>)`,
+    content: `Welcome ${memberMention} (${memberName}) to Palladium Games! You were invited by ${inviterDisplay}, who now has ${inviteCount} invites.`,
   });
 
   markMemberWelcomed(memberId);
@@ -1239,7 +1244,7 @@ async function pollLoop() {
           const member = membersById.get(String(memberId)) || { user: { id: memberId, username: `User-${memberId}` } };
           const inviteContext = inviteQueue.length
             ? inviteQueue.shift()
-            : { inviterName: "Unknown", invites: 0 };
+            : { inviterId: "", inviterName: "Unknown", invites: 0 };
           await postWelcome(member, inviteContext);
         }
 
