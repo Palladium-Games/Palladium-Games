@@ -1322,6 +1322,98 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
 }
 
 /* ——— Game cards grid ——— */
+.featured-game {
+  margin-bottom: 1.25rem;
+}
+
+.featured-game__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+  margin-bottom: 0.58rem;
+}
+
+.featured-game__kicker {
+  font-size: 0.84rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: #dbeafe;
+  font-weight: 700;
+}
+
+.featured-game__date {
+  font-size: 0.78rem;
+  color: var(--palladium-dim);
+  letter-spacing: 0.03em;
+}
+
+.featured-game__card {
+  display: grid;
+  grid-template-columns: minmax(180px, 320px) 1fr;
+  gap: 0.95rem;
+  padding: 0.9rem;
+  border: 1px solid var(--border-navy);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: inherit;
+  background:
+    linear-gradient(160deg, rgba(30, 58, 95, 0.26), rgba(15, 23, 42, 0.14)),
+    rgba(8, 12, 22, 0.86);
+  box-shadow:
+    0 16px 38px rgba(2, 8, 18, 0.46),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.featured-game__card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(59, 130, 246, 0.62);
+  box-shadow:
+    0 20px 46px rgba(2, 8, 18, 0.52),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.featured-game__thumb {
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+
+.featured-game__body {
+  display: grid;
+  align-content: center;
+  gap: 0.45rem;
+}
+
+.featured-game__title {
+  font-size: clamp(1.15rem, 1.9vw, 1.7rem);
+  font-weight: 700;
+  color: var(--palladium);
+  line-height: 1.1;
+}
+
+.featured-game__author {
+  font-size: 0.9rem;
+  color: var(--palladium-dim);
+}
+
+.featured-game__cta {
+  margin-top: 0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 0.46rem 0.72rem;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.6);
+  background: rgba(30, 64, 175, 0.22);
+  color: #dbeafe;
+  font-size: 0.79rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .games-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -2421,6 +2513,14 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   }
   .games-grid {
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  }
+  .featured-game__card {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+    padding: 0.72rem;
+  }
+  .featured-game__thumb {
+    max-height: 220px;
   }
   .page {
     padding: 1.25rem;

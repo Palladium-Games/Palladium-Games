@@ -55,6 +55,20 @@
     <main class="main">
       <div class="page">
         <h1 class="page__title">GAMES</h1>
+        <section class="featured-game" id="featured-game">
+          <div class="featured-game__head">
+            <span class="featured-game__kicker">Featured Game</span>
+            <span class="featured-game__date" id="featured-game-date">Daily pick</span>
+          </div>
+          <a id="featured-game-link" class="featured-game__card" href="#">
+            <div id="featured-game-thumb" class="featured-game__thumb game-card__thumb"></div>
+            <div class="featured-game__body">
+              <div id="featured-game-title" class="featured-game__title">Loading daily featured game...</div>
+              <div id="featured-game-author" class="featured-game__author">Please wait</div>
+              <span class="featured-game__cta">Play Featured Game</span>
+            </div>
+          </a>
+        </section>
         <div class="games-grid">
           <a href="game-player.html?game=games/l2f/learn-to-fly.html&title=Learn%20to%20Fly&author=Light Bringer" class="game-card">
             <div class="game-card__thumb">
@@ -267,5 +281,54 @@
   <script src="site-settings.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
+  <script>
+    (function () {
+      var cards = Array.prototype.slice.call(document.querySelectorAll('.games-grid .game-card'));
+      if (!cards.length) return;
+
+      var dateEl = document.getElementById('featured-game-date');
+      var linkEl = document.getElementById('featured-game-link');
+      var thumbEl = document.getElementById('featured-game-thumb');
+      var titleEl = document.getElementById('featured-game-title');
+      var authorEl = document.getElementById('featured-game-author');
+
+      function hashSeed(seed) {
+        var hash = 2166136261;
+        for (var i = 0; i < seed.length; i += 1) {
+          hash ^= seed.charCodeAt(i);
+          hash = Math.imul(hash, 16777619);
+        }
+        return hash >>> 0;
+      }
+
+      var today = new Date();
+      var seed = [
+        today.getFullYear(),
+        String(today.getMonth() + 1).padStart(2, '0'),
+        String(today.getDate()).padStart(2, '0')
+      ].join('-');
+      var selected = cards[hashSeed(seed) % cards.length];
+
+      var titleNode = selected.querySelector('.game-card__title');
+      var authorNode = selected.querySelector('.game-card__author');
+      var thumbNode = selected.querySelector('.game-card__thumb');
+
+      if (linkEl) {
+        linkEl.href = selected.getAttribute('href') || '#';
+      }
+      if (titleEl && titleNode) {
+        titleEl.textContent = titleNode.textContent || 'Featured Game';
+      }
+      if (authorEl && authorNode) {
+        authorEl.textContent = authorNode.textContent || '';
+      }
+      if (thumbEl && thumbNode) {
+        thumbEl.innerHTML = thumbNode.innerHTML;
+      }
+      if (dateEl) {
+        dateEl.textContent = today.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
+      }
+    })();
+  </script>
 </body>
 </html>
