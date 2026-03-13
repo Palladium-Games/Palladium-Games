@@ -25,11 +25,7 @@
 
   function discordLinkMarkup() {
     return (
-      '<svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M7 8h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-5l-4 3v-3H7a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z"></path>' +
-      '<circle cx="10" cy="13" r="1"></circle>' +
-      '<circle cx="14" cy="13" r="1"></circle>' +
-      '</svg>' +
+      '<img class="nav__link-icon nav__link-icon--img" src="images/discord.png" alt="" aria-hidden="true" />' +
       '<span class="nav__link-text">Discord</span>'
     );
   }

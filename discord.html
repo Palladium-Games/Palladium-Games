@@ -86,11 +86,15 @@
           </section>
 
           <section class="discord-card discord-card--ticker">
-            <h3 class="discord-card__title">Live Tags</h3>
+            <h3 class="discord-card__title">Members Online</h3>
             <div class="discord-ticker" id="discord-ticker" aria-live="polite">
               <div class="discord-ticker__track" id="discord-ticker-track">
                 <div class="discord-ticker__lane">
-                  <span class="discord-tag">Loading tags...</span>
+                  <span class="discord-avatar discord-avatar--placeholder" aria-hidden="true"></span>
+                  <span class="discord-avatar discord-avatar--placeholder" aria-hidden="true"></span>
+                  <span class="discord-avatar discord-avatar--placeholder" aria-hidden="true"></span>
+                  <span class="discord-avatar discord-avatar--placeholder" aria-hidden="true"></span>
+                  <span class="discord-avatar discord-avatar--placeholder" aria-hidden="true"></span>
                 </div>
               </div>
             </div>
@@ -135,50 +139,62 @@
         el.textContent = String(text == null ? '' : text);
       }
 
-      function uniqueTags(tags) {
+      function memberKey(member, index) {
+        if (member && member.id) return String(member.id);
+        if (member && member.username) return String(member.username).toLowerCase();
+        return 'member-' + String(index || 0);
+      }
+
+      function normalizeMembers(members) {
+        var safeMembers = Array.isArray(members) ? members : [];
         var seen = {};
         var out = [];
-        for (var i = 0; i < tags.length; i += 1) {
-          var value = String(tags[i] || '').trim();
-          if (!value) continue;
-          var key = value.toLowerCase();
+
+        for (var i = 0; i < safeMembers.length; i += 1) {
+          var raw = safeMembers[i] || {};
+          var key = memberKey(raw, i);
           if (seen[key]) continue;
           seen[key] = true;
-          out.push(value);
+
+          out.push({
+            id: key,
+            username: String(raw.username || 'Member'),
+            avatar: String(raw.avatar_url || '').trim() || 'images/discord.png',
+            status: String(raw.status || 'online').toLowerCase()
+          });
         }
+
         return out;
       }
 
-      function buildTags(widget, onlineCount, members, channels) {
-        var tags = [];
-        tags.push('Server: ' + String(widget.name || 'Palladium Games'));
-        tags.push('Online: ' + String(onlineCount));
-        tags.push('Members listed: ' + String(members.length));
-        tags.push('Channels: ' + String(channels.length));
+      function createAvatarNode(member) {
+        var wrap = document.createElement('span');
+        wrap.className = 'discord-avatar';
+        wrap.title = member.username + ' • ' + member.status;
 
-        for (var i = 0; i < channels.length && i < 18; i += 1) {
-          var channel = channels[i] || {};
-          if (channel.name) tags.push('#' + String(channel.name));
-        }
+        var img = document.createElement('img');
+        img.className = 'discord-avatar__img';
+        img.src = member.avatar;
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.alt = '';
+        wrap.appendChild(img);
 
-        for (var j = 0; j < members.length && j < 28; j += 1) {
-          var member = members[j] || {};
-          var user = String(member.username || '').trim();
-          if (!user) continue;
-          var presence = String(member.status || 'online').trim();
-          tags.push('@' + user + ' (' + presence + ')');
-        }
+        var dot = document.createElement('span');
+        dot.className = 'discord-avatar__status discord-avatar__status--' + (member.status || 'online');
+        dot.setAttribute('aria-hidden', 'true');
+        wrap.appendChild(dot);
 
-        return uniqueTags(tags).slice(0, 42);
+        return wrap;
       }
 
-      function renderTicker(tags) {
+      function renderTickerMembers(members) {
         if (!tickerTrackEl) return;
 
-        var safeTags = Array.isArray(tags) ? tags : [];
-        if (!safeTags.length) {
-          tickerTrackEl.innerHTML = '<div class="discord-ticker__lane"><span class="discord-tag">No tags available.</span></div>';
-          tickerTrackEl.style.setProperty('--ticker-duration', '20s');
+        var safeMembers = normalizeMembers(members);
+        if (!safeMembers.length) {
+          tickerTrackEl.innerHTML = '<div class="discord-ticker__lane"><span class="discord-tag discord-tag--muted">No member avatars available.</span></div>';
+          tickerTrackEl.style.setProperty('--ticker-duration', '24s');
           return;
         }
 
@@ -188,23 +204,15 @@
         laneB.className = 'discord-ticker__lane';
         laneB.setAttribute('aria-hidden', 'true');
 
-        for (var i = 0; i < safeTags.length; i += 1) {
-          var text = safeTags[i];
-          var pillA = document.createElement('span');
-          pillA.className = 'discord-tag';
-          pillA.textContent = text;
-          laneA.appendChild(pillA);
-
-          var pillB = document.createElement('span');
-          pillB.className = 'discord-tag';
-          pillB.textContent = text;
-          laneB.appendChild(pillB);
+        for (var i = 0; i < safeMembers.length; i += 1) {
+          laneA.appendChild(createAvatarNode(safeMembers[i]));
+          laneB.appendChild(createAvatarNode(safeMembers[i]));
         }
 
         tickerTrackEl.innerHTML = '';
         tickerTrackEl.appendChild(laneA);
         tickerTrackEl.appendChild(laneB);
-        tickerTrackEl.style.setProperty('--ticker-duration', String(Math.max(20, safeTags.length * 2.1)) + 's');
+        tickerTrackEl.style.setProperty('--ticker-duration', String(Math.max(18, safeMembers.length * 1.5)) + 's');
       }
 
       function renderWidget(widget, inviteUrl) {
@@ -218,7 +226,7 @@
         fillText(membersCountEl, members.length);
         fillText(channelsCountEl, channels.length);
         setInvite(inviteUrl || safeWidget.instant_invite || INVITE_FALLBACK_URL);
-        renderTicker(buildTags(safeWidget, onlineCount, members, channels));
+        renderTickerMembers(members);
 
         if (serverIconEl && safeWidget.icon_url) {
           serverIconEl.src = safeWidget.icon_url;

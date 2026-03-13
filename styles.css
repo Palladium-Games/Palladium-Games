@@ -421,6 +421,10 @@ html.nav-initial-collapsed #nav ~ .main {
   color: inherit;
 }
 
+.nav__link-icon--img {
+  object-fit: contain;
+}
+
 .nav__link-text {
   display: inline-block;
   max-width: 0;
@@ -858,12 +862,15 @@ html[data-theme="neon"] .main::after {
   grid-column: span 6;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: linear-gradient(165deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    radial-gradient(90% 140% at 0% 0%, rgba(88, 101, 242, 0.12), transparent 70%);
   padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
   min-height: 260px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .discord-card--summary {
@@ -874,6 +881,7 @@ html[data-theme="neon"] .main::after {
 .discord-card--ticker {
   grid-column: span 12;
   min-height: 0;
+  padding: 0.85rem 0.95rem 1rem;
 }
 
 .discord-summary__header {
@@ -948,15 +956,21 @@ html[data-theme="neon"] .main::after {
   letter-spacing: 0.08em;
   color: var(--palladium-dim);
   text-transform: uppercase;
+  margin-bottom: 0.1rem;
 }
 
 .discord-ticker {
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-card);
-  padding: 0.55rem 0;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    var(--bg-card);
+  padding: 0.68rem 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 8px 22px rgba(6, 11, 22, 0.35);
 }
 
 .discord-ticker::before,
@@ -972,19 +986,19 @@ html[data-theme="neon"] .main::after {
 
 .discord-ticker::before {
   left: 0;
-  background: linear-gradient(90deg, var(--bg-card) 0%, rgba(10, 10, 12, 0) 100%);
+  background: linear-gradient(90deg, rgba(10, 10, 12, 0.96) 0%, rgba(10, 10, 12, 0) 100%);
 }
 
 .discord-ticker::after {
   right: 0;
-  background: linear-gradient(270deg, var(--bg-card) 0%, rgba(10, 10, 12, 0) 100%);
+  background: linear-gradient(270deg, rgba(10, 10, 12, 0.96) 0%, rgba(10, 10, 12, 0) 100%);
 }
 
 .discord-ticker__track {
-  --ticker-duration: 28s;
+  --ticker-duration: 24s;
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.85rem;
   width: max-content;
   animation: discord-tag-scroll var(--ticker-duration) linear infinite;
   will-change: transform;
@@ -997,9 +1011,9 @@ html[data-theme="neon"] .main::after {
 .discord-ticker__lane {
   display: flex;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.85rem;
   width: max-content;
-  padding: 0 0.75rem;
+  padding: 0 0.85rem;
 }
 
 .discord-tag {
@@ -1013,6 +1027,90 @@ html[data-theme="neon"] .main::after {
   color: var(--palladium);
   font-size: 0.82rem;
   line-height: 1;
+}
+
+.discord-tag--muted {
+  color: var(--palladium-dim);
+  border-color: var(--border);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.discord-avatar {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(145deg, rgba(88, 101, 242, 0.35), rgba(37, 99, 235, 0.08));
+  border: 1px solid rgba(88, 101, 242, 0.35);
+  box-shadow:
+    0 6px 16px rgba(0, 0, 0, 0.35),
+    0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.discord-avatar:hover {
+  transform: translateY(-2px) scale(1.05);
+  border-color: rgba(88, 101, 242, 0.58);
+  box-shadow:
+    0 10px 22px rgba(0, 0, 0, 0.4),
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset;
+}
+
+.discord-avatar__img {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  background: #111827;
+}
+
+.discord-avatar__status {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-card);
+  background: #22c55e;
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+.discord-avatar__status--idle {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.discord-avatar__status--dnd {
+  background: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+}
+
+.discord-avatar__status--offline,
+.discord-avatar__status--invisible {
+  background: #64748b;
+  box-shadow: 0 0 0 2px rgba(100, 116, 139, 0.2);
+}
+
+.discord-avatar--placeholder {
+  background: linear-gradient(120deg, rgba(148, 163, 184, 0.16), rgba(148, 163, 184, 0.06));
+  border-color: rgba(148, 163, 184, 0.2);
+  animation: discord-avatar-sheen 1.6s ease-in-out infinite;
+}
+
+@keyframes discord-avatar-sheen {
+  0%, 100% {
+    opacity: 0.6;
+    transform: scale(0.98);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 @keyframes discord-tag-scroll {
