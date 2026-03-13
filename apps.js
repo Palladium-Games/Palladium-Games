@@ -1170,8 +1170,9 @@ async function routeRequest(req, res, config) {
 
     const normalized = normalizeAiPayload(parsed, config.ollamaModel);
     const baseUrl = config.ollamaBaseUrl.replace(/\/+$/, "");
-    const chatTimeoutMs = Math.min(config.aiRequestTimeoutMs, 10_000);
-    const generateTimeoutMs = Math.min(config.aiRequestTimeoutMs, 18_000);
+    const aiTimeoutMs = Math.max(15_000, Number(config.aiRequestTimeoutMs) || 120_000);
+    const chatTimeoutMs = aiTimeoutMs;
+    const generateTimeoutMs = Math.max(15_000, Math.min(aiTimeoutMs, 180_000));
 
     if (normalized.stream) {
       await streamAiChat(req, res, config, normalized, `${baseUrl}/api/chat`, chatTimeoutMs);
@@ -2285,7 +2286,7 @@ async function postJsonWithTimeout(targetUrl, payload, timeoutMs) {
 
 async function streamAiChat(req, res, config, payload, targetUrl, timeoutMs) {
   const controller = new AbortController();
-  const safeTimeoutMs = Math.max(3000, Number(timeoutMs) || 10_000);
+  const safeTimeoutMs = Math.max(10_000, Number(timeoutMs) || 15_000);
   const timeoutHandle = setTimeout(() => controller.abort(new Error("AI stream timed out.")), safeTimeoutMs);
   const onClientClose = () => controller.abort(new Error("Client disconnected."));
   req.once("close", onClientClose);

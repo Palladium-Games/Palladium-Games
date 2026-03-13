@@ -315,12 +315,32 @@
         return '';
       }
 
+      function isStreamRecoverableError(error) {
+        var message = String(error && error.message ? error.message : error || '').toLowerCase();
+        return (
+          message.indexOf('failed to fetch') !== -1 ||
+          message.indexOf('stream timed out') !== -1 ||
+          message.indexOf('timed out') !== -1 ||
+          message.indexOf('client disconnected') !== -1
+        );
+      }
+
       async function requestAi(payload, onDelta) {
-        var response = await fetch(window.PalladiumBackend.apiUrl('/api/ai/chat'), {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
+        var wantsStream = Boolean(payload && payload.stream);
+
+        var response;
+        try {
+          response = await fetch(window.PalladiumBackend.apiUrl('/api/ai/chat'), {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (error) {
+          if (wantsStream && isStreamRecoverableError(error)) {
+            return requestAi(Object.assign({}, payload, { stream: false }), null);
+          }
+          throw error;
+        }
 
         if (!response.ok) {
           var errRaw = await response.text();
@@ -328,65 +348,65 @@
           throw new Error(upstream || errRaw || ('AI request failed: ' + response.status));
         }
 
-        var wantsStream = Boolean(payload && payload.stream);
         if (wantsStream && response.body && typeof response.body.getReader === 'function') {
-          var reader = response.body.getReader();
-          var decoder = new TextDecoder();
-          var buffer = '';
-          var combined = '';
+          try {
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+            var combined = '';
 
-          function applySegment(segment) {
-            if (!segment) return;
-            combined += segment;
-            if (typeof onDelta === 'function') {
-              onDelta(combined, segment);
+            function applySegment(segment) {
+              if (!segment) return;
+              combined += segment;
+              if (typeof onDelta === 'function') {
+                onDelta(combined, segment);
+              }
             }
-          }
 
-          while (true) {
-            var chunk = await reader.read();
-            if (chunk.done) break;
-            buffer += decoder.decode(chunk.value, { stream: true });
+            while (true) {
+              var chunk = await reader.read();
+              if (chunk.done) break;
+              buffer += decoder.decode(chunk.value, { stream: true });
 
-            var newlineIndex = buffer.indexOf('\n');
-            while (newlineIndex !== -1) {
-              var line = buffer.slice(0, newlineIndex).trim();
-              buffer = buffer.slice(newlineIndex + 1);
-              if (line) {
-                try {
-                  var part = JSON.parse(line);
-                  if (part && part.error) {
-                    throw new Error(String(part.error));
-                  }
-                  if (part && part.done === true && typeof part.delta !== 'string') {
-                    continue;
-                  }
-
-                  if (part && typeof part.delta === 'string') {
-                    applySegment(part.delta);
-                  } else {
-                    var segment = extractAssistantText(part);
-                    if (segment) {
-                      applySegment(segment);
+              var newlineIndex = buffer.indexOf('\n');
+              while (newlineIndex !== -1) {
+                var line = buffer.slice(0, newlineIndex).trim();
+                buffer = buffer.slice(newlineIndex + 1);
+                if (line) {
+                  try {
+                    var part = JSON.parse(line);
+                    if (part && part.error) {
+                      throw new Error(String(part.error));
                     }
-                  }
-                } catch (error) {
-                  if (error && error.message && String(error.message).trim()) {
-                    if (/^{/.test(line) && !/Unexpected token|JSON/.test(String(error.message))) {
-                      throw error;
+                    if (part && part.done === true && typeof part.delta !== 'string') {
+                      continue;
+                    }
+
+                    if (part && typeof part.delta === 'string') {
+                      applySegment(part.delta);
+                    } else {
+                      var segment = extractAssistantText(part);
+                      if (segment) {
+                        applySegment(segment);
+                      }
+                    }
+                  } catch (error) {
+                    if (error && error.message && String(error.message).trim()) {
+                      if (/^{/.test(line) && !/Unexpected token|JSON/.test(String(error.message))) {
+                        throw error;
+                      }
                     }
                   }
                 }
+                newlineIndex = buffer.indexOf('\n');
               }
-              newlineIndex = buffer.indexOf('\n');
             }
-          }
 
-          var flushed = decoder.decode();
-          if (flushed) {
-            buffer += flushed;
-          }
-          if (String(buffer || '').trim()) {
+            var flushed = decoder.decode();
+            if (flushed) {
+              buffer += flushed;
+            }
+            if (String(buffer || '').trim()) {
               try {
                 var tail = JSON.parse(buffer.trim());
                 if (tail && tail.error) throw new Error(String(tail.error));
@@ -404,9 +424,18 @@
               } catch (error) {
                 // Ignore non-JSON trailing bytes.
               }
-          }
+            }
 
-          return combined;
+            return combined;
+          } catch (streamError) {
+            if (onDelta) {
+              onDelta('Streaming failed, trying single-response mode...', '');
+            }
+            if (isStreamRecoverableError(streamError)) {
+              return requestAi(Object.assign({}, payload, { stream: false }), null);
+            }
+            throw streamError;
+          }
         }
 
         var raw = await response.text();
