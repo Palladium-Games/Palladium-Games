@@ -1,4 +1,5 @@
 .DS_Store
+.discord-community-bot-state.json
 config/palladium.env
 scramjet-service/node_modules/
 *.log
