@@ -1244,8 +1244,8 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 }
 
 .discord-join-dock__btn {
-  width: min(var(--discord-shell-width), 100%);
-  max-width: min(var(--discord-shell-max), 100%);
+  width: 100%;
+  max-width: 100%;
   margin: 0;
   pointer-events: auto;
   text-decoration: none;
@@ -2948,7 +2948,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   }
 
   .discord-join-dock__btn {
-    width: min(100%, var(--discord-shell-width));
+    width: 100%;
     max-width: 100%;
     border-radius: 14px;
     padding: 0.78rem 0.84rem;
