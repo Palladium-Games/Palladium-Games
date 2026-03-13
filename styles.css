@@ -852,15 +852,29 @@ html[data-theme="neon"] .main::after {
 
 /* ——— Discord page ——— */
 .page--discord {
+  --discord-page-gutter: clamp(0.9rem, 2.2vw, 1.4rem);
+  --discord-shell-width: min(
+    1120px,
+    calc(100vw - var(--nav-width-expanded) - (var(--discord-page-gutter) * 2))
+  );
   padding: clamp(1.1rem, 2vw, 2rem);
+  width: 100%;
   display: flex;
   align-items: stretch;
   justify-content: center;
 }
 
+.nav.nav--collapsed ~ .main .page--discord,
+html.nav-initial-collapsed #nav ~ .main .page--discord {
+  --discord-shell-width: min(
+    1120px,
+    calc(100vw - var(--nav-width-collapsed) - (var(--discord-page-gutter) * 2))
+  );
+}
+
 .discord-present {
   position: relative;
-  width: min(1120px, 100%);
+  width: var(--discord-shell-width);
   margin: 0 auto;
   border: 1px solid var(--border-navy);
   border-radius: 18px;
@@ -1059,9 +1073,9 @@ html[data-theme="neon"] .main::after {
 
 .discord-join-dock {
   position: fixed;
-  left: calc(var(--nav-width-expanded) + clamp(0.9rem, 2.2vw, 1.4rem));
-  right: clamp(0.9rem, 2.2vw, 1.4rem);
-  bottom: clamp(0.9rem, 2.2vw, 1.4rem);
+  left: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
+  right: var(--discord-page-gutter);
+  bottom: var(--discord-page-gutter);
   z-index: 80;
   pointer-events: none;
 }
@@ -1072,7 +1086,7 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
 }
 
 .discord-join-dock__btn {
-  width: min(1120px, 100%);
+  width: min(var(--discord-shell-width), 100%);
   margin: 0 auto;
   pointer-events: auto;
   text-decoration: none;
@@ -1087,9 +1101,9 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
     0 22px 52px rgba(2, 8, 18, 0.65),
     inset 0 1px 0 rgba(255, 255, 255, 0.08),
     inset 0 -1px 0 rgba(88, 101, 242, 0.28);
-  display: grid;
-  grid-template-columns: auto 1fr;
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.88rem;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
@@ -1119,6 +1133,8 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   display: grid;
   gap: 0.14rem;
   min-width: 0;
+  text-align: center;
+  justify-items: center;
 }
 
 .discord-join-dock__title {
@@ -2484,6 +2500,7 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   }
 
   .page--discord {
+    --discord-page-gutter: 0.75rem;
     padding: 0.75rem;
   }
 
@@ -2502,13 +2519,13 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   }
 
   .discord-join-dock {
-    left: calc(var(--nav-width-collapsed) + 0.75rem);
-    right: 0.75rem;
-    bottom: 0.75rem;
+    left: calc(var(--nav-width-collapsed) + var(--discord-page-gutter));
+    right: var(--discord-page-gutter);
+    bottom: var(--discord-page-gutter);
   }
 
   .nav.nav--expanded ~ .main .discord-join-dock {
-    left: calc(var(--nav-width-expanded) + 0.75rem);
+    left: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
   }
 
   .discord-join-dock__btn {
