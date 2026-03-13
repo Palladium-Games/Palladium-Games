@@ -145,14 +145,26 @@ const PROVIDER_SIGNATURES = [
   }
 ];
 
+const UPDATE_RESTART_EXIT_CODE = 42;
+
 const managed = {
   processes: [],
   httpServer: null,
   shuttingDown: false,
   runtime: {},
+  autoPull: {
+    timer: null,
+    branch: "",
+    checking: false,
+    lastRemoteSha: "",
+    lastLocalSha: "",
+    lastLocalBranch: "",
+    lastResult: "not-checked"
+  },
   runtimeStatus: {
     ollama: "disabled",
-    discord: "disabled"
+    discord: "disabled",
+    gitAutoPull: "disabled"
   }
 };
 
@@ -235,7 +247,13 @@ async function main() {
     discordLinkLegacyPollingEnabled: readBool(env, "DISCORD_LINK_LEGACY_POLLING_ENABLED", false),
     discordLinkCommandChannelIds: readString(env, "DISCORD_LINK_COMMAND_CHANNEL_IDS", "1480327216826155059,1480329637660983408"),
     discordWelcomeChannelId: readString(env, "DISCORD_WELCOME_CHANNEL_ID", "1480334877961355304"),
-    discordRulesChannelId: readString(env, "DISCORD_RULES_CHANNEL_ID", "1480324913561862184")
+    discordRulesChannelId: readString(env, "DISCORD_RULES_CHANNEL_ID", "1480324913561862184"),
+
+    autoPullEnabled: readBool(env, "GIT_AUTO_PULL_ENABLED", false),
+    autoPullRemote: readString(env, "GIT_AUTO_PULL_REMOTE", "origin"),
+    autoPullBranch: readString(env, "GIT_AUTO_PULL_BRANCH", ""),
+    autoPullIntervalMs: readInt(env, "GIT_AUTO_PULL_INTERVAL_MS", 120_000),
+    autoPullCommandTimeoutMs: readInt(env, "GIT_AUTO_PULL_COMMAND_TIMEOUT_MS", 90_000)
   };
 
   validatePaths(config);
@@ -254,6 +272,7 @@ async function main() {
 
   await startOllamaIfNeeded(config);
   await startDiscordBotsIfNeeded(config);
+  await startAutoPullLoop(config);
 
   await startHttpServer(config);
 
@@ -264,6 +283,7 @@ async function main() {
   console.log(`Config:   ${config.configPath}`);
   console.log(`Ollama:   ${managed.runtimeStatus.ollama}`);
   console.log(`Discord:  ${managed.runtimeStatus.discord}`);
+  console.log(`GitAuto:  ${managed.runtimeStatus.gitAutoPull}`);
 }
 
 function resolvePath(relativeOrAbsolute) {
@@ -563,6 +583,170 @@ async function startDiscordBotsIfNeeded(config) {
   } else {
     managed.runtimeStatus.discord = `managed (${started} bot${started === 1 ? "" : "s"})`;
   }
+}
+
+async function startAutoPullLoop(config) {
+  if (!config.autoPullEnabled) {
+    managed.runtimeStatus.gitAutoPull = "disabled";
+    return;
+  }
+
+  const remoteName = String(config.autoPullRemote || "origin").trim() || "origin";
+  const intervalMs = Math.max(10_000, config.autoPullIntervalMs);
+  const commandTimeoutMs = Math.max(10_000, config.autoPullCommandTimeoutMs);
+
+  managed.runtimeStatus.gitAutoPull = "initializing";
+
+  try {
+    await ensureGitRepository(config, remoteName);
+
+    const branch = await resolveAutoPullBranch(config, remoteName, commandTimeoutMs);
+    const trackedRef = `${remoteName}/${branch}`;
+    managed.autoPull.branch = branch;
+    managed.runtimeStatus.gitAutoPull = `tracking ${trackedRef}`;
+
+    const state = {
+      remoteName,
+      trackedRef
+    };
+
+    await runAutoPullCycle(config, state, commandTimeoutMs);
+    managed.autoPull.lastResult = "ready";
+    managed.autoPull.timer = setInterval(() => {
+      void runAutoPullCycle(config, state, commandTimeoutMs);
+    }, intervalMs);
+    managed.autoPull.timer.unref();
+  } catch (error) {
+    managed.runtimeStatus.gitAutoPull = `error (${String(error?.message || error || "unknown")})`;
+    console.warn("GitAutoPull disabled due to startup error:", error);
+  }
+}
+
+async function stopAutoPullLoop() {
+  if (managed.autoPull.timer) {
+    clearInterval(managed.autoPull.timer);
+    managed.autoPull.timer = null;
+  }
+}
+
+async function runAutoPullCycle(config, state, commandTimeoutMs) {
+  if (managed.autoPull.checking || managed.shuttingDown) {
+    return;
+  }
+
+  managed.autoPull.checking = true;
+  try {
+    managed.runtimeStatus.gitAutoPull = "checking";
+    await runGitCommand(
+      config,
+      ["fetch", "--prune", "--", state.remoteName],
+      commandTimeoutMs,
+      `git fetch ${state.remoteName}`
+    );
+
+    const localSha = (await runGitCommand(config, ["rev-parse", "HEAD"], commandTimeoutMs, "git rev-parse HEAD")).trim();
+    const remoteSha = (await runGitCommand(
+      config,
+      ["rev-parse", state.trackedRef],
+      commandTimeoutMs,
+      `git rev-parse ${state.trackedRef}`
+    )).trim();
+    const localBranch = (await runGitCommand(config, ["branch", "--show-current"], commandTimeoutMs, "git branch --show-current")).trim();
+
+    managed.autoPull.lastLocalSha = localSha;
+    managed.autoPull.lastRemoteSha = remoteSha;
+    managed.autoPull.lastLocalBranch = localBranch || "HEAD";
+    managed.autoPull.lastResult = localSha === remoteSha ? "up-to-date" : "behind";
+
+    if (localSha === remoteSha) {
+      managed.runtimeStatus.gitAutoPull = `up to date (${state.trackedRef})`;
+      return;
+    }
+
+    managed.runtimeStatus.gitAutoPull = `pulling ${state.trackedRef}`;
+    await runGitCommand(
+      config,
+      ["pull", "--ff-only", state.remoteName, managed.autoPull.branch],
+      commandTimeoutMs,
+      `git pull ${state.remoteName} ${managed.autoPull.branch}`
+    );
+
+    const newLocalSha = (await runGitCommand(config, ["rev-parse", "HEAD"], commandTimeoutMs, "git rev-parse HEAD")).trim();
+    managed.autoPull.lastLocalSha = newLocalSha;
+    managed.autoPull.lastResult = newLocalSha === remoteSha ? "updated" : "updated-unverified";
+    managed.runtimeStatus.gitAutoPull = "updated (restarting)";
+
+    if (newLocalSha === localSha) {
+      managed.runtimeStatus.gitAutoPull = `up to date (${state.trackedRef})`;
+      return;
+    }
+
+    await shutdown(UPDATE_RESTART_EXIT_CODE);
+  } catch (error) {
+    managed.runtimeStatus.gitAutoPull = `error (${String(error?.message || error || "unknown")})`;
+    console.warn("GitAutoPull check failed:", error);
+  } finally {
+    managed.autoPull.checking = false;
+  }
+}
+
+async function resolveAutoPullBranch(config, remoteName, commandTimeoutMs) {
+  const requested = String(config.autoPullBranch || "").trim();
+  if (requested) {
+    return requested;
+  }
+
+  const remoteHead = await runGitCommand(
+    config,
+    ["symbolic-ref", "--short", `refs/remotes/${remoteName}/HEAD`],
+    commandTimeoutMs,
+    "git symbolic-ref refs/remotes/*/HEAD"
+  ).catch(() => "");
+  const remoteBranch = String(remoteHead || "").trim().replace(/^.*\//, "");
+  if (remoteBranch) {
+    return remoteBranch;
+  }
+
+  const local = await runGitCommand(
+    config,
+    ["branch", "--show-current"],
+    commandTimeoutMs,
+    "git branch --show-current"
+  ).catch(() => "");
+  return String(local || "main").trim();
+}
+
+async function ensureGitRepository(config, remoteName) {
+  const isRepo = await runGitCommand(
+    config,
+    ["rev-parse", "--is-inside-work-tree"],
+    Math.max(10_000, config.autoPullCommandTimeoutMs),
+    "git rev-parse --is-inside-work-tree"
+  ).catch(() => "");
+
+  if (String(isRepo || "").trim() !== "true") {
+    throw new Error(`Not a git repository: ${config.rootDir}`);
+  }
+
+  const remoteOutput = await runGitCommand(
+    config,
+    ["remote"],
+    Math.max(10_000, config.autoPullCommandTimeoutMs),
+    "git remote"
+  ).catch(() => "");
+  const remotes = String(remoteOutput || "")
+    .split(/\r?\n/)
+    .map((line) => String(line).trim())
+    .filter(Boolean);
+
+  const expectedRemote = String(remoteName || "origin").trim();
+  if (!remotes.includes(expectedRemote)) {
+    throw new Error(`Remote '${expectedRemote}' is not configured for repository '${config.rootDir}'.`);
+  }
+}
+
+function runGitCommand(config, args, timeoutMs, label) {
+  return runCommandWithOutput(config.rootDir, "git", args, timeoutMs, label);
 }
 
 function spawnBot(config, scriptName, extraEnv, botName) {
@@ -1814,6 +1998,64 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function runCommandWithOutput(cwd, command, args, timeoutMs, label) {
+  const normalizedCommand = String(command || "").trim() || "command";
+  const normalizedArgs = Array.isArray(args) ? args : [];
+  const timeoutSeconds = Math.max(1, Math.ceil((Number(timeoutMs) || 0) / 1000));
+
+  return new Promise((resolve, reject) => {
+    const child = spawn(normalizedCommand, normalizedArgs, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: process.env
+    });
+
+    const chunks = [];
+    const errors = [];
+    const safeLabel = String(label || normalizedCommand).trim() || normalizedCommand;
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`${safeLabel} timed out after ${timeoutSeconds}s.`));
+    }, Math.max(1_000, timeoutSeconds * 1000));
+
+    child.stdout?.on("data", (chunk) => {
+      chunks.push(String(chunk));
+    });
+    child.stderr?.on("data", (chunk) => {
+      errors.push(String(chunk));
+    });
+
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+
+      if (error) {
+        const details = errors.join("");
+        const reason = details ? `${error.message || "command failed"}: ${details}` : String(error.message || error);
+        reject(new Error(reason));
+        return;
+      }
+
+      resolve(chunks.join(""));
+    };
+
+    child.once("error", (error) => finish(error));
+    child.once("exit", (code) => {
+      if (code === 0) {
+        finish();
+      } else {
+        const reason = errors.join("");
+        finish(new Error(`Command ${safeLabel} failed with exit code ${code}. ${reason}`.trim()));
+      }
+    });
+  });
+}
+
 function runCommandWithTimeout(command, args, options, label) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
@@ -2357,6 +2599,7 @@ async function shutdown(exitCode) {
     return;
   }
   managed.shuttingDown = true;
+  await stopAutoPullLoop();
 
   if (managed.runtime.config) {
     try {

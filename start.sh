@@ -10,4 +10,16 @@ if [[ ! -f "config/palladium.env" ]]; then
   echo "Created config/palladium.env from template. Fill in tokens and settings as needed."
 fi
 
-exec node apps.js
+while true; do
+  set +e
+  node apps.js
+  EXIT_CODE=$?
+  set -e
+
+  if [[ "$EXIT_CODE" == "42" ]]; then
+    echo "Git update pulled and applied. Restarting server..."
+    continue
+  fi
+
+  exit "$EXIT_CODE"
+done

@@ -77,6 +77,25 @@ If you host frontend and backend on different domains, frontend can target backe
 https://your-frontend.example/?backend=https://your-backend.example
 ```
 
+## Automatic Git Updates
+
+Enable automatic updates so a new push to your repository auto-pulls and restarts the app:
+
+1. Set `GIT_AUTO_PULL_ENABLED=true` in `config/palladium.env`.
+2. Confirm `GIT_AUTO_PULL_REMOTE=origin` and `GIT_AUTO_PULL_BRANCH=` (or set your branch explicitly).
+3. Start with `./start.sh`.
+
+Behavior:
+
+- `apps.js` polls `git fetch` every `GIT_AUTO_PULL_INTERVAL_MS`.
+- If remote `HEAD` differs from local `HEAD`, it runs `git pull --ff-only`.
+- After a successful pull, the process exits with `42` and `start.sh` restarts automatically.
+
+Useful knobs:
+
+- `GIT_AUTO_PULL_INTERVAL_MS` (default `120000`)
+- `GIT_AUTO_PULL_COMMAND_TIMEOUT_MS` (default `90000`)
+
 ## Games
 
 We source our games from GN-Math (`gn-math.dev`) and other websites.
