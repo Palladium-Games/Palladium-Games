@@ -85,18 +85,15 @@
             </div>
           </section>
 
-          <section class="discord-card">
-            <h3 class="discord-card__title">Channels</h3>
-            <ul id="discord-channel-list" class="discord-list">
-              <li class="discord-list__empty">Loading channels...</li>
-            </ul>
-          </section>
-
-          <section class="discord-card">
-            <h3 class="discord-card__title">Members Online</h3>
-            <ul id="discord-member-list" class="discord-member-list">
-              <li class="discord-list__empty">Loading members...</li>
-            </ul>
+          <section class="discord-card discord-card--ticker">
+            <h3 class="discord-card__title">Live Tags</h3>
+            <div class="discord-ticker" id="discord-ticker" aria-live="polite">
+              <div class="discord-ticker__track" id="discord-ticker-track">
+                <div class="discord-ticker__lane">
+                  <span class="discord-tag">Loading tags...</span>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </div>
@@ -119,8 +116,7 @@
       var onlineCountEl = document.getElementById('discord-online-count');
       var membersCountEl = document.getElementById('discord-members-count');
       var channelsCountEl = document.getElementById('discord-channels-count');
-      var channelsListEl = document.getElementById('discord-channel-list');
-      var membersListEl = document.getElementById('discord-member-list');
+      var tickerTrackEl = document.getElementById('discord-ticker-track');
       var refreshBtn = document.getElementById('discord-refresh-btn');
 
       function setStatus(text, isError) {
@@ -139,75 +135,76 @@
         el.textContent = String(text == null ? '' : text);
       }
 
-      function renderChannels(channels) {
-        if (!channelsListEl) return;
-        channelsListEl.innerHTML = '';
-
-        var safeChannels = Array.isArray(channels) ? channels.slice() : [];
-        safeChannels.sort(function (a, b) {
-          return Number(a && a.position || 0) - Number(b && b.position || 0);
-        });
-
-        if (!safeChannels.length) {
-          var empty = document.createElement('li');
-          empty.className = 'discord-list__empty';
-          empty.textContent = 'No channels available from the widget.';
-          channelsListEl.appendChild(empty);
-          return;
+      function uniqueTags(tags) {
+        var seen = {};
+        var out = [];
+        for (var i = 0; i < tags.length; i += 1) {
+          var value = String(tags[i] || '').trim();
+          if (!value) continue;
+          var key = value.toLowerCase();
+          if (seen[key]) continue;
+          seen[key] = true;
+          out.push(value);
         }
-
-        for (var i = 0; i < safeChannels.length; i += 1) {
-          var channel = safeChannels[i] || {};
-          var li = document.createElement('li');
-          li.className = 'discord-list__item';
-          var prefix = channel.id ? '#' : '';
-          li.textContent = prefix + String(channel.name || 'unknown-channel');
-          channelsListEl.appendChild(li);
-        }
+        return out;
       }
 
-      function renderMembers(members) {
-        if (!membersListEl) return;
-        membersListEl.innerHTML = '';
+      function buildTags(widget, onlineCount, members, channels) {
+        var tags = [];
+        tags.push('Server: ' + String(widget.name || 'Palladium Games'));
+        tags.push('Online: ' + String(onlineCount));
+        tags.push('Members listed: ' + String(members.length));
+        tags.push('Channels: ' + String(channels.length));
 
-        var safeMembers = Array.isArray(members) ? members : [];
-        if (!safeMembers.length) {
-          var empty = document.createElement('li');
-          empty.className = 'discord-list__empty';
-          empty.textContent = 'No visible online members right now.';
-          membersListEl.appendChild(empty);
+        for (var i = 0; i < channels.length && i < 18; i += 1) {
+          var channel = channels[i] || {};
+          if (channel.name) tags.push('#' + String(channel.name));
+        }
+
+        for (var j = 0; j < members.length && j < 28; j += 1) {
+          var member = members[j] || {};
+          var user = String(member.username || '').trim();
+          if (!user) continue;
+          var presence = String(member.status || 'online').trim();
+          tags.push('@' + user + ' (' + presence + ')');
+        }
+
+        return uniqueTags(tags).slice(0, 42);
+      }
+
+      function renderTicker(tags) {
+        if (!tickerTrackEl) return;
+
+        var safeTags = Array.isArray(tags) ? tags : [];
+        if (!safeTags.length) {
+          tickerTrackEl.innerHTML = '<div class="discord-ticker__lane"><span class="discord-tag">No tags available.</span></div>';
+          tickerTrackEl.style.setProperty('--ticker-duration', '20s');
           return;
         }
 
-        var maxMembers = Math.min(safeMembers.length, 24);
-        for (var i = 0; i < maxMembers; i += 1) {
-          var member = safeMembers[i] || {};
-          var li = document.createElement('li');
-          li.className = 'discord-member';
+        var laneA = document.createElement('div');
+        laneA.className = 'discord-ticker__lane';
+        var laneB = document.createElement('div');
+        laneB.className = 'discord-ticker__lane';
+        laneB.setAttribute('aria-hidden', 'true');
 
-          var img = document.createElement('img');
-          img.className = 'discord-member__avatar';
-          img.loading = 'lazy';
-          img.src = member.avatar_url || 'images/discord.png';
-          img.alt = '';
-          li.appendChild(img);
+        for (var i = 0; i < safeTags.length; i += 1) {
+          var text = safeTags[i];
+          var pillA = document.createElement('span');
+          pillA.className = 'discord-tag';
+          pillA.textContent = text;
+          laneA.appendChild(pillA);
 
-          var textWrap = document.createElement('div');
-          textWrap.className = 'discord-member__text';
-
-          var nameEl = document.createElement('span');
-          nameEl.className = 'discord-member__name';
-          nameEl.textContent = member.username || 'Unknown member';
-          textWrap.appendChild(nameEl);
-
-          var statusEl = document.createElement('span');
-          statusEl.className = 'discord-member__status';
-          statusEl.textContent = member.status ? String(member.status) : 'online';
-          textWrap.appendChild(statusEl);
-
-          li.appendChild(textWrap);
-          membersListEl.appendChild(li);
+          var pillB = document.createElement('span');
+          pillB.className = 'discord-tag';
+          pillB.textContent = text;
+          laneB.appendChild(pillB);
         }
+
+        tickerTrackEl.innerHTML = '';
+        tickerTrackEl.appendChild(laneA);
+        tickerTrackEl.appendChild(laneB);
+        tickerTrackEl.style.setProperty('--ticker-duration', String(Math.max(20, safeTags.length * 2.1)) + 's');
       }
 
       function renderWidget(widget, inviteUrl) {
@@ -221,8 +218,7 @@
         fillText(membersCountEl, members.length);
         fillText(channelsCountEl, channels.length);
         setInvite(inviteUrl || safeWidget.instant_invite || INVITE_FALLBACK_URL);
-        renderChannels(channels);
-        renderMembers(members);
+        renderTicker(buildTags(safeWidget, onlineCount, members, channels));
 
         if (serverIconEl && safeWidget.icon_url) {
           serverIconEl.src = safeWidget.icon_url;
