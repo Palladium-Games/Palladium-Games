@@ -1414,6 +1414,18 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   text-transform: uppercase;
 }
 
+.games-section-head {
+  margin-bottom: 0.78rem;
+}
+
+.games-section-head__title {
+  font-size: 0.88rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #dbeafe;
+  font-weight: 700;
+}
+
 .games-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
