@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <script>
+    (function(){
+      try {
+        var stored = sessionStorage.getItem('palladium-nav-expanded');
+        document.documentElement.classList.add(stored === '1' ? 'nav-initial-expanded' : 'nav-initial-collapsed');
+      } catch (e) {}
+    })();
+  </script>
+  <title>Discord — Palladium Games</title>
+  <link rel="icon" href="images/favicon.png?v=3" type="image/png" />
+  <link rel="shortcut icon" href="favicon.ico?v=3" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="images/favicon.png?v=3" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <nav id="nav" class="nav">
+      <div class="nav__toggle">
+        <button type="button" id="nav-toggle" class="nav__toggle-btn" aria-label="Toggle menu">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h12"/><path d="M4 17h16"/></svg>
+        </button>
+      </div>
+      <div class="nav__logo">
+        <img src="images/favicon.png" alt="Palladium" class="nav__logo-icon" />
+        <span class="nav__logo-text">PALLADIUM</span>
+      </div>
+      <div class="nav__links">
+        <a href="index.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20h14V9.5"/><path d="M9 20v-5h6v5"/></svg>
+          <span class="nav__link-text">Home</span>
+        </a>
+        <a href="games.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="18" height="9" rx="4.5"/><path d="M8 13h4"/><path d="M10 11v4"/><circle cx="15.5" cy="12.5" r="1"/><circle cx="18" cy="14.5" r="1"/></svg>
+          <span class="nav__link-text">Games</span>
+        </a>
+        <a href="proxy.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M4.5 9h15"/><path d="M4.5 15h15"/><path d="M12 4a12 12 0 0 1 0 16"/><path d="M12 4a12 12 0 0 0 0 16"/></svg>
+          <span class="nav__link-text">Proxy</span>
+        </a>
+        <a href="ai.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="11" rx="3"/><path d="M12 7V4"/><path d="M9 4h6"/><circle cx="9.5" cy="12.5" r="1"/><circle cx="14.5" cy="12.5" r="1"/><path d="M8.5 15.5h7"/></svg>
+          <span class="nav__link-text">AI</span>
+        </a>
+        <a href="music.html" class="nav__link">
+          <svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M9 17.8V6.5l10-2V16"/><circle cx="7" cy="18" r="2.4"/><circle cx="17" cy="16" r="2.4"/></svg>
+          <span class="nav__link-text">Music</span>
+        </a>
+      </div>
+    </nav>
+
+    <main class="main">
+      <div class="page page--discord">
+        <h1 class="page__title">DISCORD</h1>
+        <div class="discord-page">
+          <section class="discord-card discord-card--summary">
+            <div class="discord-summary__header">
+              <img id="discord-server-icon" class="discord-summary__icon" src="images/discord.png" alt="Discord server icon" />
+              <div>
+                <h2 id="discord-server-name" class="discord-summary__name">Palladium Games</h2>
+                <p id="discord-server-status" class="discord-summary__status">Loading widget data...</p>
+              </div>
+            </div>
+            <div class="discord-summary__actions">
+              <a id="discord-invite-link" class="player-bar__btn" href="https://discord.gg/FNACSCcE26" target="_blank" rel="noopener noreferrer">Join Server</a>
+              <button id="discord-refresh-btn" class="player-bar__btn" type="button">Refresh</button>
+            </div>
+            <div class="discord-metrics">
+              <div class="discord-metric">
+                <span class="discord-metric__label">Online</span>
+                <span id="discord-online-count" class="discord-metric__value">0</span>
+              </div>
+              <div class="discord-metric">
+                <span class="discord-metric__label">Members Listed</span>
+                <span id="discord-members-count" class="discord-metric__value">0</span>
+              </div>
+              <div class="discord-metric">
+                <span class="discord-metric__label">Channels</span>
+                <span id="discord-channels-count" class="discord-metric__value">0</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="discord-card">
+            <h3 class="discord-card__title">Channels</h3>
+            <ul id="discord-channel-list" class="discord-list">
+              <li class="discord-list__empty">Loading channels...</li>
+            </ul>
+          </section>
+
+          <section class="discord-card">
+            <h3 class="discord-card__title">Members Online</h3>
+            <ul id="discord-member-list" class="discord-member-list">
+              <li class="discord-list__empty">Loading members...</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="site-settings.js"></script>
+  <script src="backend.js"></script>
+  <script src="nav.js"></script>
+  <script>
+    (function () {
+      var WIDGET_FALLBACK_URL = 'https://discord.com/api/guilds/1479914434460913707/widget.json';
+      var INVITE_FALLBACK_URL = 'https://discord.gg/FNACSCcE26';
+      var WIDGET_ENDPOINT = '/api/discord/widget';
+
+      var serverNameEl = document.getElementById('discord-server-name');
+      var serverStatusEl = document.getElementById('discord-server-status');
+      var serverIconEl = document.getElementById('discord-server-icon');
+      var inviteLinkEl = document.getElementById('discord-invite-link');
+      var onlineCountEl = document.getElementById('discord-online-count');
+      var membersCountEl = document.getElementById('discord-members-count');
+      var channelsCountEl = document.getElementById('discord-channels-count');
+      var channelsListEl = document.getElementById('discord-channel-list');
+      var membersListEl = document.getElementById('discord-member-list');
+      var refreshBtn = document.getElementById('discord-refresh-btn');
+
+      function setStatus(text, isError) {
+        if (!serverStatusEl) return;
+        serverStatusEl.textContent = String(text || '');
+        serverStatusEl.classList.toggle('discord-summary__status--error', Boolean(isError));
+      }
+
+      function setInvite(url) {
+        var href = String(url || '').trim() || INVITE_FALLBACK_URL;
+        if (inviteLinkEl) inviteLinkEl.href = href;
+      }
+
+      function fillText(el, text) {
+        if (!el) return;
+        el.textContent = String(text == null ? '' : text);
+      }
+
+      function renderChannels(channels) {
+        if (!channelsListEl) return;
+        channelsListEl.innerHTML = '';
+
+        var safeChannels = Array.isArray(channels) ? channels.slice() : [];
+        safeChannels.sort(function (a, b) {
+          return Number(a && a.position || 0) - Number(b && b.position || 0);
+        });
+
+        if (!safeChannels.length) {
+          var empty = document.createElement('li');
+          empty.className = 'discord-list__empty';
+          empty.textContent = 'No channels available from the widget.';
+          channelsListEl.appendChild(empty);
+          return;
+        }
+
+        for (var i = 0; i < safeChannels.length; i += 1) {
+          var channel = safeChannels[i] || {};
+          var li = document.createElement('li');
+          li.className = 'discord-list__item';
+          var prefix = channel.id ? '#' : '';
+          li.textContent = prefix + String(channel.name || 'unknown-channel');
+          channelsListEl.appendChild(li);
+        }
+      }
+
+      function renderMembers(members) {
+        if (!membersListEl) return;
+        membersListEl.innerHTML = '';
+
+        var safeMembers = Array.isArray(members) ? members : [];
+        if (!safeMembers.length) {
+          var empty = document.createElement('li');
+          empty.className = 'discord-list__empty';
+          empty.textContent = 'No visible online members right now.';
+          membersListEl.appendChild(empty);
+          return;
+        }
+
+        var maxMembers = Math.min(safeMembers.length, 24);
+        for (var i = 0; i < maxMembers; i += 1) {
+          var member = safeMembers[i] || {};
+          var li = document.createElement('li');
+          li.className = 'discord-member';
+
+          var img = document.createElement('img');
+          img.className = 'discord-member__avatar';
+          img.loading = 'lazy';
+          img.src = member.avatar_url || 'images/discord.png';
+          img.alt = '';
+          li.appendChild(img);
+
+          var textWrap = document.createElement('div');
+          textWrap.className = 'discord-member__text';
+
+          var nameEl = document.createElement('span');
+          nameEl.className = 'discord-member__name';
+          nameEl.textContent = member.username || 'Unknown member';
+          textWrap.appendChild(nameEl);
+
+          var statusEl = document.createElement('span');
+          statusEl.className = 'discord-member__status';
+          statusEl.textContent = member.status ? String(member.status) : 'online';
+          textWrap.appendChild(statusEl);
+
+          li.appendChild(textWrap);
+          membersListEl.appendChild(li);
+        }
+      }
+
+      function renderWidget(widget, inviteUrl) {
+        var safeWidget = widget && typeof widget === 'object' ? widget : {};
+        var members = Array.isArray(safeWidget.members) ? safeWidget.members : [];
+        var channels = Array.isArray(safeWidget.channels) ? safeWidget.channels : [];
+        var onlineCount = Number(safeWidget.presence_count || members.length || 0);
+
+        fillText(serverNameEl, safeWidget.name || 'Palladium Games');
+        fillText(onlineCountEl, onlineCount);
+        fillText(membersCountEl, members.length);
+        fillText(channelsCountEl, channels.length);
+        setInvite(inviteUrl || safeWidget.instant_invite || INVITE_FALLBACK_URL);
+        renderChannels(channels);
+        renderMembers(members);
+
+        if (serverIconEl && safeWidget.icon_url) {
+          serverIconEl.src = safeWidget.icon_url;
+        }
+
+        setStatus('Live data updated.', false);
+      }
+
+      async function loadFromBackend() {
+        var response = await fetch(WIDGET_ENDPOINT, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Backend widget endpoint returned ' + response.status + '.');
+        }
+        var payload = await response.json();
+        if (!payload || !payload.ok || !payload.widget) {
+          throw new Error('Backend widget payload was invalid.');
+        }
+        return payload;
+      }
+
+      async function loadDirectWidget() {
+        var response = await fetch(WIDGET_FALLBACK_URL, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('Widget URL returned ' + response.status + '.');
+        }
+        var widget = await response.json();
+        if (!widget || typeof widget !== 'object') {
+          throw new Error('Widget response was invalid.');
+        }
+        return {
+          ok: true,
+          inviteUrl: widget.instant_invite || INVITE_FALLBACK_URL,
+          widget: widget
+        };
+      }
+
+      async function refreshWidget() {
+        setStatus('Refreshing widget...', false);
+        try {
+          var payload = await loadFromBackend();
+          renderWidget(payload.widget, payload.inviteUrl);
+          return;
+        } catch (backendError) {
+          try {
+            var fallbackPayload = await loadDirectWidget();
+            renderWidget(fallbackPayload.widget, fallbackPayload.inviteUrl);
+            setStatus('Loaded direct widget fallback.', false);
+            return;
+          } catch (directError) {
+            console.warn('Discord widget load failed:', backendError, directError);
+          }
+        }
+
+        setStatus('Could not load Discord widget right now.', true);
+      }
+
+      if (refreshBtn) {
+        refreshBtn.addEventListener('click', function () {
+          refreshWidget();
+        });
+      }
+
+      refreshWidget();
+    })();
+  </script>
+</body>
+</html>

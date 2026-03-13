@@ -829,115 +829,6 @@ html[data-theme="neon"] .main::after {
   color: var(--accent-bright);
 }
 
-/* ——— Discord notification popup ——— */
-.discord-notification {
-  position: fixed;
-  bottom: 2.5rem;
-  right: 1rem;
-  z-index: 100;
-  max-width: 280px;
-}
-
-.discord-notification[hidden] {
-  display: none;
-}
-
-.discord-notification__card {
-  position: relative;
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  padding: 0.6rem 2rem 0.6rem 0.75rem;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.6rem;
-  transform: translateY(16px);
-  opacity: 0;
-  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.35s ease-out;
-}
-
-.discord-notification__img {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
-  flex-shrink: 0;
-  border-radius: 4px;
-}
-
-.discord-notification__body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  min-width: 0;
-}
-
-.discord-notification--visible .discord-notification__card {
-  transform: translateY(0);
-  opacity: 1;
-}
-
-.discord-notification--hiding .discord-notification__card {
-  transform: translateY(16px);
-  opacity: 0;
-}
-
-.discord-notification__close {
-  position: absolute;
-  top: 0.25rem;
-  right: 0.25rem;
-  width: 1.25rem;
-  height: 1.25rem;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: var(--palladium-dim);
-  font-size: 1.1rem;
-  line-height: 1;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: color 0.15s, background 0.15s;
-}
-
-.discord-notification__close:hover {
-  color: var(--palladium);
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.discord-notification__title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--palladium);
-}
-
-.discord-notification__desc {
-  font-size: 0.7rem;
-  font-weight: 400;
-  color: var(--palladium-dim);
-}
-
-.discord-notification__btn {
-  display: inline-block;
-  margin-top: 0.2rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--palladium);
-  background: var(--accent-bright);
-  border: none;
-  border-radius: 4px;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background 0.2s;
-  align-self: flex-start;
-}
-
-.discord-notification__btn:hover {
-  background: #3b82f6;
-}
-
 /* ——— Page content (games, placeholders) ——— */
 .page {
   flex: 1;
@@ -950,6 +841,181 @@ html[data-theme="neon"] .main::after {
   letter-spacing: 0.1em;
   margin-bottom: 1.5rem;
   color: var(--palladium);
+}
+
+/* ——— Discord page ——— */
+.page--discord {
+  padding: 1.5rem 2rem;
+}
+
+.discord-page {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.discord-card {
+  grid-column: span 6;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  min-height: 260px;
+}
+
+.discord-card--summary {
+  grid-column: span 12;
+  min-height: 0;
+}
+
+.discord-summary__header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.discord-summary__icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.discord-summary__name {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--palladium);
+}
+
+.discord-summary__status {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--palladium-dim);
+}
+
+.discord-summary__status--error {
+  color: #fca5a5;
+}
+
+.discord-summary__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.discord-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.discord-metric {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-card);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.discord-metric__label {
+  font-size: 0.75rem;
+  color: var(--palladium-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.discord-metric__value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--palladium);
+}
+
+.discord-card__title {
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
+  color: var(--palladium-dim);
+  text-transform: uppercase;
+}
+
+.discord-list {
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.discord-list__item {
+  padding: 0.55rem 0.65rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  color: var(--palladium);
+  font-size: 0.9rem;
+}
+
+.discord-list__empty {
+  color: var(--palladium-dim);
+  font-size: 0.9rem;
+  padding: 0.5rem 0.25rem;
+}
+
+.discord-member-list {
+  list-style: none;
+  display: grid;
+  gap: 0.55rem;
+}
+
+.discord-member {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: var(--radius);
+  padding: 0.5rem 0.55rem;
+}
+
+.discord-member__avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+}
+
+.discord-member__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
+}
+
+.discord-member__name {
+  color: var(--palladium);
+  font-size: 0.88rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.discord-member__status {
+  color: var(--palladium-dim);
+  text-transform: capitalize;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 1200px) {
+  .discord-card {
+    grid-column: span 12;
+  }
 }
 
 /* ——— Game cards grid ——— */
@@ -2128,6 +2194,19 @@ html[data-theme="neon"] .main::after {
 
   .ai-input-row {
     grid-template-columns: 1fr;
+  }
+
+  .page--discord {
+    padding: 0.75rem;
+  }
+
+  .discord-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .discord-card {
+    grid-column: span 12;
+    min-height: 0;
   }
 
   .page--settings {

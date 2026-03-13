@@ -1,6 +1,7 @@
 (function () {
   var NAV_KEY = 'palladium-nav-expanded';
   var nav = document.getElementById('nav');
+  var DISCORD_HREF = 'discord.html';
   var btn = document.getElementById('nav-toggle');
   var SETTINGS_HREF = 'settings.html';
 
@@ -22,6 +23,17 @@
     setExpanded(!getExpanded());
   }
 
+  function discordLinkMarkup() {
+    return (
+      '<svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M7 8h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3h-5l-4 3v-3H7a3 3 0 0 1-3-3v-4a3 3 0 0 1 3-3z"></path>' +
+      '<circle cx="10" cy="13" r="1"></circle>' +
+      '<circle cx="14" cy="13" r="1"></circle>' +
+      '</svg>' +
+      '<span class="nav__link-text">Discord</span>'
+    );
+  }
+
   function settingsLinkMarkup() {
     return (
       '<svg class="nav__link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
@@ -32,17 +44,26 @@
     );
   }
 
-  function ensureSettingsLink() {
+  function ensureNavLink(href, markup, insertBeforeHref) {
     if (!nav) return;
     var links = nav.querySelector('.nav__links');
     if (!links) return;
 
-    if (links.querySelector('a[href="' + SETTINGS_HREF + '"]')) return;
+    if (links.querySelector('a[href="' + href + '"]')) return;
 
     var link = document.createElement('a');
-    link.href = SETTINGS_HREF;
+    link.href = href;
     link.className = 'nav__link';
-    link.innerHTML = settingsLinkMarkup();
+    link.innerHTML = markup;
+
+    if (insertBeforeHref) {
+      var before = links.querySelector('a[href="' + insertBeforeHref + '"]');
+      if (before) {
+        links.insertBefore(link, before);
+        return;
+      }
+    }
+
     links.appendChild(link);
   }
 
@@ -72,7 +93,8 @@
   }
 
   if (nav && btn) {
-    ensureSettingsLink();
+    ensureNavLink(SETTINGS_HREF, settingsLinkMarkup());
+    ensureNavLink(DISCORD_HREF, discordLinkMarkup(), SETTINGS_HREF);
     syncActiveLink();
     setExpanded(getExpanded());
     document.documentElement.classList.remove('nav-initial-collapsed', 'nav-initial-expanded');

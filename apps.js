@@ -34,6 +34,8 @@ const MIME_TYPES = {
 const BROWSER_FETCH_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const DEFAULT_DISCORD_WIDGET_URL = "https://discord.com/api/guilds/1479914434460913707/widget.json";
+const DEFAULT_DISCORD_INVITE_URL = "https://discord.gg/FNACSCcE26";
 
 const STATIC_BLOCKED_ROOTS = new Set([
   ".git",
@@ -177,6 +179,8 @@ async function main() {
     aiRequestTimeoutMs: readInt(env, "AI_REQUEST_TIMEOUT_MS", 120_000),
     monochromeBaseUrl: readString(env, "MONOCHROME_BASE_URL", "https://monochrome.tf"),
     proxyBaseUrl: readString(env, "PROXY_BASE_URL", ""),
+    discordWidgetUrl: readString(env, "DISCORD_WIDGET_URL", DEFAULT_DISCORD_WIDGET_URL),
+    discordInviteUrl: readString(env, "DISCORD_INVITE_URL", DEFAULT_DISCORD_INVITE_URL),
 
     ollamaBaseUrl: readString(env, "OLLAMA_BASE_URL", "http://127.0.0.1:11434"),
     ollamaModel: readString(env, "OLLAMA_MODEL", "qwen3.5:0.8b"),
@@ -640,6 +644,7 @@ async function routeRequest(req, res, config) {
           "api/games",
           "api/proxy/fetch",
           "api/ai/chat",
+          "api/discord/widget",
           "link-check"
         ]
       },
@@ -687,6 +692,8 @@ async function routeRequest(req, res, config) {
           commitBotConfigured: Boolean(config.discordCommitBotToken),
           linkBotConfigured: Boolean(config.discordLinkBotToken),
           communityBotConfigured: Boolean(config.discordCommunityBotToken),
+          inviteUrl: config.discordInviteUrl,
+          widgetUrl: config.discordWidgetUrl,
           commitChannelId: config.discordCommitChannelId,
           linkCommandChannelIds: config.discordLinkCommandChannelIds,
           welcomeChannelId: config.discordWelcomeChannelId,
@@ -735,6 +742,88 @@ async function routeRequest(req, res, config) {
   if (url.pathname === "/api/categories" && (method === "GET" || method === "HEAD")) {
     const categories = countCategories(await loadGamesCatalog(config));
     sendJson(res, 200, { ok: true, count: categories.length, categories }, config, method === "HEAD");
+    return;
+  }
+
+  if (url.pathname === "/api/discord/widget" && (method === "GET" || method === "HEAD")) {
+    const widgetUrl = normalizeUserUrl(config.discordWidgetUrl);
+    if (!widgetUrl) {
+      sendJson(res, 500, { ok: false, error: "Discord widget URL is not configured." }, config, method === "HEAD");
+      return;
+    }
+
+    try {
+      const upstream = await fetch(widgetUrl, {
+        method: "GET",
+        headers: {
+          "user-agent": BROWSER_FETCH_USER_AGENT,
+          accept: "application/json, text/plain;q=0.9, */*;q=0.8"
+        },
+        redirect: "follow",
+        signal: AbortSignal.timeout(Math.max(5_000, Math.min(30_000, config.requestTimeoutMs)))
+      });
+      const bodyText = await upstream.text();
+      const parsed = parseJsonObject(bodyText);
+
+      if (!upstream.ok) {
+        sendJson(
+          res,
+          upstream.status || 502,
+          {
+            ok: false,
+            error: `Discord widget request failed (${upstream.status}).`,
+            source: widgetUrl,
+            inviteUrl: config.discordInviteUrl
+          },
+          config,
+          method === "HEAD"
+        );
+        return;
+      }
+
+      if (!parsed || typeof parsed !== "object") {
+        sendJson(
+          res,
+          502,
+          {
+            ok: false,
+            error: "Discord widget returned invalid JSON.",
+            source: widgetUrl,
+            inviteUrl: config.discordInviteUrl
+          },
+          config,
+          method === "HEAD"
+        );
+        return;
+      }
+
+      sendJson(
+        res,
+        200,
+        {
+          ok: true,
+          source: widgetUrl,
+          inviteUrl: config.discordInviteUrl,
+          fetchedAt: new Date().toISOString(),
+          widget: parsed
+        },
+        config,
+        method === "HEAD"
+      );
+    } catch (error) {
+      sendJson(
+        res,
+        502,
+        {
+          ok: false,
+          error: String(error?.message || "Failed to fetch Discord widget."),
+          source: widgetUrl,
+          inviteUrl: config.discordInviteUrl
+        },
+        config,
+        method === "HEAD"
+      );
+    }
     return;
   }
 

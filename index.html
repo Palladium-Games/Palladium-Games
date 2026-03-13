@@ -68,17 +68,6 @@
       </section>
     </main>
   </div>
-  <div id="discord-notification" class="discord-notification" role="dialog" aria-label="Join Discord" aria-modal="true" hidden>
-    <div class="discord-notification__card">
-      <button type="button" class="discord-notification__close" aria-label="Dismiss">×</button>
-      <img src="images/discord.png" alt="" class="discord-notification__img" />
-      <div class="discord-notification__body">
-        <span class="discord-notification__title">Join The Discord!</span>
-        <span class="discord-notification__desc">Updates, community & more.</span>
-        <a href="https://discord.gg/FNACSCcE26" target="_blank" rel="noopener noreferrer" class="discord-notification__btn">JOIN</a>
-      </div>
-    </div>
-  </div>
   <time id="footer-time" class="footer-time" aria-live="polite"></time>
   <a href="https://github.com/Palladium-Games" target="_blank" rel="noopener noreferrer" class="footer-github" aria-label="Palladium Games on GitHub">GitHub</a>
   <script>
@@ -103,51 +92,5 @@
   <script src="site-settings.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
-  <script>
-    (function() {
-      try {
-        if (sessionStorage.getItem('palladium-discord-dismissed')) return;
-        var el = document.getElementById('discord-notification');
-        if (!el) return;
-        var close = el.querySelector('.discord-notification__close');
-        var joinBtn = el.querySelector('.discord-notification__btn');
-        var discordUrl = 'https://discord.gg/FNACSCcE26';
-        var duration = 350;
-
-        function finishHide() {
-          el.setAttribute('hidden', '');
-          el.classList.remove('discord-notification--visible', 'discord-notification--hiding');
-          try { sessionStorage.setItem('palladium-discord-dismissed', '1'); } catch (e) {}
-        }
-
-        function hide(openLink) {
-          if (el.classList.contains('discord-notification--hiding')) return;
-          el.classList.remove('discord-notification--visible');
-          el.classList.add('discord-notification--hiding');
-          setTimeout(function() {
-            finishHide();
-            if (openLink) window.open(discordUrl, '_blank', 'noopener,noreferrer');
-          }, duration);
-        }
-
-        if (close) close.addEventListener('click', function() { hide(false); });
-        if (joinBtn) {
-          joinBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            hide(true);
-          });
-        }
-
-        setTimeout(function() {
-          el.removeAttribute('hidden');
-          requestAnimationFrame(function() {
-            requestAnimationFrame(function() {
-              el.classList.add('discord-notification--visible');
-            });
-          });
-        }, 1000);
-      } catch (e) {}
-    })();
-  </script>
 </body>
 </html>
