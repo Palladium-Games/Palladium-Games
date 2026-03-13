@@ -1205,6 +1205,7 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
 
 .discord-ticker {
   --discord-runway-gap: 0.95rem;
+  --discord-edge-fade: 64px;
   position: relative;
   overflow: hidden;
   border: 1px solid rgba(88, 101, 242, 0.28);
@@ -1224,19 +1225,47 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   position: absolute;
   top: 0;
   bottom: 0;
-  width: 36px;
+  width: var(--discord-edge-fade);
   z-index: 2;
   pointer-events: none;
 }
 
 .discord-ticker::before {
   left: 0;
-  background: linear-gradient(90deg, rgba(10, 10, 12, 0.96) 0%, rgba(10, 10, 12, 0) 100%);
+  background: linear-gradient(90deg, rgba(8, 12, 22, 0.98) 0%, rgba(8, 12, 22, 0.35) 68%, rgba(8, 12, 22, 0) 100%);
 }
 
 .discord-ticker::after {
   right: 0;
-  background: linear-gradient(270deg, rgba(10, 10, 12, 0.96) 0%, rgba(10, 10, 12, 0) 100%);
+  background: linear-gradient(270deg, rgba(8, 12, 22, 0.98) 0%, rgba(8, 12, 22, 0.35) 68%, rgba(8, 12, 22, 0) 100%);
+}
+
+@supports ((-webkit-mask-image: linear-gradient(90deg, #000, #000)) or (mask-image: linear-gradient(90deg, #000, #000))) {
+  .discord-ticker {
+    -webkit-mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 calc(var(--discord-edge-fade) * 0.55),
+      #000 calc(100% - (var(--discord-edge-fade) * 0.55)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      90deg,
+      transparent 0,
+      #000 calc(var(--discord-edge-fade) * 0.55),
+      #000 calc(100% - (var(--discord-edge-fade) * 0.55)),
+      transparent 100%
+    );
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-size: 100% 100%;
+    mask-size: 100% 100%;
+  }
+
+  .discord-ticker::before,
+  .discord-ticker::after {
+    display: none;
+  }
 }
 
 .discord-ticker__track {
