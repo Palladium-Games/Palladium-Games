@@ -69,6 +69,15 @@
             </div>
           </a>
         </section>
+        <section class="trending-games" id="trending-games">
+          <div class="games-section-head">
+            <h2 class="games-section-head__title">Trending Now</h2>
+            <span id="trending-games-meta" class="games-section-head__meta">Based on recent player activity</span>
+          </div>
+          <div id="trending-games-list" class="trending-games__grid">
+            <div class="trending-games__empty">Trending data will appear once players start launching games.</div>
+          </div>
+        </section>
         <div class="games-section-head">
           <h2 class="games-section-head__title">All Games</h2>
         </div>
@@ -268,6 +277,17 @@
               <div class="game-card__author">Tall Team</div>
             </div>
           </a>
+          <a href="game-player.html?game=games/escape-road/escape-road.html&title=Escape%20Road&author=AZgames" class="game-card">
+            <div class="game-card__thumb">
+              <div class="game-card__thumb-placeholder">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2" ry="2"/><line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/></svg>
+              </div>
+            </div>
+            <div class="game-card__info">
+              <div class="game-card__title">Escape Road</div>
+              <div class="game-card__author">AZgames</div>
+            </div>
+          </a>
           <a href="game-player.html?game=games/others/blockblast.html&title=Block%20Blast&author=reunbozdo" class="game-card">
             <div class="game-card__thumb">
               <img src="images/game-img/blockblast.png" alt="Block Blast" />
@@ -294,6 +314,11 @@
       var thumbEl = document.getElementById('featured-game-thumb');
       var titleEl = document.getElementById('featured-game-title');
       var authorEl = document.getElementById('featured-game-author');
+      var trendingMetaEl = document.getElementById('trending-games-meta');
+      var trendingListEl = document.getElementById('trending-games-list');
+      var trendingEndpoint = (window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function')
+        ? window.PalladiumBackend.apiUrl('/api/games/trending?limit=6')
+        : '/api/games/trending?limit=6';
 
       function hashSeed(seed) {
         var hash = 2166136261;
@@ -302,6 +327,148 @@
           hash = Math.imul(hash, 16777619);
         }
         return hash >>> 0;
+      }
+
+      function sanitizeText(value) {
+        return String(value == null ? '' : value).trim();
+      }
+
+      function decodePlus(value) {
+        return decodeURIComponent(String(value || '').replace(/\+/g, ' '));
+      }
+
+      function createThumb(image, title) {
+        var wrap = document.createElement('div');
+        wrap.className = 'game-card__thumb trending-game-card__thumb';
+
+        if (sanitizeText(image)) {
+          var img = document.createElement('img');
+          img.src = sanitizeText(image);
+          img.alt = sanitizeText(title) || 'Trending game';
+          img.loading = 'lazy';
+          img.decoding = 'async';
+          img.onerror = function () {
+            img.remove();
+            if (!wrap.querySelector('.game-card__thumb-placeholder')) {
+              wrap.appendChild(buildThumbPlaceholder());
+            }
+          };
+          wrap.appendChild(img);
+        } else {
+          wrap.appendChild(buildThumbPlaceholder());
+        }
+
+        return wrap;
+      }
+
+      function buildThumbPlaceholder() {
+        var ph = document.createElement('div');
+        ph.className = 'game-card__thumb-placeholder';
+        ph.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
+          '<rect x="3" y="4" width="18" height="16" rx="2" ry="2"></rect>' +
+          '<line x1="6" y1="12" x2="10" y2="12"></line>' +
+          '<line x1="8" y1="10" x2="8" y2="14"></line>' +
+          '</svg>';
+        return ph;
+      }
+
+      function parseFromHref(href) {
+        try {
+          var parsed = new URL(String(href || ''), window.location.origin);
+          return {
+            path: sanitizeText(parsed.searchParams.get('game')),
+            title: decodePlus(parsed.searchParams.get('title')),
+            author: decodePlus(parsed.searchParams.get('author')),
+            playerPath: String(href || '')
+          };
+        } catch (err) {
+          return {
+            path: '',
+            title: '',
+            author: '',
+            playerPath: String(href || '')
+          };
+        }
+      }
+
+      function renderTrending(games) {
+        if (!trendingListEl) return;
+        trendingListEl.innerHTML = '';
+
+        if (!Array.isArray(games) || !games.length) {
+          var empty = document.createElement('div');
+          empty.className = 'trending-games__empty';
+          empty.textContent = 'Trending data will appear once players start launching games.';
+          trendingListEl.appendChild(empty);
+          return;
+        }
+
+        for (var i = 0; i < games.length; i += 1) {
+          var item = games[i] || {};
+          var title = sanitizeText(item.title) || 'Unknown Game';
+          var author = sanitizeText(item.author) || 'Unknown';
+          var href = sanitizeText(item.playerPath);
+          var count = Math.max(0, Number(item.count) || 0);
+
+          if (!href && sanitizeText(item.path)) {
+            href =
+              'game-player.html?game=' + encodeURIComponent(item.path) +
+              '&title=' + encodeURIComponent(title) +
+              '&author=' + encodeURIComponent(author);
+          }
+
+          var card = document.createElement('a');
+          card.className = 'game-card trending-game-card';
+          card.href = href || '#';
+
+          card.appendChild(createThumb(item.image, title));
+
+          var info = document.createElement('div');
+          info.className = 'game-card__info';
+
+          var titleNode = document.createElement('div');
+          titleNode.className = 'game-card__title';
+          titleNode.textContent = title;
+          info.appendChild(titleNode);
+
+          var authorNode = document.createElement('div');
+          authorNode.className = 'game-card__author';
+          authorNode.textContent = author;
+          info.appendChild(authorNode);
+
+          var stats = document.createElement('div');
+          stats.className = 'trending-game-card__stats';
+          stats.textContent = count + (count === 1 ? ' play' : ' plays');
+          info.appendChild(stats);
+
+          card.appendChild(info);
+          trendingListEl.appendChild(card);
+        }
+      }
+
+      async function loadTrending() {
+        if (!trendingListEl) return;
+        try {
+          var response = await fetch(trendingEndpoint, { cache: 'no-store' });
+          var payload = await response.json();
+          if (!response.ok || !payload || !payload.ok) {
+            throw new Error('Trending API failed');
+          }
+
+          renderTrending(payload.games || []);
+          if (trendingMetaEl) {
+            var total = Math.max(0, Number(payload.totalPlays) || 0);
+            trendingMetaEl.textContent = total > 0
+              ? ('Based on ' + total + (total === 1 ? ' total play' : ' total plays'))
+              : 'Based on recent player activity';
+          }
+        } catch (error) {
+          if (trendingMetaEl) {
+            trendingMetaEl.textContent = 'Live trending currently unavailable';
+          }
+          renderTrending([]);
+        }
       }
 
       var today = new Date();
@@ -315,15 +482,16 @@
       var titleNode = selected.querySelector('.game-card__title');
       var authorNode = selected.querySelector('.game-card__author');
       var thumbNode = selected.querySelector('.game-card__thumb');
+      var selectedMeta = parseFromHref(selected.getAttribute('href') || '');
 
       if (linkEl) {
         linkEl.href = selected.getAttribute('href') || '#';
       }
       if (titleEl && titleNode) {
-        titleEl.textContent = titleNode.textContent || 'Featured Game';
+        titleEl.textContent = sanitizeText(titleNode.textContent) || selectedMeta.title || 'Featured Game';
       }
       if (authorEl && authorNode) {
-        authorEl.textContent = authorNode.textContent || '';
+        authorEl.textContent = sanitizeText(authorNode.textContent) || selectedMeta.author || '';
       }
       if (thumbEl && thumbNode) {
         thumbEl.innerHTML = thumbNode.innerHTML;
@@ -331,6 +499,8 @@
       if (dateEl) {
         dateEl.textContent = today.toLocaleDateString(undefined, { month: 'long', day: 'numeric' });
       }
+
+      loadTrending();
     })();
   </script>
 </body>

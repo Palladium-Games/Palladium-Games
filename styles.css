@@ -907,6 +907,13 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   display: grid;
   gap: 0.4rem;
   text-align: center;
+  padding: clamp(0.7rem, 1.7vw, 1rem);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    linear-gradient(175deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
+    rgba(6, 12, 24, 0.52);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .discord-present__eyebrow {
@@ -1416,6 +1423,10 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
 
 .games-section-head {
   margin-bottom: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .games-section-head__title {
@@ -1424,6 +1435,50 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   letter-spacing: 0.12em;
   color: #dbeafe;
   font-weight: 700;
+}
+
+.games-section-head__meta {
+  font-size: 0.74rem;
+  color: var(--palladium-dim);
+  letter-spacing: 0.02em;
+}
+
+.trending-games {
+  margin-bottom: 1rem;
+}
+
+.trending-games__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 0.9rem;
+}
+
+.trending-game-card .game-card__info {
+  padding: 0.82rem 0.92rem;
+}
+
+.trending-game-card__thumb {
+  aspect-ratio: 16 / 9;
+}
+
+.trending-game-card__stats {
+  margin-top: 0.48rem;
+  font-size: 0.76rem;
+  color: #c7d2fe;
+  border: 1px solid rgba(59, 130, 246, 0.38);
+  border-radius: 999px;
+  width: fit-content;
+  padding: 0.26rem 0.54rem;
+  background: rgba(37, 99, 235, 0.13);
+}
+
+.trending-games__empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 0.88rem 1rem;
+  color: var(--palladium-dim);
+  font-size: 0.9rem;
+  background: rgba(15, 23, 42, 0.24);
 }
 
 .games-grid {
@@ -2533,6 +2588,14 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   }
   .featured-game__thumb {
     max-height: 220px;
+  }
+  .games-section-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+  }
+  .trending-games__grid {
+    grid-template-columns: 1fr;
   }
   .page {
     padding: 1.25rem;

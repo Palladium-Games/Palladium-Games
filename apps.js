@@ -9,6 +9,7 @@ const { spawn } = require("node:child_process");
 const ROOT_DIR = __dirname;
 const DEFAULT_CONFIG_PATH = path.join(ROOT_DIR, "config", "palladium.env");
 const DEFAULT_CONFIG_TEMPLATE_PATH = path.join(ROOT_DIR, "config", "palladium.env.example");
+const DEFAULT_PLAY_STATS_PATH = path.join(ROOT_DIR, "config", "game-play-stats.json");
 
 const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
@@ -155,6 +156,14 @@ const managed = {
   }
 };
 
+const playStatsState = {
+  loaded: false,
+  entries: new Map(),
+  flushTimer: null,
+  flushInFlight: Promise.resolve(),
+  lastSavedAt: ""
+};
+
 main().catch((error) => {
   console.error("Fatal startup error:", error);
   shutdown(1);
@@ -179,6 +188,7 @@ async function main() {
     aiRequestTimeoutMs: readInt(env, "AI_REQUEST_TIMEOUT_MS", 120_000),
     monochromeBaseUrl: readString(env, "MONOCHROME_BASE_URL", "https://monochrome.tf"),
     proxyBaseUrl: readString(env, "PROXY_BASE_URL", ""),
+    playStatsPath: resolvePath(readString(env, "PLAY_STATS_PATH", DEFAULT_PLAY_STATS_PATH)),
     discordWidgetUrl: readString(env, "DISCORD_WIDGET_URL", DEFAULT_DISCORD_WIDGET_URL),
     discordInviteUrl: readString(env, "DISCORD_INVITE_URL", DEFAULT_DISCORD_INVITE_URL),
 
@@ -229,6 +239,7 @@ async function main() {
   };
 
   validatePaths(config);
+  managed.runtime.config = config;
 
   process.on("SIGINT", () => shutdown(0));
   process.on("SIGTERM", () => shutdown(0));
@@ -642,6 +653,8 @@ async function routeRequest(req, res, config) {
         features: [
           "static-frontend",
           "api/games",
+          "api/games/trending",
+          "api/games/play",
           "api/proxy/fetch",
           "api/ai/chat",
           "api/discord/widget",
@@ -735,6 +748,75 @@ async function routeRequest(req, res, config) {
       },
       config,
       method === "HEAD"
+    );
+    return;
+  }
+
+  if (url.pathname === "/api/games/trending" && (method === "GET" || method === "HEAD")) {
+    const requestedLimit = Number.parseInt(url.searchParams.get("limit") || "", 10);
+    const limit = Number.isFinite(requestedLimit) ? Math.min(Math.max(requestedLimit, 1), 24) : 8;
+
+    const payload = await getTrendingGames(config, limit);
+    sendJson(
+      res,
+      200,
+      {
+        ok: true,
+        count: payload.games.length,
+        limit,
+        trackedGames: payload.trackedGames,
+        totalPlays: payload.totalPlays,
+        updatedAt: payload.updatedAt,
+        games: payload.games
+      },
+      config,
+      method === "HEAD"
+    );
+    return;
+  }
+
+  if (url.pathname === "/api/games/play" && method === "POST") {
+    let body;
+    try {
+      body = await readRequestBody(req, Math.min(config.maxRequestBodyBytes, 32_768));
+    } catch (error) {
+      sendJson(res, 413, { ok: false, error: String(error?.message || "Request body too large") }, config);
+      return;
+    }
+
+    const raw = body.toString("utf8").trim();
+    if (!raw) {
+      sendJson(res, 400, { ok: false, error: "Request body is required" }, config);
+      return;
+    }
+
+    const parsed = parseJsonObject(raw);
+    if (!parsed) {
+      sendJson(res, 400, { ok: false, error: "Request body must be valid JSON." }, config);
+      return;
+    }
+
+    const normalizedPlay = normalizePlayPayload(parsed);
+    if (!normalizedPlay) {
+      sendJson(res, 400, { ok: false, error: "Invalid game play payload." }, config);
+      return;
+    }
+
+    const recorded = await recordGamePlay(config, normalizedPlay);
+    sendJson(
+      res,
+      200,
+      {
+        ok: true,
+        game: {
+          path: recorded.path,
+          title: recorded.title,
+          author: recorded.author,
+          count: recorded.count,
+          lastPlayedAt: recorded.lastPlayedAt
+        }
+      },
+      config
     );
     return;
   }
@@ -1028,6 +1110,291 @@ async function loadGamesCatalog(config) {
     });
   }
   return fallback;
+}
+
+async function getTrendingGames(config, limit) {
+  await ensurePlayStatsLoaded(config);
+
+  const tracked = [...playStatsState.entries.values()]
+    .filter((entry) => Number(entry.count) > 0)
+    .sort((a, b) => {
+      if (Number(b.count) !== Number(a.count)) return Number(b.count) - Number(a.count);
+      const bTime = Date.parse(String(b.lastPlayedAt || "")) || 0;
+      const aTime = Date.parse(String(a.lastPlayedAt || "")) || 0;
+      if (bTime !== aTime) return bTime - aTime;
+      return String(a.title || "").localeCompare(String(b.title || ""));
+    });
+
+  const totalPlays = tracked.reduce((sum, entry) => sum + Math.max(0, Number(entry.count) || 0), 0);
+  const picked = tracked.slice(0, Math.max(1, Number(limit) || 8));
+
+  if (picked.length === 0) {
+    return {
+      games: [],
+      trackedGames: 0,
+      totalPlays: 0,
+      updatedAt: playStatsState.lastSavedAt || ""
+    };
+  }
+
+  const catalog = await loadGamesCatalog(config);
+  const byPath = new Map(catalog.map((entry) => [normalizePlayPath(entry.path), entry]));
+
+  const games = picked.map((entry) => {
+    const fromCatalog = byPath.get(normalizePlayPath(entry.path));
+    const pathValue = normalizePlayPath(entry.path);
+    const title = safeText(entry.title, 160) || safeText(fromCatalog?.title, 160) || humanizeFilename(path.basename(pathValue, ".html"));
+    const author = safeText(entry.author, 120) || safeText(fromCatalog?.author, 120) || "Unknown";
+    const image = safeImagePath(entry.image) || safeImagePath(fromCatalog?.image) || "";
+    const category = safeText(entry.category, 80) || safeText(fromCatalog?.category, 80) || inferCategory(pathValue);
+    const playerPath =
+      safePlayerPath(entry.playerPath) ||
+      safePlayerPath(fromCatalog?.playerPath) ||
+      buildPlayerPath(pathValue, title, author);
+
+    return {
+      path: pathValue,
+      title,
+      author,
+      category,
+      image,
+      playerPath,
+      count: Math.max(0, Number(entry.count) || 0),
+      lastPlayedAt: String(entry.lastPlayedAt || ""),
+      firstPlayedAt: String(entry.firstPlayedAt || "")
+    };
+  });
+
+  return {
+    games,
+    trackedGames: tracked.length,
+    totalPlays,
+    updatedAt: playStatsState.lastSavedAt || ""
+  };
+}
+
+async function recordGamePlay(config, payload) {
+  await ensurePlayStatsLoaded(config);
+
+  const key = normalizePlayPath(payload.path);
+  if (!key) {
+    throw new Error("Invalid game path.");
+  }
+
+  const nowIso = new Date().toISOString();
+  const existing = playStatsState.entries.get(key);
+  const base = existing || {
+    path: key,
+    title: safeText(payload.title, 160) || humanizeFilename(path.basename(key, ".html")),
+    author: safeText(payload.author, 120) || "Unknown",
+    category: safeText(payload.category, 80) || inferCategory(key),
+    image: safeImagePath(payload.image) || "",
+    playerPath: safePlayerPath(payload.playerPath) || buildPlayerPath(key, payload.title, payload.author),
+    count: 0,
+    firstPlayedAt: nowIso,
+    lastPlayedAt: nowIso
+  };
+
+  base.title = safeText(payload.title, 160) || base.title || humanizeFilename(path.basename(key, ".html"));
+  base.author = safeText(payload.author, 120) || base.author || "Unknown";
+  base.category = safeText(payload.category, 80) || base.category || inferCategory(key);
+
+  const image = safeImagePath(payload.image);
+  if (image) {
+    base.image = image;
+  }
+
+  const playerPath = safePlayerPath(payload.playerPath);
+  if (playerPath) {
+    base.playerPath = playerPath;
+  } else if (!base.playerPath) {
+    base.playerPath = buildPlayerPath(key, base.title, base.author);
+  }
+
+  base.count = Math.max(0, Number(base.count) || 0) + 1;
+  if (!base.firstPlayedAt) {
+    base.firstPlayedAt = nowIso;
+  }
+  base.lastPlayedAt = nowIso;
+
+  playStatsState.entries.set(key, base);
+  schedulePlayStatsFlush(config);
+  return base;
+}
+
+async function ensurePlayStatsLoaded(config) {
+  if (playStatsState.loaded) return;
+  playStatsState.loaded = true;
+
+  await ensureDir(path.dirname(config.playStatsPath));
+  if (!fs.existsSync(config.playStatsPath)) {
+    playStatsState.entries.clear();
+    return;
+  }
+
+  try {
+    const raw = await fsp.readFile(config.playStatsPath, "utf8");
+    const parsed = parseJsonObject(raw);
+    const items = Array.isArray(parsed?.entries) ? parsed.entries : [];
+
+    playStatsState.entries.clear();
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      const pathValue = normalizePlayPath(item.path);
+      if (!pathValue) continue;
+      const count = Math.max(0, Number(item.count) || 0);
+      if (count <= 0) continue;
+
+      playStatsState.entries.set(pathValue, {
+        path: pathValue,
+        title: safeText(item.title, 160) || humanizeFilename(path.basename(pathValue, ".html")),
+        author: safeText(item.author, 120) || "Unknown",
+        category: safeText(item.category, 80) || inferCategory(pathValue),
+        image: safeImagePath(item.image) || "",
+        playerPath: safePlayerPath(item.playerPath) || buildPlayerPath(pathValue, item.title, item.author),
+        count,
+        firstPlayedAt: safeText(item.firstPlayedAt, 64) || "",
+        lastPlayedAt: safeText(item.lastPlayedAt, 64) || ""
+      });
+    }
+
+    playStatsState.lastSavedAt = safeText(parsed?.savedAt, 64) || "";
+  } catch (error) {
+    console.warn(`Failed to load play stats from ${config.playStatsPath}:`, error);
+    playStatsState.entries.clear();
+  }
+}
+
+function schedulePlayStatsFlush(config) {
+  if (playStatsState.flushTimer) return;
+  playStatsState.flushTimer = setTimeout(() => {
+    playStatsState.flushTimer = null;
+    playStatsState.flushInFlight = playStatsState.flushInFlight
+      .then(() => persistPlayStats(config))
+      .catch((error) => {
+        console.warn("Failed to persist play stats:", error);
+      });
+  }, 700);
+}
+
+async function flushPlayStatsNow(config) {
+  if (!playStatsState.loaded) return;
+  if (playStatsState.flushTimer) {
+    clearTimeout(playStatsState.flushTimer);
+    playStatsState.flushTimer = null;
+  }
+  playStatsState.flushInFlight = playStatsState.flushInFlight
+    .then(() => persistPlayStats(config))
+    .catch((error) => {
+      console.warn("Failed to persist play stats:", error);
+    });
+  await playStatsState.flushInFlight;
+}
+
+async function persistPlayStats(config) {
+  await ensureDir(path.dirname(config.playStatsPath));
+
+  const ordered = [...playStatsState.entries.values()].sort((a, b) =>
+    String(a.path || "").localeCompare(String(b.path || ""))
+  );
+  const payload = {
+    version: 1,
+    savedAt: new Date().toISOString(),
+    entries: ordered.map((entry) => ({
+      path: normalizePlayPath(entry.path),
+      title: safeText(entry.title, 160) || "",
+      author: safeText(entry.author, 120) || "",
+      category: safeText(entry.category, 80) || "",
+      image: safeImagePath(entry.image) || "",
+      playerPath: safePlayerPath(entry.playerPath) || "",
+      count: Math.max(0, Number(entry.count) || 0),
+      firstPlayedAt: safeText(entry.firstPlayedAt, 64) || "",
+      lastPlayedAt: safeText(entry.lastPlayedAt, 64) || ""
+    }))
+  };
+
+  const tempPath = `${config.playStatsPath}.tmp`;
+  await fsp.writeFile(tempPath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+  await fsp.rename(tempPath, config.playStatsPath);
+  playStatsState.lastSavedAt = payload.savedAt;
+}
+
+function normalizePlayPayload(payload) {
+  if (!payload || typeof payload !== "object") return null;
+
+  const pathValue = normalizePlayPath(payload.path || payload.gamePath || payload.game);
+  if (!pathValue) return null;
+
+  const title = safeText(payload.title, 160) || humanizeFilename(path.basename(pathValue, ".html"));
+  const author = safeText(payload.author, 120) || "Unknown";
+
+  return {
+    path: pathValue,
+    title,
+    author,
+    category: safeText(payload.category, 80) || inferCategory(pathValue),
+    image: safeImagePath(payload.image) || "",
+    playerPath: safePlayerPath(payload.playerPath) || buildPlayerPath(pathValue, title, author)
+  };
+}
+
+function normalizePlayPath(value) {
+  const normalized = normalizeSlash(value).trim().replace(/^\/+/, "");
+  if (!normalized) return "";
+  if (normalized.length > 320) return "";
+  if (normalized.includes("\0") || normalized.includes("..")) return "";
+  if (!normalized.toLowerCase().startsWith("games/")) return "";
+  return normalized;
+}
+
+function safeText(value, maxLength) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  return text.slice(0, Math.max(1, maxLength || 200));
+}
+
+function safeImagePath(value) {
+  const text = safeText(value, 520);
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) {
+    return normalizeUserUrl(text) || "";
+  }
+  if (text.startsWith("images/")) return text;
+  if (text.startsWith("./images/")) return text.slice(2);
+  return "";
+}
+
+function safePlayerPath(value) {
+  const text = safeText(value, 700);
+  if (!text) return "";
+  if (text.includes("\0") || text.includes("..")) return "";
+
+  if (/^https?:\/\//i.test(text)) {
+    try {
+      const parsed = new URL(text);
+      if (/^https?:$/i.test(parsed.protocol)) {
+        return parsed.pathname.replace(/^\/+/, "") + parsed.search;
+      }
+    } catch {
+      return "";
+    }
+  }
+
+  if (/^\/?game-player\.html\?/i.test(text)) {
+    return text.replace(/^\/+/, "");
+  }
+
+  return "";
+}
+
+function buildPlayerPath(gamePath, title, author) {
+  const safePath = normalizePlayPath(gamePath);
+  if (!safePath) return "game-player.html";
+  return (
+    `game-player.html?game=${encodeURIComponent(safePath)}` +
+    `&title=${encodeURIComponent(safeText(title, 160) || humanizeFilename(path.basename(safePath, ".html")))}` +
+    `&author=${encodeURIComponent(safeText(author, 120) || "Unknown")}`
+  );
 }
 
 function countCategories(entries) {
@@ -1990,6 +2357,14 @@ async function shutdown(exitCode) {
     return;
   }
   managed.shuttingDown = true;
+
+  if (managed.runtime.config) {
+    try {
+      await flushPlayStatsNow(managed.runtime.config);
+    } catch (error) {
+      console.warn("Failed to flush play stats during shutdown:", error);
+    }
+  }
 
   if (managed.httpServer) {
     await new Promise((resolve) => managed.httpServer.close(resolve));

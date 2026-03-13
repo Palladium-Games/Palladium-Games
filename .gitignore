@@ -1,5 +1,6 @@
 .DS_Store
 .discord-community-bot-state.json
 config/palladium.env
+config/game-play-stats.json
 scramjet-service/node_modules/
 *.log

@@ -122,7 +122,9 @@
     (function () {
       var WIDGET_FALLBACK_URL = 'https://discord.com/api/guilds/1479914434460913707/widget.json';
       var INVITE_FALLBACK_URL = 'https://discord.gg/FNACSCcE26';
-      var WIDGET_ENDPOINT = '/api/discord/widget';
+      var WIDGET_ENDPOINT = (window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function')
+        ? window.PalladiumBackend.apiUrl('/api/discord/widget')
+        : '/api/discord/widget';
 
       var serverNameEl = document.getElementById('discord-server-name');
       var serverStatusEl = document.getElementById('discord-server-status');
@@ -147,6 +149,11 @@
       function fillText(el, text) {
         if (!el) return;
         el.textContent = String(text == null ? '' : text);
+      }
+
+      function pickText(value, fallback) {
+        var cleaned = String(value == null ? '' : value).trim();
+        return cleaned || String(fallback || '');
       }
 
       function memberKey(member, index) {
@@ -239,7 +246,7 @@
         var channels = Array.isArray(safeWidget.channels) ? safeWidget.channels : [];
         var onlineCount = Number(safeWidget.presence_count || members.length || 0);
 
-        fillText(serverNameEl, safeWidget.name || 'Palladium Games');
+        fillText(serverNameEl, pickText(safeWidget.name, 'Palladium Games'));
         fillText(onlineCountEl, onlineCount);
         fillText(membersCountEl, members.length);
         fillText(channelsCountEl, channels.length);
@@ -282,6 +289,7 @@
       }
 
       async function refreshWidget() {
+        fillText(serverNameEl, pickText(serverNameEl && serverNameEl.textContent, 'Palladium Games'));
         setStatus('Refreshing widget...', false);
         try {
           var payload = await loadFromBackend();
@@ -298,6 +306,7 @@
           }
         }
 
+        fillText(serverNameEl, 'Palladium Games');
         setStatus('Could not load Discord widget right now.', true);
       }
 
