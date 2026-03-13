@@ -223,6 +223,10 @@
         var trimmed = String(rawText || '').trim();
         if (!trimmed) return '';
 
+        if (rawText && typeof rawText === 'object' && !Array.isArray(rawText)) {
+          return contentFromParsed(rawText);
+        }
+
         function contentFromParsed(parsed) {
           if (!parsed || typeof parsed !== 'object') return '';
 
@@ -278,7 +282,7 @@
             // Ignore malformed stream lines.
           }
         }
-        return combined || trimmed;
+        return combined;
       }
 
       function extractErrorText(rawText) {
@@ -354,11 +358,17 @@
                   if (part && part.error) {
                     throw new Error(String(part.error));
                   }
+                  if (part && part.done === true && typeof part.delta !== 'string') {
+                    continue;
+                  }
 
                   if (part && typeof part.delta === 'string') {
                     applySegment(part.delta);
                   } else {
-                    applySegment(extractAssistantText(JSON.stringify(part)));
+                    var segment = extractAssistantText(part);
+                    if (segment) {
+                      applySegment(segment);
+                    }
                   }
                 } catch (error) {
                   if (error && error.message && String(error.message).trim()) {
@@ -377,17 +387,23 @@
             buffer += flushed;
           }
           if (String(buffer || '').trim()) {
-            try {
-              var tail = JSON.parse(buffer.trim());
-              if (tail && tail.error) throw new Error(String(tail.error));
-              if (tail && typeof tail.delta === 'string') {
-                applySegment(tail.delta);
-              } else {
-                applySegment(extractAssistantText(JSON.stringify(tail)));
+              try {
+                var tail = JSON.parse(buffer.trim());
+                if (tail && tail.error) throw new Error(String(tail.error));
+                if (tail && tail.done === true && typeof tail.delta !== 'string') {
+                  return combined;
+                }
+                if (tail && typeof tail.delta === 'string') {
+                  applySegment(tail.delta);
+                } else {
+                  var tailSegment = extractAssistantText(tail);
+                  if (tailSegment) {
+                    applySegment(tailSegment);
+                  }
+                }
+              } catch (error) {
+                // Ignore non-JSON trailing bytes.
               }
-            } catch (error) {
-              // Ignore non-JSON trailing bytes.
-            }
           }
 
           return combined;
