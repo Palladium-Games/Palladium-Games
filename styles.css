@@ -905,19 +905,39 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   position: relative;
   z-index: 1;
   display: grid;
-  gap: 0.4rem;
-  text-align: center;
-  padding: clamp(0.7rem, 1.7vw, 1rem);
+  gap: 0.66rem;
+  text-align: left;
+  padding: clamp(0.85rem, 1.8vw, 1.1rem);
   border: 1px solid var(--border);
   border-radius: 14px;
   background:
     linear-gradient(175deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
     rgba(6, 12, 24, 0.52);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  min-height: clamp(140px, 18vw, 198px);
+}
+
+.discord-present__headrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.discord-present__sync {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(198, 219, 255, 0.82);
+  border: 1px solid rgba(88, 101, 242, 0.42);
+  border-radius: 999px;
+  padding: 0.28rem 0.64rem;
+  background: rgba(37, 99, 235, 0.12);
 }
 
 .discord-present__eyebrow {
-  justify-self: center;
+  justify-self: start;
   font-size: 0.75rem;
   letter-spacing: 0.14em;
   text-transform: uppercase;
@@ -931,9 +951,9 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 .discord-present__title {
   margin: 0;
   font-family: 'Bebas Neue', sans-serif;
-  font-size: clamp(2.3rem, 6vw, 4.6rem);
-  letter-spacing: 0.06em;
-  line-height: 0.94;
+  font-size: clamp(2rem, 4.7vw, 3.3rem);
+  letter-spacing: 0.05em;
+  line-height: 0.98;
   color: #f6f8ff;
   text-shadow:
     0 0 30px rgba(88, 101, 242, 0.2),
@@ -941,8 +961,28 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 }
 
 .discord-present__status {
-  margin-top: 0.15rem;
+  margin: 0;
   font-size: 0.95rem;
+  color: #d8e7ff;
+}
+
+.discord-present__hero-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.discord-present__chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(88, 101, 242, 0.36);
+  border-radius: 999px;
+  padding: 0.3rem 0.72rem;
+  background: rgba(9, 14, 25, 0.6);
+  color: rgba(219, 234, 254, 0.96);
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .discord-present__panel {
@@ -1321,6 +1361,23 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
 }
 
 @media (max-width: 1200px) {
+  .discord-present__header {
+    text-align: center;
+    justify-items: center;
+  }
+
+  .discord-present__headrow {
+    justify-content: center;
+  }
+
+  .discord-present__eyebrow {
+    justify-self: center;
+  }
+
+  .discord-present__hero-metrics {
+    justify-content: center;
+  }
+
   .discord-present__panel {
     grid-template-columns: 1fr;
     justify-items: center;

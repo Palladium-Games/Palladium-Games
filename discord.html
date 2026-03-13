@@ -58,9 +58,17 @@
         <section class="discord-present">
           <div class="discord-present__spotlight" aria-hidden="true"></div>
           <header class="discord-present__header">
-            <span class="discord-present__eyebrow">Palladium Community Deck</span>
+            <div class="discord-present__headrow">
+              <span class="discord-present__eyebrow">Palladium Community Deck</span>
+              <span id="discord-last-sync" class="discord-present__sync">Syncing...</span>
+            </div>
             <h1 id="discord-server-name" class="discord-present__title">Palladium Games</h1>
             <p id="discord-server-status" class="discord-summary__status discord-present__status">Loading widget data...</p>
+            <div class="discord-present__hero-metrics" aria-label="Discord summary">
+              <span id="discord-hero-online" class="discord-present__chip">0 online</span>
+              <span id="discord-hero-members" class="discord-present__chip">0 members listed</span>
+              <span id="discord-hero-channels" class="discord-present__chip">0 channels</span>
+            </div>
           </header>
 
           <section class="discord-present__panel">
@@ -134,6 +142,10 @@
       var membersCountEl = document.getElementById('discord-members-count');
       var channelsCountEl = document.getElementById('discord-channels-count');
       var tickerTrackEl = document.getElementById('discord-ticker-track');
+      var lastSyncEl = document.getElementById('discord-last-sync');
+      var heroOnlineEl = document.getElementById('discord-hero-online');
+      var heroMembersEl = document.getElementById('discord-hero-members');
+      var heroChannelsEl = document.getElementById('discord-hero-channels');
 
       function setStatus(text, isError) {
         if (!serverStatusEl) return;
@@ -149,6 +161,16 @@
       function fillText(el, text) {
         if (!el) return;
         el.textContent = String(text == null ? '' : text);
+      }
+
+      function updateHeroCounts(online, members, channels) {
+        fillText(heroOnlineEl, String(online || 0) + ' online');
+        fillText(heroMembersEl, String(members || 0) + ' members listed');
+        fillText(heroChannelsEl, String(channels || 0) + ' channels');
+      }
+
+      function stampSync(text) {
+        fillText(lastSyncEl, text || 'Syncing...');
       }
 
       function pickText(value, fallback) {
@@ -250,6 +272,7 @@
         fillText(onlineCountEl, onlineCount);
         fillText(membersCountEl, members.length);
         fillText(channelsCountEl, channels.length);
+        updateHeroCounts(onlineCount, members.length, channels.length);
         setInvite(inviteUrl || safeWidget.instant_invite || INVITE_FALLBACK_URL);
         renderTickerMembers(members);
 
@@ -258,6 +281,7 @@
         }
 
         setStatus('Live data updated.', false);
+        stampSync('Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
       }
 
       async function loadFromBackend() {
@@ -291,6 +315,7 @@
       async function refreshWidget() {
         fillText(serverNameEl, pickText(serverNameEl && serverNameEl.textContent, 'Palladium Games'));
         setStatus('Refreshing widget...', false);
+        stampSync('Syncing...');
         try {
           var payload = await loadFromBackend();
           renderWidget(payload.widget, payload.inviteUrl);
@@ -307,6 +332,8 @@
         }
 
         fillText(serverNameEl, 'Palladium Games');
+        updateHeroCounts(0, 0, 0);
+        stampSync('Widget unavailable');
         setStatus('Could not load Discord widget right now.', true);
       }
 
