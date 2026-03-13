@@ -55,19 +55,18 @@
 
     <main class="main">
       <div class="page page--discord">
-        <h1 class="page__title">DISCORD</h1>
-        <div class="discord-page">
-          <section class="discord-card discord-card--summary">
-            <div class="discord-summary__header">
-              <img id="discord-server-icon" class="discord-summary__icon" src="images/discord.png" alt="Discord server icon" />
-              <div>
-                <h2 id="discord-server-name" class="discord-summary__name">Palladium Games</h2>
-                <p id="discord-server-status" class="discord-summary__status">Loading widget data...</p>
-              </div>
-            </div>
-            <div class="discord-summary__actions">
-              <a id="discord-invite-link" class="player-bar__btn" href="https://discord.gg/FNACSCcE26" target="_blank" rel="noopener noreferrer">Join Server</a>
-              <button id="discord-refresh-btn" class="player-bar__btn" type="button">Refresh</button>
+        <section class="discord-present">
+          <div class="discord-present__spotlight" aria-hidden="true"></div>
+          <header class="discord-present__header">
+            <span class="discord-present__eyebrow">Palladium Community Deck</span>
+            <h1 id="discord-server-name" class="discord-present__title">Palladium Games</h1>
+            <p id="discord-server-status" class="discord-summary__status discord-present__status">Loading widget data...</p>
+          </header>
+
+          <section class="discord-present__panel">
+            <div class="discord-present__server">
+              <img id="discord-server-icon" class="discord-summary__icon discord-present__icon" src="images/discord.png" alt="Discord server icon" />
+              <span class="discord-present__server-label">Live Server Pulse</span>
             </div>
             <div class="discord-metrics">
               <div class="discord-metric">
@@ -83,10 +82,14 @@
                 <span id="discord-channels-count" class="discord-metric__value">0</span>
               </div>
             </div>
+            <div class="discord-summary__actions discord-present__actions">
+              <a id="discord-invite-link" class="player-bar__btn" href="https://discord.gg/FNACSCcE26" target="_blank" rel="noopener noreferrer">Join Server</a>
+              <button id="discord-refresh-btn" class="player-bar__btn" type="button">Refresh</button>
+            </div>
           </section>
 
-          <section class="discord-card discord-card--ticker">
-            <h3 class="discord-card__title">Members Online</h3>
+          <section class="discord-card discord-card--ticker discord-present__runway">
+            <h3 class="discord-card__title">Member Runway</h3>
             <div class="discord-ticker" id="discord-ticker" aria-live="polite">
               <div class="discord-ticker__track" id="discord-ticker-track">
                 <div class="discord-ticker__lane">
@@ -99,7 +102,7 @@
               </div>
             </div>
           </section>
-        </div>
+        </section>
       </div>
     </main>
   </div>
