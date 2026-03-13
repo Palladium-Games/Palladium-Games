@@ -853,9 +853,10 @@ html[data-theme="neon"] .main::after {
 /* ——— Discord page ——— */
 .page--discord {
   --discord-page-gutter: clamp(0.9rem, 2.2vw, 1.4rem);
+  --discord-shell-left-offset: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
   --discord-shell-width: min(
     1120px,
-    calc(100vw - var(--nav-width-expanded) - (var(--discord-page-gutter) * 2))
+    calc(100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter))
   );
   padding: clamp(1.1rem, 2vw, 2rem);
   width: 100%;
@@ -866,9 +867,10 @@ html[data-theme="neon"] .main::after {
 
 .nav.nav--collapsed ~ .main .page--discord,
 html.nav-initial-collapsed #nav ~ .main .page--discord {
+  --discord-shell-left-offset: calc(var(--nav-width-collapsed) + var(--discord-page-gutter));
   --discord-shell-width: min(
     1120px,
-    calc(100vw - var(--nav-width-collapsed) - (var(--discord-page-gutter) * 2))
+    calc(100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter))
   );
 }
 
@@ -876,6 +878,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   position: relative;
   width: var(--discord-shell-width);
   margin: 0 auto;
+  box-sizing: border-box;
   border: 1px solid var(--border-navy);
   border-radius: 18px;
   overflow: hidden;
@@ -911,8 +914,16 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   border: 1px solid var(--border);
   border-radius: 14px;
   background:
+    linear-gradient(180deg, rgba(5, 9, 16, 0.66), rgba(5, 9, 16, 0.46)),
     linear-gradient(175deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.012)),
-    rgba(6, 12, 24, 0.52);
+    rgba(6, 12, 24, 0.52),
+    linear-gradient(180deg, rgba(88, 101, 242, 0.22), rgba(37, 99, 235, 0.1)),
+    url("images/discord.png");
+  background-size: auto, cover, cover, cover, cover;
+  background-position: center, center, center, center, center;
+  background-repeat: no-repeat;
+  background-blend-mode: normal, normal, soft-light, soft-light, multiply;
+  overflow: hidden;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
   min-height: clamp(140px, 18vw, 198px);
 }
@@ -1000,6 +1011,8 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 0.9rem;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 14px;
   background:
@@ -1097,6 +1110,8 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 }
 
 .discord-card {
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background:
@@ -1128,20 +1143,17 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 
 .discord-join-dock {
   position: fixed;
-  left: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
+  left: var(--discord-shell-left-offset);
   right: var(--discord-page-gutter);
   bottom: var(--discord-page-gutter);
   z-index: 80;
   pointer-events: none;
-}
-
-.nav.nav--collapsed ~ .main .discord-join-dock,
-html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
-  left: calc(var(--nav-width-collapsed) + clamp(0.9rem, 2.2vw, 1.4rem));
+  width: calc(100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter));
+  max-width: var(--discord-shell-width);
 }
 
 .discord-join-dock__btn {
-  width: min(var(--discord-shell-width), 100%);
+  width: 100%;
   margin: 0 auto;
   pointer-events: auto;
   text-decoration: none;
@@ -1212,7 +1224,9 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   border-radius: 16px;
   background:
     linear-gradient(180deg, rgba(10, 15, 26, 0.98), rgba(7, 12, 22, 0.98));
+  width: 100%;
   padding: 0.78rem 0;
+  max-width: 100%;
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.045),
     inset 0 -1px 0 rgba(88, 101, 242, 0.2),
@@ -2788,13 +2802,11 @@ html.nav-initial-collapsed #nav ~ .main .discord-join-dock {
   }
 
   .discord-join-dock {
-    left: calc(var(--nav-width-collapsed) + var(--discord-page-gutter));
+    left: var(--discord-shell-left-offset);
     right: var(--discord-page-gutter);
     bottom: var(--discord-page-gutter);
-  }
-
-  .nav.nav--expanded ~ .main .discord-join-dock {
-    left: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
+    width: calc(100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter));
+    max-width: var(--discord-shell-width);
   }
 
   .discord-join-dock__btn {
