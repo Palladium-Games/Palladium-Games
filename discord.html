@@ -91,6 +91,11 @@
                 <span id="discord-channels-count" class="discord-metric__value">0</span>
               </div>
             </div>
+            <div class="discord-present__focus">
+              <span class="discord-present__focus-label">Live Feed</span>
+              <p class="discord-present__focus-text">Community activity is synced from Discord in real time.</p>
+              <span id="discord-focus-pill" class="discord-present__focus-pill">Pulse: stable</span>
+            </div>
           </section>
 
           <section class="discord-card discord-card--ticker discord-present__runway">
@@ -147,11 +152,17 @@
       var heroOnlineEl = document.getElementById('discord-hero-online');
       var heroMembersEl = document.getElementById('discord-hero-members');
       var heroChannelsEl = document.getElementById('discord-hero-channels');
+      var focusPillEl = document.getElementById('discord-focus-pill');
 
       function setStatus(text, isError) {
         if (!serverStatusEl) return;
         serverStatusEl.textContent = String(text || '');
         serverStatusEl.classList.toggle('discord-summary__status--error', Boolean(isError));
+      }
+
+      function setPulseState(text) {
+        if (!focusPillEl) return;
+        focusPillEl.textContent = String(text || 'Pulse: stable');
       }
 
       function setInvite(url) {
@@ -283,6 +294,7 @@
         if (serverIconEl && safeWidget.icon_url) {
           serverIconEl.src = safeWidget.icon_url;
         }
+        setPulseState('Pulse: live');
 
         setStatus('Live data updated.', false);
         stampSync('Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
@@ -319,6 +331,7 @@
       async function refreshWidget() {
         fillText(serverNameEl, pickText(serverNameEl && serverNameEl.textContent, 'Palladium Games'));
         setStatus('Refreshing widget...', false);
+        setPulseState('Pulse: checking');
         stampSync('Syncing...');
         try {
           var payload = await loadFromBackend();
@@ -339,6 +352,7 @@
         updateHeroCounts(0, 0, 0);
         stampSync('Widget unavailable');
         setStatus('Could not load Discord widget right now.', true);
+        setPulseState('Pulse: disconnected');
       }
 
       refreshWidget();
