@@ -214,6 +214,19 @@
     return { ok: true };
   }
 
+  function attachLeaveWarning() {
+    if (window.__palladiumLeaveWarningAttached) return;
+    window.__palladiumLeaveWarningAttached = true;
+
+    window.addEventListener("beforeunload", function (event) {
+      // Modern browsers ignore custom text but require returnValue to show the prompt.
+      var message = "Are you sure you want to leave this page? Changes you made might not be saved.";
+      event.preventDefault();
+      event.returnValue = message;
+      return message;
+    });
+  }
+
   window.PalladiumSiteSettings = {
     defaultTitle: DEFAULT_TITLE,
     defaultFavicon: DEFAULT_FAVICON,
@@ -228,5 +241,6 @@
     openInAboutBlank: openInAboutBlank
   };
 
+  attachLeaveWarning();
   applyDocumentSettings();
 })();
