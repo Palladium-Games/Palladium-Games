@@ -217,8 +217,44 @@
   function attachLeaveWarning() {
     if (window.__palladiumLeaveWarningAttached) return;
     window.__palladiumLeaveWarningAttached = true;
+    var suppressPrompt = false;
+    var suppressTimer = null;
+
+    function suppressForNavigation() {
+      suppressPrompt = true;
+      if (suppressTimer) {
+        clearTimeout(suppressTimer);
+      }
+      suppressTimer = setTimeout(function () {
+        suppressPrompt = false;
+        suppressTimer = null;
+      }, 1800);
+    }
+
+    document.addEventListener("click", function (event) {
+      if (!event || event.defaultPrevented) return;
+      if (!event.target || typeof event.target.closest !== "function") return;
+
+      var anchor = event.target.closest("a[href]");
+      if (!anchor) return;
+      if (anchor.hasAttribute("download")) return;
+
+      var target = String(anchor.getAttribute("target") || "").trim().toLowerCase();
+      if (target && target !== "_self") return;
+
+      var href = String(anchor.getAttribute("href") || "").trim();
+      if (!href || href === "#" || /^javascript:/i.test(href)) return;
+
+      suppressForNavigation();
+    }, true);
+
+    document.addEventListener("submit", function () {
+      suppressForNavigation();
+    }, true);
 
     window.addEventListener("beforeunload", function (event) {
+      if (suppressPrompt) return;
+
       // Modern browsers ignore custom text but require returnValue to show the prompt.
       var message = "Are you sure you want to leave this page? Changes you made might not be saved.";
       event.preventDefault();
