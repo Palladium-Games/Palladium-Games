@@ -207,15 +207,23 @@
         laneB.className = 'discord-ticker__lane';
         laneB.setAttribute('aria-hidden', 'true');
 
-        for (var i = 0; i < safeMembers.length; i += 1) {
-          laneA.appendChild(createAvatarNode(safeMembers[i]));
-          laneB.appendChild(createAvatarNode(safeMembers[i]));
+        var targetCount = safeMembers.length < 24 ? 24 : safeMembers.length;
+        if (targetCount > 60) targetCount = 60;
+
+        var runwayMembers = [];
+        for (var i = 0; i < targetCount; i += 1) {
+          runwayMembers.push(safeMembers[i % safeMembers.length]);
+        }
+
+        for (var j = 0; j < runwayMembers.length; j += 1) {
+          laneA.appendChild(createAvatarNode(runwayMembers[j]));
+          laneB.appendChild(createAvatarNode(runwayMembers[j]));
         }
 
         tickerTrackEl.innerHTML = '';
         tickerTrackEl.appendChild(laneA);
         tickerTrackEl.appendChild(laneB);
-        tickerTrackEl.style.setProperty('--ticker-duration', String(Math.max(18, safeMembers.length * 1.5)) + 's');
+        tickerTrackEl.style.setProperty('--ticker-duration', String(Math.max(18, runwayMembers.length * 1.05)) + 's');
       }
 
       function renderWidget(widget, inviteUrl) {

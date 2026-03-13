@@ -1104,7 +1104,7 @@ html[data-theme="neon"] .main::after {
   --ticker-duration: 20s;
   display: flex;
   align-items: center;
-  gap: 0.95rem;
+  gap: 0;
   width: max-content;
   animation: discord-tag-scroll var(--ticker-duration) linear infinite;
   will-change: transform;
@@ -1119,7 +1119,7 @@ html[data-theme="neon"] .main::after {
   align-items: center;
   gap: 0.95rem;
   width: max-content;
-  padding: 0 0.95rem;
+  padding: 0;
 }
 
 .discord-tag {
