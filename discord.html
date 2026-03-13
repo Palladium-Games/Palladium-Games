@@ -62,7 +62,8 @@
               <span class="discord-present__eyebrow">Palladium Community Deck</span>
               <span id="discord-last-sync" class="discord-present__sync">Syncing...</span>
             </div>
-            <h1 id="discord-server-name" class="discord-present__title">Palladium Games</h1>
+            <h1 class="discord-present__title">Discord Community</h1>
+            <p id="discord-server-name" class="discord-present__server-name">Palladium Games</p>
             <p id="discord-server-status" class="discord-summary__status discord-present__status">Loading widget data...</p>
             <div class="discord-present__hero-metrics" aria-label="Discord summary">
               <span id="discord-hero-online" class="discord-present__chip">0 online</span>
@@ -174,7 +175,10 @@
       }
 
       function pickText(value, fallback) {
-        var cleaned = String(value == null ? '' : value).trim();
+        var cleaned = String(value == null ? '' : value)
+          .replace(/[\u200B-\u200D\u2060\uFEFF]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
         return cleaned || String(fallback || '');
       }
 
