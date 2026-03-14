@@ -38,6 +38,17 @@ test("frontend directory contains the required static entrypoints", () => {
   }
 });
 
+test("games page ships a search box for the dynamic catalog", () => {
+  if (!HAS_FRONTEND_DIR) {
+    assert.ok(true, "Backend-only checkout does not ship the frontend directory.");
+    return;
+  }
+
+  const gamesPage = fs.readFileSync(path.join(FRONTEND_DIR, "games.html"), "utf8");
+  assert.match(gamesPage, /games-search-input/);
+  assert.match(gamesPage, /Search games, authors, or categories/);
+});
+
 test("frontend directory keeps shared images available for the static host", () => {
   if (HAS_FRONTEND_DIR) {
     assert.ok(fs.existsSync(path.join(FRONTEND_DIR, "images", "favicon.png")));
