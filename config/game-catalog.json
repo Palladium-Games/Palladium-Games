@@ -148,5 +148,11 @@
     "author": "reunbozdo",
     "image": "images/game-img/blockblast.png",
     "category": "others"
+  },
+  "games/swf/the-impossible-quiz.html": {
+    "title": "The Impossible Quiz",
+    "author": "Splapp-me-do",
+    "image": "images/game-img/the-impossible-quiz.png",
+    "category": "swf"
   }
 }

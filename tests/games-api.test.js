@@ -79,9 +79,19 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   assert.ok(chibiKnight, "Expected the SWF launcher in the games catalog");
   assert.equal(chibiKnight.title, "Chibi Knight");
 
+  const impossibleQuiz = payload.games.find((entry) => entry.path === "games/swf/the-impossible-quiz.html");
+  assert.ok(impossibleQuiz, "Expected The Impossible Quiz in the games catalog");
+  assert.equal(impossibleQuiz.title, "The Impossible Quiz");
+  assert.equal(impossibleQuiz.author, "Splapp-me-do");
+  assert.equal(impossibleQuiz.image, "/images/game-img/the-impossible-quiz.png");
+
   const thumbResponse = await fetch(`http://127.0.0.1:${port}${brotato.image}`);
   assert.equal(thumbResponse.status, 200);
   assert.match(thumbResponse.headers.get("content-type") || "", /^image\//i);
+
+  const impossibleThumbResponse = await fetch(`http://127.0.0.1:${port}${impossibleQuiz.image}`);
+  assert.equal(impossibleThumbResponse.status, 200);
+  assert.match(impossibleThumbResponse.headers.get("content-type") || "", /^image\//i);
 });
 
 async function getOpenPort() {
