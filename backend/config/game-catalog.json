@@ -155,6 +155,12 @@
     "image": "images/game-img/chibi-knight.jpg",
     "category": "swf"
   },
+  "games/swf/super-chibi-knight.html": {
+    "title": "Super Chibi Knight",
+    "author": "Armor Games",
+    "image": "images/game-img/super-chibi-knight.jpg",
+    "category": "swf"
+  },
   "games/swf/the-impossible-quiz.html": {
     "title": "The Impossible Quiz",
     "author": "Splapp-me-do",
