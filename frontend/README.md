@@ -20,6 +20,7 @@ Deploy target:
 
 - Host this folder on Netlify, Vercel, GitHub Pages, or any static host
 - Point the UI at `https://api.sethpang.com` for backend APIs and hosted game files
+- `render.yaml` is included so the `frontend` branch can deploy directly on Render as a static site
 
 Notes:
 
