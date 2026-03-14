@@ -1,0 +1,134 @@
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const fsp = require("node:fs/promises");
+const os = require("node:os");
+const path = require("node:path");
+const net = require("node:net");
+const { spawn } = require("node:child_process");
+
+const REPO_DIR = path.resolve(__dirname, "..", "..");
+const BACKEND_DIR = path.join(REPO_DIR, "backend");
+const FRONTEND_DIR = path.join(REPO_DIR, "frontend");
+
+test("games api serves discovered catalog entries and backend thumbnails", async (t) => {
+  const port = await getOpenPort();
+  const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "palladium-games-api-"));
+  const configPath = path.join(tempDir, "palladium.env");
+  const playStatsPath = path.join(tempDir, "game-play-stats.json");
+
+  await fsp.writeFile(
+    configPath,
+    [
+      "SITE_HOST=127.0.0.1",
+      `SITE_PORT=${port}`,
+      "CORS_ORIGIN=*",
+      `FRONTEND_DIR=${FRONTEND_DIR}`,
+      `GAMES_DIR=${path.join(BACKEND_DIR, "games")}`,
+      `SWF_DIR=${path.join(BACKEND_DIR, "swf")}`,
+      `GAME_IMAGE_DIR=${path.join(BACKEND_DIR, "images", "game-img")}`,
+      `GAME_CATALOG_PATH=${path.join(BACKEND_DIR, "config", "game-catalog.json")}`,
+      `PLAY_STATS_PATH=${playStatsPath}`,
+      "OLLAMA_AUTOSTART=false",
+      "DISCORD_BOTS_AUTOSTART=false",
+      "GIT_AUTO_PULL_ENABLED=false"
+    ].join("\n") + "\n",
+    "utf8"
+  );
+
+  const child = spawn(process.execPath, ["apps.js"], {
+    cwd: BACKEND_DIR,
+    env: {
+      ...process.env,
+      PALLADIUM_CONFIG: configPath
+    },
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  const output = [];
+  child.stdout.on("data", (chunk) => output.push(String(chunk)));
+  child.stderr.on("data", (chunk) => output.push(String(chunk)));
+
+  t.after(async () => {
+    if (child.exitCode === null && !child.killed) {
+      child.kill("SIGTERM");
+      await waitForExit(child, 2000).catch(() => {
+        child.kill("SIGKILL");
+      });
+    }
+    await fsp.rm(tempDir, { recursive: true, force: true });
+  });
+
+  await waitForServer(`http://127.0.0.1:${port}/health`, output);
+
+  const response = await fetch(`http://127.0.0.1:${port}/api/games`);
+  assert.equal(response.status, 200);
+
+  const payload = await response.json();
+  assert.equal(payload.ok, true);
+  assert.ok(Array.isArray(payload.games));
+  assert.ok(payload.games.length >= 20);
+
+  const brotato = payload.games.find((entry) => entry.path === "games/bullet-hell/brotato.html");
+  assert.ok(brotato, "Expected Brotato in the games catalog");
+  assert.equal(brotato.title, "Brotato");
+  assert.equal(brotato.author, "Blobfish");
+  assert.equal(brotato.image, "/images/game-img/brotato.jpeg");
+
+  const chibiKnight = payload.games.find((entry) => entry.path === "games/swf/chibi-knight.html");
+  assert.ok(chibiKnight, "Expected the SWF launcher in the games catalog");
+  assert.equal(chibiKnight.title, "Chibi Knight");
+
+  const thumbResponse = await fetch(`http://127.0.0.1:${port}${brotato.image}`);
+  assert.equal(thumbResponse.status, 200);
+  assert.match(thumbResponse.headers.get("content-type") || "", /^image\//i);
+});
+
+async function getOpenPort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+    server.once("error", reject);
+  });
+}
+
+async function waitForServer(url, output) {
+  const deadline = Date.now() + 15_000;
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) {
+        return;
+      }
+    } catch {
+      // Keep polling until the process is ready.
+    }
+    await sleep(200);
+  }
+
+  throw new Error(`Backend server did not start in time.\n${output.join("")}`);
+}
+
+async function waitForExit(child, timeoutMs) {
+  if (child.exitCode !== null) return;
+
+  await Promise.race([
+    new Promise((resolve) => child.once("exit", resolve)),
+    sleep(timeoutMs).then(() => {
+      throw new Error("Timed out waiting for backend process to exit.");
+    })
+  ]);
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
