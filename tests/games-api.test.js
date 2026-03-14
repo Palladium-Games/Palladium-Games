@@ -93,6 +93,10 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   assert.equal(impossibleThumbResponse.status, 200);
   assert.match(impossibleThumbResponse.headers.get("content-type") || "", /^image\//i);
 
+  const gameResponse = await fetch(`http://127.0.0.1:${port}/games/bullet-hell/brotato.html`);
+  assert.equal(gameResponse.status, 200);
+  assert.equal(gameResponse.headers.get("x-frame-options"), null);
+
   const rootResponse = await fetch(`http://127.0.0.1:${port}/`);
   assert.equal(rootResponse.status, 404);
   assert.match(await rootResponse.text(), /Frontend not configured/i);
