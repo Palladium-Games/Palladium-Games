@@ -882,6 +882,8 @@ async function routeRequest(req, res, config) {
           proxyFetch: "/api/proxy/fetch",
           proxyBase,
           aiChat: "/api/ai/chat",
+          assetBase: backendOrigin,
+          gamesBase: backendOrigin,
           monochromeBase: config.monochromeBaseUrl,
           defaultAiModel: config.ollamaModel
         },

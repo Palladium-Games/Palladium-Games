@@ -6,6 +6,10 @@
   "main": "apps.js",
   "scripts": {
     "start": "node apps.js",
-    "start:dev": "SITE_PORT=3000 node apps.js"
+    "start:dev": "SITE_PORT=3000 node apps.js",
+    "start:backend": "node backend/server.js",
+    "build:frontend": "node scripts/sync-frontend.js",
+    "test": "node --test tests/*.test.js",
+    "verify": "node --check apps.js && node --check backend.js && node --check nav.js && node --check site-settings.js && node --check scripts/sync-frontend.js && node --check backend/server.js && npm run test && npm run build:frontend"
   }
 }

@@ -1,11 +1,18 @@
 # Palladium Games
 
-Palladium runs as a single Node monolith (`apps.js`) that:
+Palladium now supports a split deployment model:
 
-- serves static frontend pages from repo root
-- exposes backend APIs for games, AI, proxy fetch, and link checks
-- optionally manages runtime services (Ollama, Discord bots)
-- powers Settings-based tab cloaking (custom title/favicon + about:blank launcher)
+- `frontend/` is the static UI export for Netlify, Vercel, GitHub Pages, and similar hosts
+- `backend/` is the runtime wrapper for the real backend on `api.sethpang.com`
+- repo root remains the source of truth for editing and local development
+
+The backend runtime (`apps.js`) handles:
+
+- backend APIs for games, AI, proxy fetch, and link checks
+- hosted game files
+- optional runtime services (Ollama, Discord bots)
+- public config consumed by the static frontend
+- Settings-based tab cloaking (custom title/favicon + about:blank launcher)
 
 ## Deploy
 
@@ -17,10 +24,14 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 
 | Path | Purpose |
 |------|--------|
-| repo root (`.`) | Website HTML/CSS/JS pages and shared assets (`index.html`, `games.html`, `proxy.html`, `ai.html`, `music.html`, `settings.html`, `games/`, `images/`) |
+| repo root (`.`) | Source of truth for website HTML/CSS/JS pages and shared assets |
+| `frontend/` | Generated static export for Netlify/Vercel/static hosting |
+| `backend/` | Backend runtime wrapper for `apps.js` |
+| `games/` | Hosted game files served by the backend |
 | `discord-bots/` | Discord bot scripts started by `apps.js` |
 | `config/` | Runtime config (`palladium.env`) |
 | `apps.js` | Main monolith runtime |
+| `scripts/sync-frontend.js` | Builds the static frontend export |
 | `start.sh` | Start script for production/local |
 | `services/` | Optional extras (e.g. monochrome) |
 
@@ -31,6 +42,47 @@ Palladium runs as a single Node monolith (`apps.js`) that:
 ```
 
 On first run, `config/palladium.env` is auto-created from `config/palladium.env.example` if missing.
+
+## Split Deploy Flow
+
+### Frontend
+
+Build the static frontend export:
+
+```bash
+npm run build:frontend
+```
+
+Deploy the generated `frontend/` folder to Netlify, Vercel, GitHub Pages, or another static host.
+
+Outside local development, `backend.js` defaults the frontend to:
+
+```text
+https://api.sethpang.com
+```
+
+So the UI keeps its own pages and styling, while the real work is piped to the backend origin.
+
+### Backend
+
+Run the backend locally:
+
+```bash
+npm run start:backend
+```
+
+Or keep using:
+
+```bash
+./start.sh
+```
+
+Recommended production shape:
+
+- frontend host: static deploy of `frontend/`
+- backend host: `api.sethpang.com`
+- backend serves `/api/*`, `/games/*`, `/health`, `/link-check`
+- frontend pages call backend APIs through `backend.js`
 
 ## Make Your Own Link
 
@@ -151,7 +203,11 @@ The website-url detector only updates favicon, not title.
 
 ## Configuration Notes
 
-- Frontend HTML files are served directly from the repo root (`FRONTEND_DIR=.`).
+- Repo root is still the editable source for frontend files.
+- `npm run build:frontend` copies the static UI into `frontend/`.
+- Frontend pages default to `https://api.sethpang.com` outside local development.
+- `game-player.html` loads hosted game files from the backend origin instead of assuming local static `games/`.
+- Backend can still serve the root site directly for local or single-host deployments (`FRONTEND_DIR=.` by default).
 - Proxy page can target your external proxy via `PROXY_BASE_URL` (recommended to use HTTPS/443).
 - If `PROXY_BASE_URL` is empty, `proxy.html` falls back to `https://<current-host>:443`.
 - Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `services/`, dotfiles).

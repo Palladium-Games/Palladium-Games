@@ -1,0 +1,11 @@
+{
+  "name": "palladium-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Backend runtime wrapper for Palladium Games",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:dev": "SITE_PORT=3000 node server.js"
+  }
+}
