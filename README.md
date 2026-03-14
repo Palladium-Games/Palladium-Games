@@ -84,6 +84,111 @@ Recommended production shape:
 - backend serves `/api/*`, `/games/*`, `/health`, `/link-check`
 - frontend pages call backend APIs through `backend.js`
 
+### Backend Server Setup
+
+For the split setup, the backend app should listen only on localhost and Nginx should expose it publicly:
+
+```text
+backend app: 127.0.0.1:8080
+public HTTPS: api.sethpang.com:443
+```
+
+1. Clone the repo on the server and install Node.js.
+2. Create the runtime config:
+
+```bash
+mkdir -p config
+cp config/palladium.env.example config/palladium.env
+```
+
+3. Set the backend host and port in `config/palladium.env`:
+
+```env
+SITE_HOST=127.0.0.1
+SITE_PORT=8080
+```
+
+4. Start the backend locally for a quick test:
+
+```bash
+npm run start:backend
+```
+
+5. Install Nginx and create a plain HTTP site config first:
+
+```nginx
+server {
+    listen 80;
+    server_name api.sethpang.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300;
+        proxy_send_timeout 300;
+        proxy_buffering off;
+    }
+}
+```
+
+6. Test and reload Nginx:
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+7. After the HTTP config works, issue the certificate:
+
+```bash
+sudo certbot --nginx -d api.sethpang.com
+```
+
+8. Put the backend under `systemd` so it stays online:
+
+```ini
+[Unit]
+Description=Palladium Backend
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/Palladium-Games
+ExecStart=/usr/bin/npm run start:backend
+Restart=always
+RestartSec=5
+User=root
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Save that as `/etc/systemd/system/palladium-backend.service`, then run:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now palladium-backend
+sudo systemctl status palladium-backend
+```
+
+9. Confirm the live backend:
+
+```bash
+curl https://api.sethpang.com/health
+```
+
+Expected result:
+
+- static frontend hosted on Netlify/Vercel
+- backend reachable at `https://api.sethpang.com`
+- `games/`, AI, proxy, and APIs all served by the backend box
+
 ## Make Your Own Link
 
 If you want your own public URL (domain/subdomain) for this site:
