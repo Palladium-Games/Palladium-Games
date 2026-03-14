@@ -78,6 +78,8 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   const chibiKnight = payload.games.find((entry) => entry.path === "games/swf/chibi-knight.html");
   assert.ok(chibiKnight, "Expected the SWF launcher in the games catalog");
   assert.equal(chibiKnight.title, "Chibi Knight");
+  assert.equal(chibiKnight.author, "Armor Games");
+  assert.equal(chibiKnight.image, "/images/game-img/chibi-knight.jpg");
 
   const impossibleQuiz = payload.games.find((entry) => entry.path === "games/swf/the-impossible-quiz.html");
   assert.ok(impossibleQuiz, "Expected The Impossible Quiz in the games catalog");
