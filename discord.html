@@ -154,17 +154,13 @@
       var heroChannelsEl = document.getElementById('discord-hero-channels');
       var focusPillEl = document.getElementById('discord-focus-pill');
       var joinDockEl = document.querySelector('.discord-join-dock');
-      var discordPresentEl = document.querySelector('.discord-present');
-      var dockAnchorEl = document.querySelector('.discord-present__runway') || document.querySelector('.discord-present__panel') || discordPresentEl;
       var dockSyncTimer = null;
 
       function syncJoinDockPosition() {
-        if (!joinDockEl || !dockAnchorEl) return;
-        var rect = dockAnchorEl.getBoundingClientRect();
-        if (!rect || !isFinite(rect.left) || !isFinite(rect.width)) return;
-
-        joinDockEl.style.left = Math.max(0, Math.round(rect.left)) + 'px';
-        joinDockEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+        if (!joinDockEl) return;
+        joinDockEl.style.removeProperty('left');
+        joinDockEl.style.removeProperty('right');
+        joinDockEl.style.removeProperty('width');
       }
 
       function queueDockSync() {
@@ -200,11 +196,12 @@
           });
         }
       }
-      if (window.ResizeObserver && dockAnchorEl) {
+      var discordPresentEl = document.querySelector('.discord-present');
+      if (window.ResizeObserver && discordPresentEl) {
         var dockResizeObserver = new ResizeObserver(function () {
           queueDockSync();
         });
-        dockResizeObserver.observe(dockAnchorEl);
+        dockResizeObserver.observe(discordPresentEl);
         var mainEl = document.querySelector('.main');
         if (mainEl) {
           dockResizeObserver.observe(mainEl);
