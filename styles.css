@@ -1242,15 +1242,16 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   max-width: none;
   box-sizing: border-box;
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
   padding-left: var(--discord-shell-left-offset);
   padding-right: var(--discord-page-gutter);
 }
 
 .discord-join-dock__btn {
-  width: min(100%, var(--discord-shell-max));
-  max-width: var(--discord-shell-max);
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
   pointer-events: auto;
   text-decoration: none;
   color: #f6f9ff;
@@ -2955,8 +2956,8 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   }
 
   .discord-join-dock__btn {
-    width: min(100%, var(--discord-shell-max));
-    max-width: var(--discord-shell-max);
+    width: 100%;
+    max-width: none;
     border-radius: 14px;
     padding: 0.78rem 0.84rem;
     gap: 0.7rem;
