@@ -80,6 +80,25 @@
         </section>
         <div class="games-section-head">
           <h2 class="games-section-head__title">All Games</h2>
+          <span class="games-section-head__meta">Search by title, author, or category</span>
+        </div>
+        <div class="games-search" role="search" aria-label="Search games">
+          <label class="games-search__field" for="games-search-input">
+            <svg class="games-search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="20" y1="20" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              id="games-search-input"
+              class="games-search__input"
+              type="search"
+              placeholder="Search games, authors, or categories"
+              autocomplete="off"
+              spellcheck="false"
+            />
+          </label>
+          <div id="games-search-status" class="games-search__status">Loading catalog...</div>
+          <button type="button" id="games-search-clear" class="games-search__clear" hidden>Clear</button>
         </div>
         <div id="games-grid" class="games-grid">
           <div class="trending-games__empty">Loading games from the backend catalog...</div>
@@ -98,8 +117,13 @@
       var titleEl = document.getElementById('featured-game-title');
       var authorEl = document.getElementById('featured-game-author');
       var gamesGridEl = document.getElementById('games-grid');
+      var searchInputEl = document.getElementById('games-search-input');
+      var searchStatusEl = document.getElementById('games-search-status');
+      var searchClearEl = document.getElementById('games-search-clear');
       var trendingMetaEl = document.getElementById('trending-games-meta');
       var trendingListEl = document.getElementById('trending-games-list');
+      var allGames = [];
+      var currentQuery = '';
 
       function hashSeed(seed) {
         var hash = 2166136261;
@@ -112,6 +136,10 @@
 
       function sanitizeText(value) {
         return String(value == null ? '' : value).trim();
+      }
+
+      function searchValue(value) {
+        return sanitizeText(value).toLowerCase();
       }
 
       function resolveAssetUrl(value) {
@@ -218,7 +246,9 @@
         if (!Array.isArray(games) || !games.length) {
           var empty = document.createElement('div');
           empty.className = 'trending-games__empty';
-          empty.textContent = 'No games were returned by the backend catalog.';
+          empty.textContent = currentQuery
+            ? ('No games match "' + currentQuery + '".')
+            : 'No games were returned by the backend catalog.';
           gamesGridEl.appendChild(empty);
           return;
         }
@@ -226,6 +256,72 @@
         for (var i = 0; i < games.length; i += 1) {
           gamesGridEl.appendChild(createGameCard(games[i], ''));
         }
+      }
+
+      function filterGames(games, query) {
+        var normalizedQuery = searchValue(query);
+        if (!normalizedQuery) return Array.isArray(games) ? games.slice() : [];
+
+        return (Array.isArray(games) ? games : []).filter(function (item) {
+          var haystack = [
+            item && item.title,
+            item && item.author,
+            item && item.category,
+            item && item.path
+          ]
+            .map(searchValue)
+            .join(' ');
+          return haystack.indexOf(normalizedQuery) !== -1;
+        });
+      }
+
+      function syncSearchUrl(query) {
+        try {
+          var params = new URLSearchParams(window.location.search || '');
+          if (query) {
+            params.set('q', query);
+          } else {
+            params.delete('q');
+          }
+          var next = window.location.pathname + (params.toString() ? ('?' + params.toString()) : '') + window.location.hash;
+          window.history.replaceState(null, '', next);
+        } catch (error) {
+          // Ignore history update issues.
+        }
+      }
+
+      function updateSearchStatus(resultCount, totalCount, query, hadError) {
+        if (!searchStatusEl) return;
+
+        if (hadError) {
+          searchStatusEl.textContent = 'Catalog unavailable';
+          return;
+        }
+
+        if (query) {
+          searchStatusEl.textContent = resultCount + (resultCount === 1 ? ' result' : ' results');
+          return;
+        }
+
+        searchStatusEl.textContent = totalCount + (totalCount === 1 ? ' game' : ' games');
+      }
+
+      function applyGameFilter() {
+        var filteredGames = filterGames(allGames, currentQuery);
+        renderAllGames(filteredGames);
+        updateSearchStatus(filteredGames.length, allGames.length, currentQuery, false);
+      }
+
+      function setSearchQuery(value) {
+        currentQuery = sanitizeText(value);
+        if (searchInputEl && searchInputEl.value !== currentQuery) {
+          searchInputEl.value = currentQuery;
+        }
+        if (searchClearEl) {
+          searchClearEl.hidden = !currentQuery;
+        }
+        syncSearchUrl(currentQuery);
+        applyGameFilter();
       }
 
       function renderFeatured(games) {
@@ -292,11 +388,14 @@
         try {
           var payload = await window.PalladiumBackend.fetchJson('/api/games');
           var games = Array.isArray(payload && payload.games) ? payload.games : [];
-          renderAllGames(games);
+          allGames = games;
+          applyGameFilter();
           renderFeatured(games);
         } catch (error) {
+          allGames = [];
           renderAllGames([]);
           renderFeatured([]);
+          updateSearchStatus(0, 0, currentQuery, true);
         }
       }
 
@@ -321,6 +420,32 @@
           }
           renderTrending([]);
         }
+      }
+
+      if (searchInputEl) {
+        try {
+          var initialParams = new URLSearchParams(window.location.search || '');
+          currentQuery = sanitizeText(initialParams.get('q'));
+          if (currentQuery) {
+            searchInputEl.value = currentQuery;
+          }
+        } catch (error) {
+          currentQuery = '';
+        }
+
+        searchInputEl.addEventListener('input', function () {
+          setSearchQuery(searchInputEl.value);
+        });
+      }
+
+      if (searchClearEl) {
+        searchClearEl.hidden = !currentQuery;
+        searchClearEl.addEventListener('click', function () {
+          setSearchQuery('');
+          if (searchInputEl) {
+            searchInputEl.focus();
+          }
+        });
       }
 
       loadCatalog();
