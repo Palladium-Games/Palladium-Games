@@ -19,6 +19,11 @@
 
 ### NOTE: YOU DO NOT NEED TO ALSO CLONE THE BACKEND UNLESS YOU ARE PLANNING TO HOST THE BACKEND YOURSELF
 
+## Our Links
+https://sethpang.com
+https://palladium-games.netlify.app
+https://palladium-games.onrender.com
+
 ## Discord
 [Get updates, links, and chat with fellow gamers on our Discord server!](https://discord.gg/invite/FNACSCcE26)
 
