@@ -155,28 +155,16 @@
       var focusPillEl = document.getElementById('discord-focus-pill');
       var joinDockEl = document.querySelector('.discord-join-dock');
       var discordPresentEl = document.querySelector('.discord-present');
+      var dockAnchorEl = document.querySelector('.discord-present__runway') || document.querySelector('.discord-present__panel') || discordPresentEl;
       var dockSyncTimer = null;
 
-      function pxToNumber(value) {
-        var parsed = parseFloat(value);
-        return Number.isFinite(parsed) ? parsed : 0;
-      }
-
       function syncJoinDockPosition() {
-        if (!joinDockEl || !discordPresentEl) return;
-        var rect = discordPresentEl.getBoundingClientRect();
+        if (!joinDockEl || !dockAnchorEl) return;
+        var rect = dockAnchorEl.getBoundingClientRect();
         if (!rect || !isFinite(rect.left) || !isFinite(rect.width)) return;
 
-        var style = window.getComputedStyle(discordPresentEl);
-        var borderLeft = pxToNumber(style.borderLeftWidth);
-        var borderRight = pxToNumber(style.borderRightWidth);
-        var paddingLeft = pxToNumber(style.paddingLeft);
-        var paddingRight = pxToNumber(style.paddingRight);
-        var contentLeft = rect.left + borderLeft + paddingLeft;
-        var contentWidth = rect.width - borderLeft - borderRight - paddingLeft - paddingRight;
-
-        joinDockEl.style.left = Math.max(0, Math.round(contentLeft)) + 'px';
-        joinDockEl.style.width = Math.max(1, Math.round(contentWidth)) + 'px';
+        joinDockEl.style.left = Math.max(0, Math.round(rect.left)) + 'px';
+        joinDockEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
       }
 
       function queueDockSync() {
@@ -212,11 +200,11 @@
           });
         }
       }
-      if (window.ResizeObserver && discordPresentEl) {
+      if (window.ResizeObserver && dockAnchorEl) {
         var dockResizeObserver = new ResizeObserver(function () {
           queueDockSync();
         });
-        dockResizeObserver.observe(discordPresentEl);
+        dockResizeObserver.observe(dockAnchorEl);
         var mainEl = document.querySelector('.main');
         if (mainEl) {
           dockResizeObserver.observe(mainEl);
