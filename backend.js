@@ -60,7 +60,19 @@
     if (host === "localhost" || host === "127.0.0.1" || host === "::1" || window.location.port === "3000") {
       return window.location.origin;
     }
-    return window.location.origin;
+    if (host === "api.sethpang.com") {
+      return window.location.origin;
+    }
+    return "https://api.sethpang.com";
+  }
+
+  function assetUrl(pathValue) {
+    var base = resolveBase();
+    var value = String(pathValue || "").trim();
+    if (!value) return base;
+    if (/^https?:\/\//i.test(value)) return value;
+    if (value.charAt(0) !== "/") value = "/" + value;
+    return (base || "") + value;
   }
 
   function resolveBase() {
@@ -133,6 +145,7 @@
       CONFIG_CACHE = null;
     },
     apiUrl: apiUrl,
+    assetUrl: assetUrl,
     fetchJson: fetchJson,
     getPublicConfig: getPublicConfig,
     withPort: withPort

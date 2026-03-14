@@ -113,6 +113,9 @@
       var playTrackEndpoint = (window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function')
         ? window.PalladiumBackend.apiUrl('/api/games/play')
         : '/api/games/play';
+      var resolvedGameUrl = (window.PalladiumBackend && typeof window.PalladiumBackend.assetUrl === 'function')
+        ? window.PalladiumBackend.assetUrl(game)
+        : game;
 
       function inferCategoryFromPath(gamePath) {
         var normalized = String(gamePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
@@ -155,7 +158,7 @@
       }
 
       if (game && frame) {
-        frame.src = game;
+        frame.src = resolvedGameUrl;
         var dynamicTitle = decodedTitle + ' — Palladium Games';
         if (window.PalladiumSiteSettings && typeof window.PalladiumSiteSettings.decorateTitle === 'function') {
           document.title = window.PalladiumSiteSettings.decorateTitle(dynamicTitle);
@@ -166,7 +169,7 @@
         if (authorEl) authorEl.textContent = author ? ' — ' + decodedAuthor : '';
 
         if (newTabLink) {
-          newTabLink.href = game;
+          newTabLink.href = resolvedGameUrl;
           newTabLink.style.display = 'inline-flex';
         }
 
