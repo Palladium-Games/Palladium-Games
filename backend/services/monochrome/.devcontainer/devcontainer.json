@@ -1,0 +1,22 @@
+{
+    "name": "debian-npm-fish-devcontainer",
+    "build": {
+        "dockerfile": "Dockerfile"
+    },
+
+    "remoteUser": "devuser",
+
+    "features": {},
+
+    "customizations": {
+        "vscode": {
+            "extensions": ["dbaeumer.vscode-eslint", "esbenp.prettier-vscode"]
+        }
+    },
+
+    "postCreateCommand": "npm install",
+
+    "remoteEnv": {
+        "SHELL": "/usr/bin/fish"
+    }
+}

@@ -1,0 +1,152 @@
+{
+  "games/l2f/learn-to-fly.html": {
+    "title": "Learn to Fly",
+    "author": "Light Bringer",
+    "image": "images/game-img/learn-to-fly.png",
+    "category": "l2f"
+  },
+  "games/l2f/learn-to-fly2.html": {
+    "title": "Learn to Fly 2",
+    "author": "Light Bringer",
+    "image": "images/game-img/learn-to-fly2.png",
+    "category": "l2f"
+  },
+  "games/l2f/learn-to-fly3.html": {
+    "title": "Learn to Fly 3",
+    "author": "Light Bringer",
+    "image": "images/game-img/learn-to-fly3.png",
+    "category": "l2f"
+  },
+  "games/ragdoll/ragdoll-archers.html": {
+    "title": "Ragdoll Archers",
+    "author": "Studio Minus",
+    "image": "images/game-img/ragdoll-archers.png",
+    "category": "ragdoll"
+  },
+  "games/ragdoll/ragdoll-hit.html": {
+    "title": "Ragdoll Hit",
+    "author": "Studio Minus",
+    "image": "images/game-img/ragdoll-hit.png",
+    "category": "ragdoll"
+  },
+  "games/fnaf/fnaf-1.html": {
+    "title": "Five Nights at Freddy's 1",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf-icon.png",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-2.html": {
+    "title": "Five Nights at Freddy's 2",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf2-icon.png",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-3.html": {
+    "title": "Five Nights at Freddy's 3",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf3-icon.png",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-4.html": {
+    "title": "Five Nights at Freddy's 4",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf4-icon.png",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-customnight.html": {
+    "title": "FNAF Custom Night",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf-ucn.png",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-pizzasim.html": {
+    "title": "FNAF Pizza Simulator",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf-pizzasim.jpg",
+    "category": "fnaf"
+  },
+  "games/fnaf/fnaf-sl.html": {
+    "title": "Five Nights at Freddy's: Sister Location",
+    "author": "Scott Cawthon",
+    "image": "images/game-img/fnaf-sl.png",
+    "category": "fnaf"
+  },
+  "games/others/fnae.html": {
+    "title": "Five Nights at Epstein's",
+    "author": "EvanProductions",
+    "image": "images/game-img/fnae.png",
+    "category": "others"
+  },
+  "games/others/eaglercraft-1.12.2.html": {
+    "title": "Eaglercraft 1.12.2",
+    "author": "lax1dude + PeytonPlayz585",
+    "image": "images/game-img/eaglercraft-1.12.2.png",
+    "category": "others"
+  },
+  "games/sports/bros-games/basketbros.html": {
+    "title": "Basket Bros",
+    "author": "Blue Wizard Digital",
+    "image": "images/game-img/basketbros.png",
+    "category": "sports"
+  },
+  "games/sports/bros-games/baseballbros.html": {
+    "title": "Baseball Bros",
+    "author": "Blue Wizard Digital",
+    "image": "images/game-img/baseball-bros.jpeg",
+    "category": "sports"
+  },
+  "games/sports/bros-games/footballbros.html": {
+    "title": "Football Bros",
+    "author": "Blue Wizard Digital",
+    "image": "images/game-img/football-bros.png",
+    "category": "sports"
+  },
+  "games/sports/retro-bowl.html": {
+    "title": "Retro Bowl",
+    "author": "New Star Games",
+    "image": "images/game-img/retro-bowl.png",
+    "category": "sports"
+  },
+  "games/sports/retro-bowl-college.html": {
+    "title": "Retro Bowl College",
+    "author": "New Star Games",
+    "image": "images/game-img/retro-bowl-college.jpg",
+    "category": "sports"
+  },
+  "games/others/bitlife.html": {
+    "title": "BitLife",
+    "author": "Candywriter",
+    "image": "images/game-img/bitlife.png",
+    "category": "others"
+  },
+  "games/platformer/geodash-lite.html": {
+    "title": "Geometry Dash Lite",
+    "author": "RobTop Games",
+    "image": "images/game-img/geometry-dash.png",
+    "category": "platformer"
+  },
+  "games/bullet-hell/brotato.html": {
+    "title": "Brotato",
+    "author": "Blobfish",
+    "image": "images/game-img/brotato.jpeg",
+    "category": "bullet-hell"
+  },
+  "games/racing/smashkarts.html": {
+    "title": "Smash Karts",
+    "author": "Tall Team",
+    "image": "images/game-img/smash-karts.png",
+    "category": "racing"
+  },
+  "games/escape-road/escape-road.html": {
+    "title": "Escape Road",
+    "author": "AZgames",
+    "image": "images/game-img/escape-road.png",
+    "category": "escape-road"
+  },
+  "games/others/blockblast.html": {
+    "title": "Block Blast",
+    "author": "reunbozdo",
+    "image": "images/game-img/blockblast.png",
+    "category": "others"
+  }
+}

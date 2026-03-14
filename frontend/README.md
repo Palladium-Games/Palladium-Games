@@ -1,6 +1,6 @@
 # Palladium Frontend
 
-This folder is the static frontend export for Palladium Games.
+This folder is the static frontend source for Palladium Games.
 
 What lives here:
 

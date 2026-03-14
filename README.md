@@ -1,10 +1,10 @@
 # Palladium Games
 
-Palladium now supports a split deployment model:
+Palladium now uses a split deployment model:
 
-- `frontend/` is the static UI export for Netlify, Vercel, GitHub Pages, and similar hosts
-- `backend/` is the runtime wrapper for the real backend on `api.sethpang.com`
-- repo root remains the source of truth for editing and local development
+- `frontend/` is the static UI source for Netlify, Vercel, GitHub Pages, and similar hosts
+- `backend/` contains the runtime for the real backend on `api.sethpang.com`
+- repo root is mainly project metadata plus the split `frontend/` and `backend/` folders
 
 The backend runtime (`apps.js`) handles:
 
@@ -24,36 +24,24 @@ The backend runtime (`apps.js`) handles:
 
 | Path | Purpose |
 |------|--------|
-| repo root (`.`) | Source of truth for website HTML/CSS/JS pages and shared assets |
-| `frontend/` | Generated static export for Netlify/Vercel/static hosting |
-| `backend/` | Backend runtime wrapper for `apps.js` |
-| `games/` | Hosted game files served by the backend |
-| `discord-bots/` | Discord bot scripts started by `apps.js` |
-| `config/` | Runtime config (`palladium.env`) |
-| `apps.js` | Main monolith runtime |
-| `scripts/sync-frontend.js` | Builds the static frontend export |
-| `start.sh` | Start script for production/local |
-| `services/` | Optional extras (e.g. monochrome) |
+| repo root (`.`) | Project metadata and split app folders |
+| `frontend/` | Source of truth for static pages, shared CSS/JS, and images |
+| `backend/` | Backend runtime, config, bots, hosted games, game thumbnails, tests, and sidecar services |
 
 ## Quick Start
 
 ```bash
+cd backend
 ./start.sh
 ```
 
-On first run, `config/palladium.env` is auto-created from `config/palladium.env.example` if missing.
+On first run, `backend/config/palladium.env` is auto-created from `backend/config/palladium.env.example` if missing.
 
 ## Split Deploy Flow
 
 ### Frontend
 
-Build the static frontend export:
-
-```bash
-npm run build:frontend
-```
-
-Deploy the generated `frontend/` folder to Netlify, Vercel, GitHub Pages, or another static host.
+Deploy the `frontend/` folder directly to Netlify, Vercel, GitHub Pages, or another static host.
 
 Outside local development, `backend.js` defaults the frontend to:
 
@@ -68,12 +56,14 @@ So the UI keeps its own pages and styling, while the real work is piped to the b
 Run the backend locally:
 
 ```bash
-npm run start:backend
+cd backend
+npm start
 ```
 
 Or keep using:
 
 ```bash
+cd backend
 ./start.sh
 ```
 
@@ -81,7 +71,7 @@ Recommended production shape:
 
 - frontend host: static deploy of `frontend/`
 - backend host: `api.sethpang.com`
-- backend serves `/api/*`, `/games/*`, `/health`, `/link-check`
+- backend serves `/api/*`, `/games/*`, `/images/game-img/*`, `/health`, `/link-check`
 - frontend pages call backend APIs through `backend.js`
 
 ### Backend Server Setup
@@ -97,11 +87,12 @@ public HTTPS: api.sethpang.com:443
 2. Create the runtime config:
 
 ```bash
+cd backend
 mkdir -p config
 cp config/palladium.env.example config/palladium.env
 ```
 
-3. Set the backend host and port in `config/palladium.env`:
+3. Set the backend host and port in `backend/config/palladium.env`:
 
 ```env
 SITE_HOST=127.0.0.1
@@ -111,7 +102,7 @@ SITE_PORT=8080
 4. Start the backend locally for a quick test:
 
 ```bash
-npm run start:backend
+npm start
 ```
 
 5. Install Nginx and create a plain HTTP site config first:
@@ -158,8 +149,8 @@ After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/Palladium-Games
-ExecStart=/usr/bin/npm run start:backend
+WorkingDirectory=/opt/Palladium-Games/backend
+ExecStart=/usr/bin/npm start
 Restart=always
 RestartSec=5
 User=root
@@ -238,9 +229,9 @@ https://your-frontend.example/?backend=https://your-backend.example
 
 Enable automatic updates so a new push to your repository auto-pulls and restarts the app:
 
-1. Set `GIT_AUTO_PULL_ENABLED=true` in `config/palladium.env`.
+1. Set `GIT_AUTO_PULL_ENABLED=true` in `backend/config/palladium.env`.
 2. Confirm `GIT_AUTO_PULL_REMOTE=origin` and `GIT_AUTO_PULL_BRANCH=` (or set your branch explicitly).
-3. Start with `./start.sh`.
+3. Start with `cd backend && ./start.sh`.
 
 Behavior:
 
@@ -308,16 +299,15 @@ The website-url detector only updates favicon, not title.
 
 ## Configuration Notes
 
-- Repo root is still the editable source for frontend files.
-- `npm run build:frontend` copies the static UI into `frontend/`.
+- `frontend/` is the editable source for frontend files.
 - Frontend pages default to `https://api.sethpang.com` outside local development.
 - `game-player.html` loads hosted game files from the backend origin instead of assuming local static `games/`.
-- Backend can still serve the root site directly for local or single-host deployments (`FRONTEND_DIR=.` by default).
+- Backend serves `../frontend/` by default for local or single-host deployments (`FRONTEND_DIR=../frontend` by default inside `backend/config/palladium.env`).
 - Proxy page can target your external proxy via `PROXY_BASE_URL` (recommended to use HTTPS/443).
 - If `PROXY_BASE_URL` is empty, `proxy.html` falls back to `https://<current-host>:443`.
 - Static serving blocks backend/internal paths (`config/`, `discord-bots/`, `services/`, dotfiles).
 - Game catalog API reads from `games.html` so titles/authors stay aligned with the UI.
-- Discord tokens/channels are configured in `config/palladium.env`.
+- Discord tokens/channels are configured in `backend/config/palladium.env`.
 - Commit bot tracks remote GitHub commits (not local-only git state). Optional settings: `DISCORD_COMMIT_REPO`, `DISCORD_COMMIT_BRANCH`, `DISCORD_COMMIT_POLL_MS`, `DISCORD_COMMIT_GITHUB_TOKEN`, `DISCORD_COMMIT_POST_ON_BOOTSTRAP`, `DISCORD_COMMIT_BOOTSTRAP_POST_COUNT`, `DISCORD_COMMIT_PING_ROLE_NAME`, `DISCORD_COMMIT_PING_ROLE_ID`.
 - If `DISCORD_COMMIT_BRANCH` is wrong (for example `master` on a `main` repo), the bot auto-falls back to the repo default branch.
-- `config/palladium.env.example` contains all supported runtime settings.
+- `backend/config/palladium.env.example` contains all supported runtime settings.

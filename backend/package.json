@@ -2,10 +2,12 @@
   "name": "palladium-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Backend runtime wrapper for Palladium Games",
-  "main": "server.js",
+  "description": "Palladium backend runtime (API + bots + hosted games)",
+  "main": "apps.js",
   "scripts": {
-    "start": "node server.js",
-    "start:dev": "SITE_PORT=3000 node server.js"
+    "start": "node apps.js",
+    "start:dev": "SITE_PORT=3000 node apps.js",
+    "test": "node --test tests/*.test.js",
+    "verify": "node --check apps.js && node --check server.js && node --check ../frontend/backend.js && node --check ../frontend/nav.js && node --check ../frontend/site-settings.js && npm run test"
   }
 }

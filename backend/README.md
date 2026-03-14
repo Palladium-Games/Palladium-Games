@@ -1,12 +1,13 @@
 # Palladium Backend
 
-This folder is the backend runtime wrapper for Palladium Games.
+This folder is the backend runtime for Palladium Games.
 
 What it runs:
 
-- `apps.js` from the repo root
+- `apps.js` in this folder
 - AI APIs
 - hosted game files
+- hosted game thumbnails from `backend/images/game-img`
 - proxy endpoints
 - Monochrome endpoint configuration
 - Discord bot sidecars
@@ -14,14 +15,15 @@ What it runs:
 Run locally:
 
 ```bash
-node backend/server.js
+cd backend
+./start.sh
 ```
 
 Production target:
 
 - point `api.sethpang.com` at this backend
-- keep `config/palladium.env` on the server
-- host the generated `frontend/` folder separately on a static platform
+- keep `backend/config/palladium.env` on the server
+- host the `../frontend/` folder separately on a static platform
 
 Important:
 
