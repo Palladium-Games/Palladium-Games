@@ -1235,7 +1235,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   position: fixed;
   left: calc(
     var(--discord-shell-left-offset) +
-    (100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter) - var(--discord-shell-width)) / 2
+    (100vw - var(--discord-shell-left-offset) - var(--discord-shell-width)) / 2
   );
   right: auto;
   bottom: var(--discord-page-gutter);
@@ -2947,7 +2947,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   .discord-join-dock {
     left: calc(
       var(--discord-shell-left-offset) +
-      (100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter) - var(--discord-shell-width)) / 2
+      (100vw - var(--discord-shell-left-offset) - var(--discord-shell-width)) / 2
     );
     right: auto;
     width: var(--discord-shell-width);
