@@ -11,6 +11,12 @@ const COMMAND_SYNC_MS = Math.max(60_000, Number(process.env.DISCORD_LINK_COMMAND
 const LEGACY_POLLING_ENABLED = parseBool(process.env.DISCORD_LINK_LEGACY_POLLING_ENABLED, false);
 const STATE_PATH = process.env.DISCORD_LINK_STATE_PATH || path.join(__dirname, "..", ".discord-link-command-state.json");
 const LINK_COMMAND_NAME = "link";
+const ADD_LINK_COMMAND_NAME = "addlink";
+const GET_LINK_COMMAND_NAME = "getlink";
+const ADMINISTRATOR_PERMISSION = 0x00000008n;
+const MANAGE_GUILD_PERMISSION = 0x00000020n;
+const MANAGE_MESSAGES_PERMISSION = 0x00002000n;
+const MAX_SAVED_LINKS = Math.max(10, Number(process.env.DISCORD_LINK_MAX_SAVED_LINKS || 250));
 
 const BOT_TOKEN = normalizeDiscordToken(
   process.env.DISCORD_BOT_TOKEN ||
@@ -25,24 +31,16 @@ const CHANNEL_IDS = parseChannelIds(
   ""
 );
 
-if (!BOT_TOKEN) {
-  console.error("Missing DISCORD_BOT_TOKEN (or git config discord.botToken).");
-  process.exit(1);
-}
-
-if (!CHANNEL_IDS.length) {
-  console.error("Missing DISCORD_LINK_COMMAND_CHANNEL_IDS (or git config discord.linkCommandChannelIds). Ex: 123,456");
-  process.exit(1);
-}
-
 const state = loadState();
 if (!state.lastMessageIds || typeof state.lastMessageIds !== "object") state.lastMessageIds = {};
 if (!state.bootstrapped || typeof state.bootstrapped !== "object") state.bootstrapped = {};
+state.savedLinks = sanitizeSavedLinks(state.savedLinks);
 
 let appId = "";
 let guildIds = [];
 let lastCommandSyncAt = 0;
 const channelAllowCache = new Map();
+let presence = { stop() {} };
 
 function normalizeBaseUrl(rawValue) {
   const raw = String(rawValue || "").trim();
@@ -105,6 +103,27 @@ function parseBool(raw, fallback = false) {
 
 function unique(values) {
   return Array.from(new Set(values.map((v) => String(v).trim()).filter(Boolean)));
+}
+
+function parsePermissionBits(raw) {
+  try {
+    return BigInt(String(raw || "0"));
+  } catch {
+    return 0n;
+  }
+}
+
+function hasPermission(permissionBits, mask) {
+  const bits = parsePermissionBits(permissionBits);
+  return (bits & mask) === mask;
+}
+
+function hasLinkAdminPermissions(permissionBits) {
+  return (
+    hasPermission(permissionBits, ADMINISTRATOR_PERMISSION) ||
+    hasPermission(permissionBits, MANAGE_GUILD_PERMISSION) ||
+    hasPermission(permissionBits, MANAGE_MESSAGES_PERMISSION)
+  );
 }
 
 function loadState() {
@@ -288,6 +307,87 @@ function normalizeUrl(candidateRaw) {
   }
 }
 
+function normalizeSavedLinkEntry(rawEntry) {
+  const source = (rawEntry && typeof rawEntry === "object")
+    ? rawEntry
+    : { url: rawEntry };
+  const url = normalizeUrl(source.url);
+  if (!url) return null;
+
+  const addedBy = String(source.addedBy || "").trim();
+  const addedAtRaw = String(source.addedAt || "").trim();
+  const parsedAddedAt = addedAtRaw ? Date.parse(addedAtRaw) : Date.now();
+
+  return {
+    url,
+    addedBy,
+    addedAt: Number.isNaN(parsedAddedAt) ? new Date().toISOString() : new Date(parsedAddedAt).toISOString(),
+  };
+}
+
+function sanitizeSavedLinks(entries) {
+  const seen = new Set();
+  const normalized = [];
+
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    const normalizedEntry = normalizeSavedLinkEntry(entry);
+    if (!normalizedEntry) continue;
+
+    const key = normalizedEntry.url.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalized.push(normalizedEntry);
+  }
+
+  return normalized.slice(-MAX_SAVED_LINKS);
+}
+
+function upsertSavedLink(entries, rawUrl, metadata = {}) {
+  const url = normalizeUrl(rawUrl);
+  if (!url) {
+    return {
+      added: false,
+      duplicate: false,
+      entry: null,
+      links: sanitizeSavedLinks(entries),
+    };
+  }
+
+  const links = sanitizeSavedLinks(entries);
+  const existing = links.find((entry) => entry.url === url);
+  if (existing) {
+    return {
+      added: false,
+      duplicate: true,
+      entry: existing,
+      links,
+    };
+  }
+
+  const entry = normalizeSavedLinkEntry({
+    url,
+    addedBy: metadata.addedBy || "",
+    addedAt: metadata.addedAt || new Date().toISOString(),
+  });
+
+  return {
+    added: true,
+    duplicate: false,
+    entry,
+    links: [...links, entry].slice(-MAX_SAVED_LINKS),
+  };
+}
+
+function pickSavedLink(entries, randomValue = Math.random()) {
+  const links = sanitizeSavedLinks(entries);
+  if (!links.length) return null;
+
+  const value = Number.isFinite(randomValue) ? randomValue : Math.random();
+  const clamped = Math.min(0.999999, Math.max(0, value));
+  const index = Math.floor(clamped * links.length);
+  return links[index];
+}
+
 function parseLinkCommand(content) {
   const text = String(content || "").trim();
   if (!text) return "";
@@ -302,6 +402,34 @@ function getSlashOptionValue(interactionData, name) {
   const options = interactionData && Array.isArray(interactionData.options) ? interactionData.options : [];
   const item = options.find((option) => option && option.name === name);
   return item && typeof item.value !== "undefined" ? item.value : "";
+}
+
+function formatSavedLinkAuthor(addedBy) {
+  const value = String(addedBy || "").trim();
+  if (!value) return "Unknown";
+  return /^\d+$/.test(value) ? `<@${value}>` : clamp(value, 120);
+}
+
+function buildSavedLinkPayload(entry, totalLinks) {
+  return {
+    embeds: [
+      {
+        title: "Palladium Link Drop",
+        description: [
+          `[Open link](${entry.url})`,
+          "",
+          clamp(entry.url, 900),
+        ].join("\n"),
+        color: 0x38bdf8,
+        fields: [
+          { name: "Added By", value: formatSavedLinkAuthor(entry.addedBy), inline: true },
+          { name: "Pool Size", value: String(totalLinks), inline: true },
+        ],
+        footer: { text: "Palladium Links" },
+        timestamp: entry.addedAt || new Date().toISOString(),
+      },
+    ],
+  };
 }
 
 async function runLinkCheck(url) {
@@ -586,25 +714,44 @@ async function resolveGuildIds() {
   return guildIds;
 }
 
-function buildSlashCommandPayload() {
-  return {
-    name: LINK_COMMAND_NAME,
-    description: "Check if a link is reachable and likely blocked/unblocked.",
-    options: [
-      {
-        type: 3,
-        name: "url",
-        description: "URL to check",
-        required: true,
-      },
-    ],
-  };
+function buildSlashCommandPayloads() {
+  return [
+    {
+      name: LINK_COMMAND_NAME,
+      description: "Check if a link is reachable and likely blocked/unblocked.",
+      options: [
+        {
+          type: 3,
+          name: "url",
+          description: "URL to check",
+          required: true,
+        },
+      ],
+    },
+    {
+      name: ADD_LINK_COMMAND_NAME,
+      description: "Admin only: save a link for the shared Palladium pool.",
+      default_member_permissions: MANAGE_GUILD_PERMISSION.toString(),
+      options: [
+        {
+          type: 3,
+          name: "url",
+          description: "URL to save",
+          required: true,
+        },
+      ],
+    },
+    {
+      name: GET_LINK_COMMAND_NAME,
+      description: "Get a random saved link from the Palladium pool.",
+    },
+  ];
 }
 
 async function upsertGuildCommand(guildId, commandPayload) {
   const commands = await discordRequest("GET", `/applications/${appId}/guilds/${guildId}/commands`);
   const list = Array.isArray(commands) ? commands : [];
-  const existing = list.find((cmd) => cmd && cmd.name === LINK_COMMAND_NAME);
+  const existing = list.find((cmd) => cmd && cmd.name === commandPayload.name);
 
   if (!existing || !existing.id) {
     await discordRequest("POST", `/applications/${appId}/guilds/${guildId}/commands`, commandPayload);
@@ -622,14 +769,16 @@ async function ensureSlashCommands() {
   const resolvedGuildIds = guildIds.length ? guildIds : await resolveGuildIds();
   if (!resolvedGuildIds.length || !appId) return;
 
-  const payload = buildSlashCommandPayload();
+  const payloads = buildSlashCommandPayloads();
   for (const guildId of resolvedGuildIds) {
-    try {
-      await upsertGuildCommand(guildId, payload);
-      console.log(`Registered /${LINK_COMMAND_NAME} in guild ${guildId}`);
-    } catch (error) {
-      const msg = error && error.message ? error.message : String(error);
-      console.warn(`Failed to register /${LINK_COMMAND_NAME} in guild ${guildId}: ${msg}`);
+    for (const payload of payloads) {
+      try {
+        await upsertGuildCommand(guildId, payload);
+        console.log(`Registered /${payload.name} in guild ${guildId}`);
+      } catch (error) {
+        const msg = error && error.message ? error.message : String(error);
+        console.warn(`Failed to register /${payload.name} in guild ${guildId}: ${msg}`);
+      }
     }
   }
 
@@ -673,32 +822,41 @@ function interactionUserId(interaction) {
   return "";
 }
 
-async function handleSlashLinkInteraction(interaction) {
+async function isAdminInteraction(interaction) {
+  const permissionBits = interaction && interaction.member ? interaction.member.permissions : undefined;
+  return hasLinkAdminPermissions(permissionBits);
+}
+
+async function replyEphemeral(interaction, content) {
+  await interactionCallback(interaction.id, interaction.token, {
+    type: 4,
+    data: {
+      flags: 64,
+      content,
+    },
+  });
+}
+
+async function ensureAllowedInteractionChannel(interaction) {
   const channelId = String(interaction && interaction.channel_id ? interaction.channel_id : "");
-  if (!channelId) return;
+  if (!channelId) return false;
 
   if (!(await isAllowedChannel(channelId))) {
-    await interactionCallback(interaction.id, interaction.token, {
-      type: 4,
-      data: {
-        flags: 64,
-        content: "This command is not enabled in this channel.",
-      },
-    });
-    return;
+    await replyEphemeral(interaction, "This command is not enabled in this channel.");
+    return false;
   }
+
+  return true;
+}
+
+async function handleSlashLinkInteraction(interaction) {
+  if (!(await ensureAllowedInteractionChannel(interaction))) return;
 
   const rawUrl = getSlashOptionValue(interaction.data, "url");
   const url = normalizeUrl(rawUrl);
 
   if (!url) {
-    await interactionCallback(interaction.id, interaction.token, {
-      type: 4,
-      data: {
-        flags: 64,
-        content: "Please provide a valid http(s) URL.",
-      },
-    });
+    await replyEphemeral(interaction, "Please provide a valid http(s) URL.");
     return;
   }
 
@@ -736,29 +894,90 @@ async function handleSlashLinkInteraction(interaction) {
   }
 }
 
+async function handleSlashAddLinkInteraction(interaction) {
+  if (!(await ensureAllowedInteractionChannel(interaction))) return;
+
+  if (!(await isAdminInteraction(interaction))) {
+    await replyEphemeral(interaction, "Only admins can save links with /addlink.");
+    return;
+  }
+
+  const rawUrl = getSlashOptionValue(interaction.data, "url");
+  const requesterId = interactionUserId(interaction);
+  const result = upsertSavedLink(state.savedLinks, rawUrl, { addedBy: requesterId });
+
+  if (!result.entry) {
+    await replyEphemeral(interaction, "Please provide a valid http(s) URL.");
+    return;
+  }
+
+  state.savedLinks = result.links;
+  saveState();
+
+  if (result.duplicate) {
+    await replyEphemeral(interaction, `That link is already saved: ${result.entry.url}`);
+    return;
+  }
+
+  await replyEphemeral(
+    interaction,
+    `Saved link #${state.savedLinks.length}: ${result.entry.url}`
+  );
+}
+
+async function handleSlashGetLinkInteraction(interaction) {
+  if (!(await ensureAllowedInteractionChannel(interaction))) return;
+
+  const entry = pickSavedLink(state.savedLinks);
+  if (!entry) {
+    await replyEphemeral(interaction, "No saved links have been added yet. Ask an admin to use /addlink first.");
+    return;
+  }
+
+  await interactionCallback(interaction.id, interaction.token, {
+    type: 4,
+    data: buildSavedLinkPayload(entry, state.savedLinks.length),
+  });
+}
+
+async function handleSlashInteraction(interaction) {
+  const commandName = String(interaction && interaction.data && interaction.data.name ? interaction.data.name : "").toLowerCase();
+  if (commandName === LINK_COMMAND_NAME) {
+    await handleSlashLinkInteraction(interaction);
+    return;
+  }
+  if (commandName === ADD_LINK_COMMAND_NAME) {
+    await handleSlashAddLinkInteraction(interaction);
+    return;
+  }
+  if (commandName === GET_LINK_COMMAND_NAME) {
+    await handleSlashGetLinkInteraction(interaction);
+  }
+}
+
 async function handleGatewayDispatch(eventType, eventData) {
   if (eventType !== "INTERACTION_CREATE") return;
   if (!eventData || eventData.type !== 2 || !eventData.data) return;
-  if (String(eventData.data.name || "").toLowerCase() !== LINK_COMMAND_NAME) return;
-  await handleSlashLinkInteraction(eventData);
+  await handleSlashInteraction(eventData);
 }
 
-const presence = startDiscordPresence({
-  token: BOT_TOKEN,
-  intents: 1,
-  status: "online",
-  logPrefix: "Palladium Links",
-  activity: {
-    name: "/link requests",
-    type: 3,
-  },
-  onReady: async () => {
-    await ensureSlashCommands();
-  },
-  onDispatch: handleGatewayDispatch,
-});
-
 async function mainLoop() {
+  validateRuntimeConfig();
+  presence = startDiscordPresence({
+    token: BOT_TOKEN,
+    intents: 1,
+    status: "online",
+    logPrefix: "Palladium Links",
+    activity: {
+      name: "/link /getlink",
+      type: 3,
+    },
+    onReady: async () => {
+      await ensureSlashCommands();
+    },
+    onDispatch: handleGatewayDispatch,
+  });
+
   await ensureSlashCommands();
   console.log(`Palladium link command bot running for channels: ${CHANNEL_IDS.join(", ")}`);
   console.log(`Palladium link checker backends: ${APPS_BASES.join(", ")}`);
@@ -806,6 +1025,15 @@ async function mainLoop() {
   }
 }
 
+function validateRuntimeConfig() {
+  if (!BOT_TOKEN) {
+    throw new Error("Missing DISCORD_BOT_TOKEN (or git config discord.botToken).");
+  }
+  if (!CHANNEL_IDS.length) {
+    throw new Error("Missing DISCORD_LINK_COMMAND_CHANNEL_IDS (or git config discord.linkCommandChannelIds). Ex: 123,456");
+  }
+}
+
 function shutdown(code) {
   try {
     presence.stop();
@@ -815,10 +1043,23 @@ function shutdown(code) {
   process.exit(code);
 }
 
-process.on("SIGINT", () => shutdown(0));
-process.on("SIGTERM", () => shutdown(0));
+module.exports = {
+  buildSavedLinkPayload,
+  buildSlashCommandPayloads,
+  hasLinkAdminPermissions,
+  normalizeSavedLinkEntry,
+  normalizeUrl,
+  pickSavedLink,
+  sanitizeSavedLinks,
+  upsertSavedLink,
+};
 
-mainLoop().catch((error) => {
-  console.error(error && error.message ? error.message : String(error));
-  shutdown(1);
-});
+if (require.main === module) {
+  process.on("SIGINT", () => shutdown(0));
+  process.on("SIGTERM", () => shutdown(0));
+
+  mainLoop().catch((error) => {
+    console.error(error && error.message ? error.message : String(error));
+    shutdown(1);
+  });
+}
