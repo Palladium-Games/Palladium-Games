@@ -75,6 +75,18 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   assert.equal(brotato.author, "Blobfish");
   assert.equal(brotato.image, "/images/game-img/brotato.jpeg");
 
+  const achievementUnlocked = payload.games.find((entry) => entry.path === "games/platformer/achievement-unlocked.html");
+  assert.ok(achievementUnlocked, "Expected Achievement Unlocked in the games catalog");
+  assert.equal(achievementUnlocked.title, "Achievement Unlocked");
+  assert.equal(achievementUnlocked.author, "Revelance Match");
+  assert.equal(achievementUnlocked.image, "/images/game-img/achievement-unlocked.png");
+
+  const achievementUnlocked2 = payload.games.find((entry) => entry.path === "games/platformer/achievement-unlocked-2.html");
+  assert.ok(achievementUnlocked2, "Expected Achievement Unlocked 2 in the games catalog");
+  assert.equal(achievementUnlocked2.title, "Achievement Unlocked 2");
+  assert.equal(achievementUnlocked2.author, "Revelance Match");
+  assert.equal(achievementUnlocked2.image, "/images/game-img/achievement-unlocked.png");
+
   const chibiKnight = payload.games.find((entry) => entry.path === "games/swf/chibi-knight.html");
   assert.ok(chibiKnight, "Expected the SWF launcher in the games catalog");
   assert.equal(chibiKnight.title, "Chibi Knight");
@@ -96,6 +108,10 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   const thumbResponse = await fetch(`http://127.0.0.1:${port}${brotato.image}`);
   assert.equal(thumbResponse.status, 200);
   assert.match(thumbResponse.headers.get("content-type") || "", /^image\//i);
+
+  const achievementThumbResponse = await fetch(`http://127.0.0.1:${port}${achievementUnlocked.image}`);
+  assert.equal(achievementThumbResponse.status, 200);
+  assert.match(achievementThumbResponse.headers.get("content-type") || "", /^image\//i);
 
   const impossibleThumbResponse = await fetch(`http://127.0.0.1:${port}${impossibleQuiz.image}`);
   assert.equal(impossibleThumbResponse.status, 200);
