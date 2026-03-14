@@ -20,8 +20,8 @@
 ### NOTE: YOU DO NOT NEED TO ALSO CLONE THE BACKEND UNLESS YOU ARE PLANNING TO HOST THE BACKEND YOURSELF
 
 ## Our Links
-https://sethpang.com
-https://palladium-games.netlify.app
+https://sethpang.com  
+https://palladium-games.netlify.app  
 https://palladium-games.onrender.com
 
 ## Discord
