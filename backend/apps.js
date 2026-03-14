@@ -1281,12 +1281,12 @@ async function routeRequest(req, res, config) {
   }
 
   if (url.pathname === "/games" || url.pathname.startsWith("/games/")) {
-    await serveMountedStatic(req, res, config, url.pathname, method, "/games", config.gamesDir);
+    await serveMountedStatic(req, res, config, url.pathname, method, "/games", config.gamesDir, { allowEmbedding: true });
     return;
   }
 
   if (url.pathname === "/swf" || url.pathname.startsWith("/swf/")) {
-    await serveMountedStatic(req, res, config, url.pathname, method, "/swf", config.swfDir);
+    await serveMountedStatic(req, res, config, url.pathname, method, "/swf", config.swfDir, { allowEmbedding: true });
     return;
   }
 
@@ -2057,7 +2057,7 @@ async function serveStatic(req, res, config, pathname, method) {
   await sendResolvedFile(res, config, absolutePath, method);
 }
 
-async function serveMountedStatic(req, res, config, pathname, method, mountPrefix, rootDir) {
+async function serveMountedStatic(req, res, config, pathname, method, mountPrefix, rootDir, headerOptions = {}) {
   if (method !== "GET" && method !== "HEAD") {
     sendText(res, 405, "Method not allowed", config);
     return;
@@ -2079,10 +2079,10 @@ async function serveMountedStatic(req, res, config, pathname, method, mountPrefi
     return;
   }
 
-  await sendResolvedFile(res, config, absolutePath, method);
+  await sendResolvedFile(res, config, absolutePath, method, headerOptions);
 }
 
-async function sendResolvedFile(res, config, absolutePath, method) {
+async function sendResolvedFile(res, config, absolutePath, method, headerOptions = {}) {
   let stat;
   try {
     stat = await fsp.stat(absolutePath);
@@ -2114,12 +2114,12 @@ async function sendResolvedFile(res, config, absolutePath, method) {
     sendHead(res, 200, {
       "content-type": contentType,
       "content-length": String(stat.size)
-    }, config);
+    }, config, headerOptions);
     return;
   }
 
   addCors(res, config);
-  addSecurityHeaders(res);
+  addSecurityHeaders(res, headerOptions);
   res.writeHead(200, {
     "content-type": contentType,
     "content-length": String(stat.size)
@@ -2758,10 +2758,12 @@ function addCors(res, config) {
   res.setHeader("access-control-allow-headers", "content-type,authorization");
 }
 
-function addSecurityHeaders(res) {
+function addSecurityHeaders(res, options = {}) {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("referrer-policy", "strict-origin-when-cross-origin");
-  res.setHeader("x-frame-options", "SAMEORIGIN");
+  if (!options.allowEmbedding) {
+    res.setHeader("x-frame-options", "SAMEORIGIN");
+  }
 }
 
 function sendOptions(res, config) {
@@ -2770,9 +2772,9 @@ function sendOptions(res, config) {
   res.end();
 }
 
-function sendHead(res, status, headers, config) {
+function sendHead(res, status, headers, config, headerOptions = {}) {
   addCors(res, config);
-  addSecurityHeaders(res);
+  addSecurityHeaders(res, headerOptions);
   res.writeHead(status, headers);
   res.end();
 }
