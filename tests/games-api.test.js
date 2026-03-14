@@ -7,10 +7,10 @@ const path = require("node:path");
 const net = require("node:net");
 const { spawn } = require("node:child_process");
 
-const REPO_DIR = path.resolve(__dirname, "..", "..");
-const BACKEND_DIR = path.join(REPO_DIR, "backend");
-const FRONTEND_DIR = path.join(REPO_DIR, "frontend");
-
+const BACKEND_ONLY_ROOT = path.resolve(__dirname, "..");
+const HAS_BACKEND_ONLY_LAYOUT = fs.existsSync(path.join(BACKEND_ONLY_ROOT, "apps.js"));
+const REPO_DIR = HAS_BACKEND_ONLY_LAYOUT ? BACKEND_ONLY_ROOT : path.resolve(__dirname, "..", "..");
+const BACKEND_DIR = HAS_BACKEND_ONLY_LAYOUT ? BACKEND_ONLY_ROOT : path.join(REPO_DIR, "backend");
 test("games api serves discovered catalog entries and backend thumbnails", async (t) => {
   const port = await getOpenPort();
   const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), "palladium-games-api-"));
@@ -23,7 +23,7 @@ test("games api serves discovered catalog entries and backend thumbnails", async
       "SITE_HOST=127.0.0.1",
       `SITE_PORT=${port}`,
       "CORS_ORIGIN=*",
-      `FRONTEND_DIR=${FRONTEND_DIR}`,
+      "FRONTEND_DIR=disabled",
       `GAMES_DIR=${path.join(BACKEND_DIR, "games")}`,
       `SWF_DIR=${path.join(BACKEND_DIR, "swf")}`,
       `GAME_IMAGE_DIR=${path.join(BACKEND_DIR, "images", "game-img")}`,
@@ -92,6 +92,10 @@ test("games api serves discovered catalog entries and backend thumbnails", async
   const impossibleThumbResponse = await fetch(`http://127.0.0.1:${port}${impossibleQuiz.image}`);
   assert.equal(impossibleThumbResponse.status, 200);
   assert.match(impossibleThumbResponse.headers.get("content-type") || "", /^image\//i);
+
+  const rootResponse = await fetch(`http://127.0.0.1:${port}/`);
+  assert.equal(rootResponse.status, 404);
+  assert.match(await rootResponse.text(), /Frontend not configured/i);
 });
 
 async function getOpenPort() {

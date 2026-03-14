@@ -23,7 +23,14 @@ Production target:
 
 - point `api.sethpang.com` at this backend
 - keep `backend/config/palladium.env` on the server
-- host the `../frontend/` folder separately on a static platform
+- host the `../frontend/` folder separately on a static platform if you want the UI split
+
+Notes:
+
+- `FRONTEND_DIR` is optional
+- set `FRONTEND_DIR=disabled` to force backend-only mode
+- if no frontend directory exists, the backend still boots and serves `/api/*`, `/games/*`, `/swf/*`, and `/images/game-img/*`
+- only direct static page routes like `/` are disabled in backend-only mode
 
 Important:
 

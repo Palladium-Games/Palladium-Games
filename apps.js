@@ -284,7 +284,7 @@ async function main() {
 
   console.log("Palladium monolith running.");
   console.log(`Site:     http://${displayHost(config.host)}:${config.port}`);
-  console.log(`Frontend: ${config.frontendDir}`);
+  console.log(`Frontend: ${config.frontendDir || "disabled (backend-only mode)"}`);
   console.log(`Games:    ${config.gamesDir}`);
   console.log(`SWF:      ${config.swfDir}`);
   console.log(`Thumbs:   ${config.gameImageDir}`);
@@ -368,6 +368,10 @@ function readBool(env, key, fallback) {
 }
 
 function resolveFrontendDir(value, fallbackValue) {
+  if (isDisabledPathSetting(value)) {
+    return "";
+  }
+
   const configured = resolvePath(value || fallbackValue);
   if (isFrontendDir(configured)) {
     return configured;
@@ -381,7 +385,12 @@ function resolveFrontendDir(value, fallbackValue) {
     return fallback;
   }
 
-  return configured;
+  return "";
+}
+
+function isDisabledPathSetting(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "disabled" || normalized === "off" || normalized === "none";
 }
 
 function isFrontendDir(targetPath) {
@@ -394,14 +403,14 @@ function isFrontendDir(targetPath) {
 }
 
 function validatePaths(config) {
-  if (!fs.existsSync(config.frontendDir)) {
-    throw new Error(`Frontend directory does not exist: ${config.frontendDir}`);
-  }
   if (!fs.existsSync(config.gamesDir)) {
     throw new Error(`Games directory does not exist: ${config.gamesDir}`);
   }
   if (!fs.existsSync(config.swfDir)) {
     throw new Error(`SWF directory does not exist: ${config.swfDir}`);
+  }
+  if (!fs.existsSync(config.gameImageDir)) {
+    throw new Error(`Game image directory does not exist: ${config.gameImageDir}`);
   }
 }
 
@@ -2018,6 +2027,11 @@ async function runLinkCheck(targetUrl, timeoutMs) {
 async function serveStatic(req, res, config, pathname, method) {
   if (method !== "GET" && method !== "HEAD") {
     sendText(res, 405, "Method not allowed", config);
+    return;
+  }
+
+  if (!config.frontendDir) {
+    sendText(res, 404, "Frontend not configured on this backend instance.", config);
     return;
   }
 
