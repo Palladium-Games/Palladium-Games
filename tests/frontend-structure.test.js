@@ -23,7 +23,8 @@ const REQUIRED_FRONTEND_FILES = [
   "backend.js",
   "nav.js",
   "site-settings.js",
-  "favicon.ico"
+  "favicon.ico",
+  "render.yaml"
 ];
 
 test("frontend directory contains the required static entrypoints", () => {
