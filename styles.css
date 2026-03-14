@@ -1233,16 +1233,13 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 
 .discord-join-dock {
   position: fixed;
-  left: calc(
-    var(--discord-shell-left-offset) +
-    (100vw - var(--discord-shell-left-offset) - var(--discord-shell-width)) / 2
-  );
+  left: 0;
   right: auto;
   bottom: var(--discord-page-gutter);
   z-index: 80;
   pointer-events: none;
-  width: var(--discord-shell-width);
-  max-width: var(--discord-shell-max);
+  width: auto;
+  max-width: none;
   display: flex;
   justify-content: flex-start;
 }
@@ -2945,13 +2942,10 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   }
 
   .discord-join-dock {
-    left: calc(
-      var(--discord-shell-left-offset) +
-      (100vw - var(--discord-shell-left-offset) - var(--discord-shell-width)) / 2
-    );
+    left: 0;
     right: auto;
-    width: var(--discord-shell-width);
-    max-width: var(--discord-shell-max);
+    width: auto;
+    max-width: none;
     bottom: var(--discord-page-gutter);
   }
 

@@ -157,13 +157,26 @@
       var discordPresentEl = document.querySelector('.discord-present');
       var dockSyncTimer = null;
 
+      function pxToNumber(value) {
+        var parsed = parseFloat(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+
       function syncJoinDockPosition() {
         if (!joinDockEl || !discordPresentEl) return;
         var rect = discordPresentEl.getBoundingClientRect();
         if (!rect || !isFinite(rect.left) || !isFinite(rect.width)) return;
 
-        joinDockEl.style.left = Math.max(0, Math.round(rect.left)) + 'px';
-        joinDockEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+        var style = window.getComputedStyle(discordPresentEl);
+        var borderLeft = pxToNumber(style.borderLeftWidth);
+        var borderRight = pxToNumber(style.borderRightWidth);
+        var paddingLeft = pxToNumber(style.paddingLeft);
+        var paddingRight = pxToNumber(style.paddingRight);
+        var contentLeft = rect.left + borderLeft + paddingLeft;
+        var contentWidth = rect.width - borderLeft - borderRight - paddingLeft - paddingRight;
+
+        joinDockEl.style.left = Math.max(0, Math.round(contentLeft)) + 'px';
+        joinDockEl.style.width = Math.max(1, Math.round(contentWidth)) + 'px';
       }
 
       function queueDockSync() {
@@ -172,6 +185,7 @@
         }
         dockSyncTimer = setTimeout(function () {
           syncJoinDockPosition();
+          requestAnimationFrame(syncJoinDockPosition);
           dockSyncTimer = null;
         }, 35);
       }
@@ -186,6 +200,34 @@
         documentClassObserver.observe(document.documentElement, {
           attributes: true,
           attributeFilter: ['class']
+        });
+        var navEl = document.getElementById('nav');
+        if (navEl) {
+          var navClassObserver = new MutationObserver(function () {
+            queueDockSync();
+          });
+          navClassObserver.observe(navEl, {
+            attributes: true,
+            attributeFilter: ['class']
+          });
+        }
+      }
+      if (window.ResizeObserver && discordPresentEl) {
+        var dockResizeObserver = new ResizeObserver(function () {
+          queueDockSync();
+        });
+        dockResizeObserver.observe(discordPresentEl);
+        var mainEl = document.querySelector('.main');
+        if (mainEl) {
+          dockResizeObserver.observe(mainEl);
+        }
+      }
+      var navToggle = document.getElementById('nav-toggle');
+      if (navToggle) {
+        navToggle.addEventListener('click', function () {
+          queueDockSync();
+          setTimeout(queueDockSync, 280);
+          requestAnimationFrame(syncJoinDockPosition);
         });
       }
 
