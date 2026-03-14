@@ -4,7 +4,6 @@
 
 ## Deploy
 
-
 ### Free services (Netlify, render, etc.)
 1. Fork the frontend branch
 2. Go to Netlify/Render/whatever and create a new project
@@ -14,8 +13,14 @@
 ### Actual Servers
 1. ssh into your server (ssh your-name@your-ip)
 2. Navigate into whatever folder you would like the website to reside in
-3. Do "git clone --branch frontend https://github.com/Palladium-Games/Palladium-Games.git palladium-frontend"
-4. Configure nginx or Apache to lead to the files, and you're ready to go!
+3. Run this command:  
+```git clone --branch frontend https://github.com/Palladium-Games/Palladium-Games.git palladium-frontend```
+5. Configure nginx or Apache to lead to the files, and you're ready to go!
+
+### NOTE: YOU DO NOT NEED TO ALSO CLONE THE BACKEND UNLESS YOU ARE PLANNING TO HOST THE BACKEND YOURSELF
+
+## Discord
+[Get updates, links, and chat with fellow gamers on our Discord server!](https://discord.gg/invite/FNACSCcE26)
 
 
 ## Sources
