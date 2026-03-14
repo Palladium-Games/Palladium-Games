@@ -65,6 +65,13 @@ test("backend ships a Ruffle launcher for SWF games", () => {
   assert.match(source, /\/swf\/chibi-knight\.swf/);
 });
 
+test("backend ships a Ruffle launcher for Super Chibi Knight", () => {
+  const launcherPath = path.join(BACKEND_DIR, "games", "swf", "super-chibi-knight.html");
+  const source = fs.readFileSync(launcherPath, "utf8");
+  assert.match(source, /@ruffle-rs\/ruffle/);
+  assert.match(source, /\/swf\/super-chibi-knight\.swf/);
+});
+
 test("backend ships a Ruffle launcher for The Impossible Quiz", () => {
   const launcherPath = path.join(BACKEND_DIR, "games", "swf", "the-impossible-quiz.html");
   const source = fs.readFileSync(launcherPath, "utf8");
