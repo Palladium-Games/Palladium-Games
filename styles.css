@@ -853,6 +853,7 @@ html[data-theme="neon"] .main::after {
 /* ——— Discord page ——— */
 .page--discord {
   --discord-page-gutter: clamp(0.9rem, 2.2vw, 1.4rem);
+  --discord-shell-padding: clamp(1rem, 2.2vw, 2rem);
   --discord-shell-left-offset: calc(var(--nav-width-expanded) + var(--discord-page-gutter));
   --discord-shell-width: min(
     1120px,
@@ -921,7 +922,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   box-shadow:
     0 30px 80px rgba(4, 8, 18, 0.62),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  padding: clamp(1rem, 2.2vw, 2rem);
+  padding: var(--discord-shell-padding);
   padding-bottom: clamp(7.1rem, 11vw, 8.4rem);
   display: grid;
   gap: 1rem;
@@ -1233,18 +1234,19 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 
 .discord-join-dock {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: calc(
+    var(--discord-shell-left-offset) +
+    max(0px, (100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter) - var(--discord-shell-width)) / 2)
+  );
   bottom: var(--discord-page-gutter);
   z-index: 80;
   pointer-events: none;
-  width: auto;
-  max-width: none;
+  width: var(--discord-shell-width);
+  max-width: var(--discord-shell-max);
   box-sizing: border-box;
   display: flex;
   justify-content: stretch;
-  padding-left: var(--discord-shell-left-offset);
-  padding-right: var(--discord-page-gutter);
+  padding-inline: var(--discord-shell-padding);
 }
 
 .discord-join-dock__btn {
@@ -2918,6 +2920,7 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
 
   .page--discord {
     --discord-page-gutter: 0.75rem;
+    --discord-shell-padding: 0.85rem;
     padding: 0.75rem;
   }
 
@@ -2946,13 +2949,14 @@ html.nav-initial-collapsed #nav ~ .main .page--discord {
   }
 
   .discord-join-dock {
-    left: 0;
-    right: 0;
-    width: auto;
-    max-width: none;
+    left: calc(
+      var(--discord-shell-left-offset) +
+      max(0px, (100vw - var(--discord-shell-left-offset) - var(--discord-page-gutter) - var(--discord-shell-width)) / 2)
+    );
+    width: var(--discord-shell-width);
+    max-width: var(--discord-shell-max);
     bottom: var(--discord-page-gutter);
-    padding-left: var(--discord-shell-left-offset);
-    padding-right: var(--discord-page-gutter);
+    padding-inline: var(--discord-shell-padding);
   }
 
   .discord-join-dock__btn {
