@@ -12,6 +12,14 @@ What it runs:
 - Monochrome endpoint configuration
 - Discord bot sidecars
 
+Discord link bot commands:
+
+- `/link <url>` checks a URL with the existing blocker-analysis flow
+- `/addlink <url>` lets admins save a reusable link into the shared pool
+- `/getlink` gives members one random saved link from that pool
+
+Saved links live in the link bot state file and persist across restarts.
+
 Run locally:
 
 ```bash
