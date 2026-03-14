@@ -125,6 +125,18 @@
     "image": "images/game-img/geometry-dash.png",
     "category": "platformer"
   },
+  "games/platformer/achievement-unlocked.html": {
+    "title": "Achievement Unlocked",
+    "author": "Revelance Match",
+    "image": "images/game-img/achievement-unlocked.png",
+    "category": "platformer"
+  },
+  "games/platformer/achievement-unlocked-2.html": {
+    "title": "Achievement Unlocked 2",
+    "author": "Revelance Match",
+    "image": "images/game-img/achievement-unlocked.png",
+    "category": "platformer"
+  },
   "games/bullet-hell/brotato.html": {
     "title": "Brotato",
     "author": "Blobfish",
