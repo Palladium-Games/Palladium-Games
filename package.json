@@ -1,11 +1,11 @@
 {
-  "name": "palladium-monolith",
+  "name": "palladium-backend",
   "version": "1.0.0",
   "private": true,
-  "description": "Palladium monolith runtime (frontend + backend + sidecars)",
-  "main": "apps.js",
+  "description": "Backend runtime wrapper for Palladium Games",
+  "main": "server.js",
   "scripts": {
-    "start": "node apps.js",
-    "start:dev": "SITE_PORT=3000 node apps.js"
+    "start": "node server.js",
+    "start:dev": "SITE_PORT=3000 node server.js"
   }
 }
