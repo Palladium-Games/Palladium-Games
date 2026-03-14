@@ -153,6 +153,41 @@
       var heroMembersEl = document.getElementById('discord-hero-members');
       var heroChannelsEl = document.getElementById('discord-hero-channels');
       var focusPillEl = document.getElementById('discord-focus-pill');
+      var joinDockEl = document.querySelector('.discord-join-dock');
+      var discordPresentEl = document.querySelector('.discord-present');
+      var dockSyncTimer = null;
+
+      function syncJoinDockPosition() {
+        if (!joinDockEl || !discordPresentEl) return;
+        var rect = discordPresentEl.getBoundingClientRect();
+        if (!rect || !isFinite(rect.left) || !isFinite(rect.width)) return;
+
+        joinDockEl.style.left = Math.max(0, Math.round(rect.left)) + 'px';
+        joinDockEl.style.width = Math.max(1, Math.round(rect.width)) + 'px';
+      }
+
+      function queueDockSync() {
+        if (dockSyncTimer) {
+          clearTimeout(dockSyncTimer);
+        }
+        dockSyncTimer = setTimeout(function () {
+          syncJoinDockPosition();
+          dockSyncTimer = null;
+        }, 35);
+      }
+
+      window.addEventListener('resize', queueDockSync);
+      window.addEventListener('orientationchange', queueDockSync);
+      window.addEventListener('load', syncJoinDockPosition);
+      if (window.MutationObserver) {
+        var documentClassObserver = new MutationObserver(function () {
+          queueDockSync();
+        });
+        documentClassObserver.observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['class']
+        });
+      }
 
       function setStatus(text, isError) {
         if (!serverStatusEl) return;
@@ -298,6 +333,7 @@
 
         setStatus('Live data updated.', false);
         stampSync('Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }));
+        queueDockSync();
       }
 
       async function loadFromBackend() {
@@ -356,6 +392,7 @@
       }
 
       refreshWidget();
+      queueDockSync();
       setInterval(refreshWidget, 60000);
     })();
   </script>
