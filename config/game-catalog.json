@@ -149,6 +149,12 @@
     "image": "images/game-img/blockblast.png",
     "category": "others"
   },
+  "games/swf/chibi-knight.html": {
+    "title": "Chibi Knight",
+    "author": "Armor Games",
+    "image": "images/game-img/chibi-knight.jpg",
+    "category": "swf"
+  },
   "games/swf/the-impossible-quiz.html": {
     "title": "The Impossible Quiz",
     "author": "Splapp-me-do",
