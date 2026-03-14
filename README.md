@@ -67,6 +67,8 @@ cd backend
 ./start.sh
 ```
 
+The backend can also run by itself from the `backend` branch. In that mode, `FRONTEND_DIR` is optional and only static UI routes are skipped if no frontend checkout exists.
+
 Recommended production shape:
 
 - frontend host: static deploy of `frontend/`
