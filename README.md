@@ -6,7 +6,8 @@ There are many ways to deploy a Palladium Games website. Here's how:
 
 ### Free Services (Netlify, Vercel, etc.)
 [![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/Palladium-Games/Palladium-Games)
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FPalladium-Games%2FPalladium-Games)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2FPalladium-Games%2FPalladium-Games)  
+You can also remix this on [Replit](https://replit.com/@sethpanng/Palladium-Games)
 
 
 
@@ -14,6 +15,7 @@ There are many ways to deploy a Palladium Games website. Here's how:
   2. Point it to https://github.com/Palladium-Games/Palladium-Games
   3. Create it
   4. You're ready to go! Netlify/Vercel/whatever will keep the links updated to this branch.
+
 
 ### Actual Hosting (yay)
   1. Run ```git clone https://github.com/Palladium-Games/Palladium-Games.git```
