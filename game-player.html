@@ -91,6 +91,7 @@
     </main>
   </div>
   <script src="site-settings.js"></script>
+  <script src="games-static.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
   <script>
@@ -113,9 +114,11 @@
       var playTrackEndpoint = (window.PalladiumBackend && typeof window.PalladiumBackend.apiUrl === 'function')
         ? window.PalladiumBackend.apiUrl('/api/games/play')
         : '/api/games/play';
-      var resolvedGameUrl = (window.PalladiumBackend && typeof window.PalladiumBackend.assetUrl === 'function')
-        ? window.PalladiumBackend.assetUrl(game)
-        : game;
+      var resolvedGameUrl = (window.PalladiumGames && typeof window.PalladiumGames.normalizeAssetPath === 'function')
+        ? window.PalladiumGames.normalizeAssetPath(game)
+        : ((window.PalladiumBackend && typeof window.PalladiumBackend.assetUrl === 'function')
+          ? window.PalladiumBackend.assetUrl(game)
+          : game);
 
       function inferCategoryFromPath(gamePath) {
         var normalized = String(gamePath || '').replace(/\\/g, '/').replace(/^\/+/, '');

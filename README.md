@@ -28,6 +28,23 @@ You can also remix this on [Replit](https://replit.com/@sethpanng/Palladium-Game
   2. Configure your web server to serve the files in the Palladium Games folder
   3. You're good to go! Remember to run ```git pull origin main``` sometimes to keep your link updated.
 
+## Local Game Hosting
+The frontend now commits the playable game files, SWFs, thumbnails, and a generated catalog manifest directly into this repo so a blocked `api.sethpang.com` domain does not take the whole games page down.
+
+Refresh those bundled assets from a sibling backend checkout with:
+
+```bash
+npm run sync:games
+```
+
+Verify the static catalog wiring with:
+
+```bash
+npm test
+```
+
+The sync script looks for `../palladium-backend` first and then `../backend`.
+
 ## Links
   1. https://sethpang.com (main link)
   2. https://palladium-games.netlify.app

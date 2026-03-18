@@ -97,16 +97,17 @@
               spellcheck="false"
             />
           </label>
-          <div id="games-search-status" class="games-search__status">Loading catalog...</div>
+          <div id="games-search-status" class="games-search__status">Loading local catalog...</div>
           <button type="button" id="games-search-clear" class="games-search__clear" hidden>Clear</button>
         </div>
         <div id="games-grid" class="games-grid">
-          <div class="trending-games__empty">Loading games from the backend catalog...</div>
+          <div class="trending-games__empty">Loading games from the local catalog...</div>
         </div>
       </div>
     </main>
   </div>
   <script src="site-settings.js"></script>
+  <script src="games-static.js"></script>
   <script src="backend.js"></script>
   <script src="nav.js"></script>
   <script>
@@ -146,6 +147,9 @@
         var text = sanitizeText(value);
         if (!text) return '';
         if (/^https?:\/\//i.test(text)) return text;
+        if (window.PalladiumGames && typeof window.PalladiumGames.normalizeAssetPath === 'function') {
+          return window.PalladiumGames.normalizeAssetPath(text);
+        }
         if (window.PalladiumBackend && typeof window.PalladiumBackend.assetUrl === 'function') {
           return window.PalladiumBackend.assetUrl(text);
         }
@@ -248,7 +252,7 @@
           empty.className = 'trending-games__empty';
           empty.textContent = currentQuery
             ? ('No games match "' + currentQuery + '".')
-            : 'No games were returned by the backend catalog.';
+            : 'No games were returned by the local catalog.';
           gamesGridEl.appendChild(empty);
           return;
         }
@@ -328,7 +332,7 @@
         if (!Array.isArray(games) || !games.length) {
           if (linkEl) linkEl.href = '#';
           if (titleEl) titleEl.textContent = 'No featured game available';
-          if (authorEl) authorEl.textContent = 'Backend catalog unavailable';
+          if (authorEl) authorEl.textContent = 'Local catalog unavailable';
           if (thumbEl) thumbEl.innerHTML = '';
           return;
         }
@@ -386,8 +390,13 @@
 
       async function loadCatalog() {
         try {
-          var payload = await window.PalladiumBackend.fetchJson('/api/games');
-          var games = Array.isArray(payload && payload.games) ? payload.games : [];
+          var games = [];
+          if (window.PalladiumGames && typeof window.PalladiumGames.loadCatalog === 'function') {
+            games = await window.PalladiumGames.loadCatalog();
+          } else if (window.PalladiumBackend && typeof window.PalladiumBackend.fetchJson === 'function') {
+            var payload = await window.PalladiumBackend.fetchJson('/api/games');
+            games = Array.isArray(payload && payload.games) ? payload.games : [];
+          }
           allGames = games;
           applyGameFilter();
           renderFeatured(games);
