@@ -6,6 +6,7 @@ const path = require("node:path");
 
 const FRONTEND_DIR = path.resolve(__dirname, "..");
 const LOCAL_MANIFEST_PATH = path.join(FRONTEND_DIR, "data", "games-catalog.json");
+const LOCAL_MANIFEST_SCRIPT_PATH = path.join(FRONTEND_DIR, "data", "games-catalog.js");
 const SYNC_TARGETS = [
   {
     sourcePath: "games",
@@ -33,20 +34,22 @@ async function main() {
   const gameImageDir = path.join(backendDir, "images", "game-img");
   const overrides = await readJsonObject(backendCatalogPath);
   const games = await buildCatalog(gamesDir, gameImageDir, overrides);
+  const payload = {
+    ok: true,
+    source: "local-sync",
+    generatedAt: new Date().toISOString(),
+    games: games
+  };
 
   await fsp.mkdir(path.dirname(LOCAL_MANIFEST_PATH), { recursive: true });
   await fsp.writeFile(
     LOCAL_MANIFEST_PATH,
-    JSON.stringify(
-      {
-        ok: true,
-        source: "local-sync",
-        generatedAt: new Date().toISOString(),
-        games: games
-      },
-      null,
-      2
-    ) + "\n",
+    JSON.stringify(payload, null, 2) + "\n",
+    "utf8"
+  );
+  await fsp.writeFile(
+    LOCAL_MANIFEST_SCRIPT_PATH,
+    "window.PALLADIUM_GAMES_CATALOG = " + JSON.stringify(payload, null, 2) + ";\n",
     "utf8"
   );
 

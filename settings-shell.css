@@ -14,18 +14,74 @@
 
 .shell-sidebar {
   overflow: hidden;
+  min-width: 0;
 }
 
 .shell-sidebar__rest,
-.sidebar-toggle-btn__label,
-.route-link__label {
+.sidebar-toggle-btn__label {
   will-change: max-width, opacity;
+}
+
+.route-link__label {
+  will-change: opacity;
 }
 
 .shell-main,
 .shell-stage,
 .pane-stack {
   min-width: 0;
+}
+
+.shell-sidebar__row,
+.sidebar-block__header,
+.tab-card,
+.route-link {
+  width: 100%;
+  min-width: 0;
+}
+
+.shell-sidebar__rail,
+.sidebar-toggle-btn__rail,
+.tab-card__icon,
+.route-link__icon {
+  display: grid;
+  place-items: center;
+}
+
+.sidebar-block,
+.tab-list,
+.route-list {
+  min-width: 0;
+}
+
+.tab-list,
+.route-list,
+.shell-pane--internal,
+.ai-chat__messages {
+  scrollbar-width: none;
+}
+
+.tab-list::-webkit-scrollbar,
+.route-list::-webkit-scrollbar,
+.shell-pane--internal::-webkit-scrollbar,
+.ai-chat__messages::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.route-link {
+  align-items: center;
+  padding-inline-start: 0.35rem;
+}
+
+.tab-card {
+  align-items: center;
+}
+
+.tab-card__icon,
+.route-link__icon {
+  margin: 0;
 }
 
 .pane-stack {
@@ -125,129 +181,129 @@
 }
 
 [data-theme="color-wash"] {
-  --accent: #6f7dff;
-  --accent-strong: #94a0ff;
-  --accent-cool: #b9c6ff;
-  --accent-cool-soft: rgba(111, 125, 255, 0.16);
+  --accent: #7c6cff;
+  --accent-strong: #a898ff;
+  --accent-cool: #d0c8ff;
+  --accent-cool-soft: rgba(124, 108, 255, 0.32);
 }
 
 [data-theme="miami"] {
-  --bg-0: #12071a;
-  --bg-1: #1c0c28;
-  --bg-2: #271338;
+  --bg-0: #14051c;
+  --bg-1: #220a30;
+  --bg-2: #321045;
   --panel: rgba(22, 10, 31, 0.84);
   --panel-soft: rgba(29, 13, 41, 0.72);
-  --accent: #ff6f8f;
-  --accent-strong: #ff9b54;
-  --accent-cool: #6df7ff;
-  --accent-cool-soft: rgba(109, 247, 255, 0.16);
+  --accent: #ff5c9d;
+  --accent-strong: #ffaa3d;
+  --accent-cool: #5cfffb;
+  --accent-cool-soft: rgba(92, 255, 251, 0.3);
 }
 
 [data-theme="rainbow"] {
-  --accent: #ff6a52;
-  --accent-strong: #f9d95c;
-  --accent-cool: #6cf5d2;
-  --accent-cool-soft: rgba(108, 245, 210, 0.16);
+  --accent: #ff5340;
+  --accent-strong: #ffe14a;
+  --accent-cool: #3dffc8;
+  --accent-cool-soft: rgba(255, 225, 74, 0.28);
 }
 
 [data-theme="aurora"] {
-  --bg-0: #04110f;
-  --bg-1: #082019;
-  --bg-2: #0d2f24;
+  --bg-0: #031510;
+  --bg-1: #062820;
+  --bg-2: #0a3d30;
   --panel: rgba(7, 22, 18, 0.84);
   --panel-soft: rgba(9, 30, 24, 0.72);
-  --accent: #44d79f;
-  --accent-strong: #86ffe0;
-  --accent-cool: #97fff5;
-  --accent-cool-soft: rgba(134, 255, 224, 0.16);
+  --accent: #2ef5a8;
+  --accent-strong: #9dffe8;
+  --accent-cool: #b8fff0;
+  --accent-cool-soft: rgba(46, 245, 168, 0.3);
 }
 
 [data-theme="sunset"] {
-  --bg-0: #15070a;
-  --bg-1: #291116;
-  --bg-2: #3e1a20;
+  --bg-0: #180509;
+  --bg-1: #2f0c14;
+  --bg-2: #48121c;
   --panel: rgba(25, 11, 15, 0.84);
   --panel-soft: rgba(37, 14, 20, 0.72);
-  --accent: #ff7a45;
-  --accent-strong: #ffb15a;
-  --accent-cool: #ffd0a4;
-  --accent-cool-soft: rgba(255, 177, 90, 0.16);
+  --accent: #ff6a38;
+  --accent-strong: #ffc24a;
+  --accent-cool: #ffe0b8;
+  --accent-cool-soft: rgba(255, 98, 56, 0.3);
 }
 
 [data-theme="forest"] {
-  --bg-0: #07100a;
-  --bg-1: #102016;
-  --bg-2: #183123;
+  --bg-0: #051208;
+  --bg-1: #0c2214;
+  --bg-2: #143520;
   --panel: rgba(10, 20, 14, 0.84);
   --panel-soft: rgba(16, 29, 20, 0.72);
-  --accent: #4fc776;
-  --accent-strong: #83ef9d;
-  --accent-cool: #b5ffd0;
-  --accent-cool-soft: rgba(131, 239, 157, 0.16);
+  --accent: #3dff7a;
+  --accent-strong: #9affb0;
+  --accent-cool: #c8ffd8;
+  --accent-cool-soft: rgba(61, 255, 122, 0.28);
 }
 
 [data-theme="oceanic"] {
-  --bg-0: #031019;
-  --bg-1: #072030;
-  --bg-2: #0d3145;
+  --bg-0: #020d18;
+  --bg-1: #051c2e;
+  --bg-2: #0a2d4a;
   --panel: rgba(6, 18, 30, 0.84);
   --panel-soft: rgba(9, 26, 40, 0.72);
-  --accent: #3fa6ff;
-  --accent-strong: #67c8ff;
-  --accent-cool: #8ce9ff;
-  --accent-cool-soft: rgba(103, 200, 255, 0.16);
+  --accent: #2eb0ff;
+  --accent-strong: #7ad8ff;
+  --accent-cool: #b8f0ff;
+  --accent-cool-soft: rgba(46, 176, 255, 0.3);
 }
 
 [data-theme="graphite"] {
-  --bg-0: #090909;
-  --bg-1: #121315;
-  --bg-2: #1b1c1f;
+  --bg-0: #080808;
+  --bg-1: #101218;
+  --bg-2: #181b22;
   --panel: rgba(17, 18, 21, 0.84);
   --panel-soft: rgba(24, 25, 28, 0.72);
-  --line: rgba(196, 202, 214, 0.14);
-  --line-strong: rgba(196, 202, 214, 0.28);
-  --text: #f3f4f8;
-  --muted: #aaafbb;
-  --accent: #c5ccd8;
+  --line: rgba(180, 198, 230, 0.2);
+  --line-strong: rgba(200, 215, 245, 0.38);
+  --text: #f5f6fa;
+  --muted: #b4bac8;
+  --accent: #d4dcf0;
   --accent-strong: #ffffff;
-  --accent-cool: #e2e7ef;
-  --accent-cool-soft: rgba(197, 204, 216, 0.14);
+  --accent-cool: #eef2ff;
+  --accent-cool-soft: rgba(180, 200, 255, 0.22);
 }
 
 [data-theme="arctic"] {
-  --bg-0: #06131f;
-  --bg-1: #0d2031;
-  --bg-2: #16324a;
+  --bg-0: #051220;
+  --bg-1: #0a2238;
+  --bg-2: #123a58;
   --panel: rgba(10, 21, 34, 0.84);
   --panel-soft: rgba(14, 29, 45, 0.72);
-  --accent: #72c3ff;
-  --accent-strong: #b0ecff;
-  --accent-cool: #ddfbff;
-  --accent-cool-soft: rgba(114, 195, 255, 0.16);
+  --accent: #5ab8ff;
+  --accent-strong: #c4f2ff;
+  --accent-cool: #e8fcff;
+  --accent-cool-soft: rgba(90, 184, 255, 0.3);
 }
 
 [data-theme="ember"] {
-  --bg-0: #120806;
-  --bg-1: #23100b;
-  --bg-2: #351812;
+  --bg-0: #140503;
+  --bg-1: #280a06;
+  --bg-2: #3d1009;
   --panel: rgba(23, 11, 8, 0.84);
   --panel-soft: rgba(34, 16, 12, 0.72);
-  --accent: #ff6f3d;
-  --accent-strong: #ff9d52;
-  --accent-cool: #ffd4a8;
-  --accent-cool-soft: rgba(255, 111, 61, 0.16);
+  --accent: #ff5724;
+  --accent-strong: #ffb04a;
+  --accent-cool: #ffe0b0;
+  --accent-cool-soft: rgba(255, 87, 36, 0.3);
 }
 
 [data-theme="neon"] {
-  --bg-0: #090613;
-  --bg-1: #140d24;
-  --bg-2: #21133a;
+  --bg-0: #0a0518;
+  --bg-1: #180a2e;
+  --bg-2: #281048;
   --panel: rgba(12, 8, 22, 0.84);
   --panel-soft: rgba(19, 12, 35, 0.72);
-  --accent: #7d5cff;
-  --accent-strong: #30f5ff;
-  --accent-cool: #9cf8ff;
-  --accent-cool-soft: rgba(48, 245, 255, 0.16);
+  --accent: #9b6cff;
+  --accent-strong: #48fff8;
+  --accent-cool: #b8fffc;
+  --accent-cool-soft: rgba(72, 255, 248, 0.32);
 }
 
 .settings-grid {

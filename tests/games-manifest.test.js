@@ -5,6 +5,7 @@ const path = require("node:path");
 
 const FRONTEND_DIR = path.resolve(__dirname, "..");
 const manifestPath = path.join(FRONTEND_DIR, "data", "games-catalog.json");
+const manifestScriptPath = path.join(FRONTEND_DIR, "data", "games-catalog.js");
 
 function readManifest() {
   const raw = fs.readFileSync(manifestPath, "utf8");
@@ -16,6 +17,7 @@ test("frontend ships a committed local games manifest and bundled assets", () =>
   assert.ok(fs.existsSync(path.join(FRONTEND_DIR, "swf")));
   assert.ok(fs.existsSync(path.join(FRONTEND_DIR, "images", "game-img")));
   assert.ok(fs.existsSync(manifestPath));
+  assert.ok(fs.existsSync(manifestScriptPath));
 
   const payload = readManifest();
   assert.equal(payload.ok, true);

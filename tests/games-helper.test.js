@@ -13,6 +13,7 @@ function createHelperContext(overrides) {
   const context = {
     URLSearchParams,
     console,
+    document: (overrides && overrides.document) || null,
     fetch: async (url, init) => {
       calls.push({ url, init });
       if (overrides && overrides.fetch) {
@@ -52,52 +53,23 @@ test("buildLaunchUri points game launches into the Palladium tab protocol", () =
 test("loadCatalog prefers the committed local manifest", async () => {
   const sampleGames = [{ title: "Brotato", path: "games/bullet-hell/brotato.html" }];
   const { api, calls } = createHelperContext({
-    fetch: async () => ({
-      ok: true,
-      async json() {
-        return { games: sampleGames };
-      }
-    }),
     window: {
-      PalladiumBackend: {
-        async fetchJson() {
-          throw new Error("backend fallback should not run");
-        }
-      }
+      PALLADIUM_GAMES_CATALOG: { games: sampleGames }
     }
   });
 
   const games = await api.loadCatalog();
   assert.deepEqual(games, sampleGames);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, "data/games-catalog.json");
+  assert.equal(calls.length, 0);
 });
 
-test("loadCatalog stays local-only when the manifest is unavailable", async () => {
-  const sampleGames = [{ title: "Retro Bowl", path: "games/sports/retro-bowl.html" }];
-  let backendCalls = 0;
+test("loadCatalog stays local-only when the embedded manifest is unavailable", async () => {
   const { api } = createHelperContext({
-    fetch: async () => ({
-      ok: false,
-      status: 503,
-      async json() {
-        return {};
-      }
-    }),
-    window: {
-      PalladiumBackend: {
-        async fetchJson() {
-          backendCalls += 1;
-          return { games: sampleGames };
-        }
-      }
-    }
+    window: {}
   });
 
   await assert.rejects(
     () => api.loadCatalog(),
-    /Local games catalog request failed with status 503/
+    /Embedded games catalog is unavailable/
   );
-  assert.deepEqual(sampleGames, [{ title: "Retro Bowl", path: "games/sports/retro-bowl.html" }]);
-  assert.equal(backendCalls, 0);
 });
