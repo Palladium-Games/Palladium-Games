@@ -7,6 +7,7 @@ const FRONTEND_DIR = path.resolve(__dirname, "..");
 
 test("frontend ships static Scramjet proxy assets", () => {
   const requiredFiles = [
+    "settings-shell.css",
     path.join("scram", "scramjet.all.js"),
     path.join("scram", "scramjet.sync.js"),
     path.join("scram", "scramjet.wasm.wasm"),
@@ -27,6 +28,8 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /id="sidebar-toggle"/);
   assert.match(shellPage, /baremux\/index\.js/);
   assert.match(shellPage, /scram\/scramjet\.all\.js/);
+  assert.match(shellPage, /palladium:\/\/settings/);
+  assert.match(shellPage, /Open Palladium In About:Blank/);
   assert.match(shellPage, /palladium:\/\/ai/);
 });
 

@@ -23,6 +23,7 @@ test("internal Palladium routes normalize into view descriptors", () => {
   const core = loadCore();
   const home = core.describeInput("palladium://home");
   const games = core.describeInput("palladium://games");
+  const settings = core.describeInput("palladium://settings");
 
   assert.equal(home.view, "home");
   assert.equal(home.route, "home");
@@ -33,6 +34,11 @@ test("internal Palladium routes normalize into view descriptors", () => {
   assert.equal(games.route, "games");
   assert.equal(games.title, "Games");
   assert.equal(games.uri, "palladium://games");
+
+  assert.equal(settings.view, "settings");
+  assert.equal(settings.route, "settings");
+  assert.equal(settings.title, "Settings");
+  assert.equal(settings.uri, "palladium://settings");
 });
 
 test("game launch routes carry the game path inside the Palladium protocol", () => {

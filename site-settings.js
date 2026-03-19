@@ -3,7 +3,7 @@
   var FAVICON_KEY = "palladium.site.favicon";
   var THEME_KEY = "palladium.site.theme";
   var DEFAULT_TITLE = "Palladium Games";
-  var DEFAULT_FAVICON = "images/favicon.png?v=3";
+  var DEFAULT_FAVICON = "images/favicon.png?v=4";
   var DEFAULT_THEME = "default";
   var ALLOWED_THEMES = {
     "default": true,
@@ -267,6 +267,7 @@
     defaultTitle: DEFAULT_TITLE,
     defaultFavicon: DEFAULT_FAVICON,
     defaultTheme: DEFAULT_THEME,
+    themes: Object.keys(ALLOWED_THEMES),
     getSettings: getSettings,
     setTitle: setTitle,
     setFavicon: setFavicon,

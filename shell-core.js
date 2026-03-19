@@ -3,7 +3,8 @@
     home: "Home",
     newtab: "New Tab",
     games: "Games",
-    ai: "AI"
+    ai: "AI",
+    settings: "Settings"
   };
 
   function cleanText(value) {
@@ -107,7 +108,7 @@
         };
       }
 
-      if (route === "games" || route === "ai") {
+      if (route === "games" || route === "ai" || route === "settings") {
         return {
           view: route,
           route: route,

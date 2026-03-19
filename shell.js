@@ -12,6 +12,40 @@
     sync: "/scram/scramjet.sync.js",
     wasm: "/scram/scramjet.wasm.wasm"
   };
+  var SETTINGS_THEME_ORDER = [
+    "default",
+    "oceanic",
+    "forest",
+    "sunset",
+    "graphite",
+    "neon"
+  ];
+  var CLOAK_PRESETS = [
+    {
+      id: "classroom",
+      title: "Classes",
+      favicon: "https://ssl.gstatic.com/classroom/favicon.png",
+      description: "Google Classroom"
+    },
+    {
+      id: "docs",
+      title: "Quarterly Notes - Google Docs",
+      favicon: "https://ssl.gstatic.com/docs/documents/images/kix-favicon7.ico",
+      description: "Google Docs"
+    },
+    {
+      id: "drive",
+      title: "My Drive - Google Drive",
+      favicon: "https://ssl.gstatic.com/docs/doclist/images/drive_2022q3_32dp.png",
+      description: "Google Drive"
+    },
+    {
+      id: "calendar",
+      title: "Calendar",
+      favicon: "https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png",
+      description: "Google Calendar"
+    }
+  ];
 
   var elements = {
     addressForm: document.getElementById("address-form"),
@@ -191,7 +225,12 @@
   }
 
   function setDocumentTitle(tab) {
-    document.title = (tab && tab.title ? tab.title + " | " : "") + "Palladium";
+    var baseTitle = (tab && tab.title ? tab.title + " | " : "") + "Palladium";
+    if (window.PalladiumSiteSettings && typeof window.PalladiumSiteSettings.decorateTitle === "function") {
+      document.title = window.PalladiumSiteSettings.decorateTitle(baseTitle);
+      return;
+    }
+    document.title = baseTitle;
   }
 
   function setActiveTab(tabId) {
@@ -365,6 +404,7 @@
     if (tab.view === "home") return "home";
     if (tab.view === "games") return "games";
     if (tab.view === "ai") return "ai";
+    if (tab.view === "settings") return "settings";
     if (tab.view === "game") return "play";
     return "web";
   }
@@ -397,6 +437,11 @@
     }
     if (name === "play") {
       addPath("M8 6v12l10-6-10-6Z");
+      return svg;
+    }
+    if (name === "settings") {
+      addPath("M12 3.5 14 5l2.5-.2 1 2.3 2 1.5-.8 2.4.8 2.4-2 1.5-1 2.3L14 19l-2 1.5L10 19l-2.5.2-1-2.3-2-1.5.8-2.4-.8-2.4 2-1.5 1-2.3L10 5l2-1.5Z");
+      addPath("M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z");
       return svg;
     }
     if (name === "close") {
@@ -435,7 +480,7 @@
       elements.shellRoot.classList.toggle("shell--sidebar-collapsed", state.sidebarCollapsed);
     }
     if (elements.toolbarSidebarToggle) {
-      var label = state.sidebarCollapsed ? "Show sidebar" : "Hide sidebar";
+      var label = state.sidebarCollapsed ? "Expand sidebar" : "Retract sidebar";
       elements.toolbarSidebarToggle.setAttribute("aria-expanded", state.sidebarCollapsed ? "false" : "true");
       elements.toolbarSidebarToggle.setAttribute("aria-label", label);
       elements.toolbarSidebarToggle.setAttribute("title", label);
@@ -465,6 +510,8 @@
       tab.paneEl = createGamesPane(tab);
     } else if (tab.view === "ai") {
       tab.paneEl = createAiPane(tab);
+    } else if (tab.view === "settings") {
+      tab.paneEl = createSettingsPane(tab);
     } else if (tab.view === "game") {
       tab.paneEl = createGamePane(tab);
     } else {
@@ -546,6 +593,247 @@
 
     renderAiConversation(pane, tab);
     refreshAiStatus(pane);
+    return pane;
+  }
+
+  function getSiteSettingsApi() {
+    return window.PalladiumSiteSettings || null;
+  }
+
+  function readSiteSettings() {
+    var api = getSiteSettingsApi();
+    if (!api || typeof api.getSettings !== "function") {
+      return {
+        title: "",
+        favicon: "",
+        theme: "default"
+      };
+    }
+
+    return api.getSettings();
+  }
+
+  function getSettingsThemes() {
+    var api = getSiteSettingsApi();
+    if (api && Array.isArray(api.themes) && api.themes.length) {
+      return api.themes.slice();
+    }
+    return SETTINGS_THEME_ORDER.slice();
+  }
+
+  function humanizeThemeName(themeName) {
+    return cleanText(themeName)
+      .replace(/[-_]+/g, " ")
+      .replace(/\b\w/g, function (character) {
+        return character.toUpperCase();
+      });
+  }
+
+  function buildShellLaunchUrl(uri) {
+    try {
+      var nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set("uri", cleanText(uri) || core.buildInternalUri("home"));
+      return nextUrl.toString();
+    } catch (error) {
+      return window.location.href;
+    }
+  }
+
+  function setSettingsStatus(pane, message) {
+    if (!pane) return;
+    var statusEl = pane.querySelector('[data-role="settings-status"]');
+    if (statusEl) {
+      statusEl.textContent = cleanText(message) || "Saved locally in this browser.";
+    }
+  }
+
+  function renderThemeGrid(pane, settings) {
+    var container = pane.querySelector('[data-role="theme-grid"]');
+    if (!container) return;
+
+    var activeTheme = cleanText(settings && settings.theme) || "default";
+    var themes = getSettingsThemes();
+
+    container.innerHTML = themes.map(function (themeName) {
+      var displayName = humanizeThemeName(themeName);
+      return (
+        '<button type="button" class="theme-chip' + (themeName === activeTheme ? ' theme-chip--active' : '') + '" data-theme-option="' + escapeHtml(themeName) + '">' +
+          '<span class="theme-chip__name">' + escapeHtml(displayName) + "</span>" +
+          '<span class="theme-chip__meta">' + escapeHtml(themeName === "default" ? "Palladium default" : displayName + " palette") + "</span>" +
+        "</button>"
+      );
+    }).join("");
+  }
+
+  function renderCloakPresets(pane) {
+    var container = pane.querySelector('[data-role="cloak-presets"]');
+    if (!container) return;
+
+    container.innerHTML = CLOAK_PRESETS.map(function (preset) {
+      return (
+        '<button type="button" class="preset-chip" data-cloak-preset="' + escapeHtml(preset.id) + '">' +
+          '<span class="preset-chip__title">' + escapeHtml(preset.title) + "</span>" +
+          '<span class="preset-chip__meta">' + escapeHtml(preset.description) + "</span>" +
+        "</button>"
+      );
+    }).join("");
+  }
+
+  function syncSettingsPane(pane, message) {
+    if (!pane) return;
+
+    var settings = readSiteSettings();
+    var titleInput = pane.querySelector('[name="cloak-title"]');
+    var faviconInput = pane.querySelector('[name="cloak-favicon"]');
+    var previewTitle = pane.querySelector('[data-role="settings-preview-title"]');
+    var previewFavicon = pane.querySelector('[data-role="settings-preview-favicon"]');
+    var previewTheme = pane.querySelector('[data-role="settings-preview-theme"]');
+
+    if (titleInput) titleInput.value = cleanText(settings.title);
+    if (faviconInput) faviconInput.value = cleanText(settings.favicon);
+    if (previewTitle) previewTitle.textContent = cleanText(settings.title) || "Palladium Games";
+    if (previewFavicon) previewFavicon.textContent = cleanText(settings.favicon) || "images/favicon.png?v=4";
+    if (previewTheme) previewTheme.textContent = "Theme: " + humanizeThemeName(settings.theme || "default");
+
+    renderThemeGrid(pane, settings);
+    renderCloakPresets(pane);
+    setSettingsStatus(pane, message);
+  }
+
+  function applyCloakForm(pane) {
+    var api = getSiteSettingsApi();
+    if (!api) {
+      syncSettingsPane(pane, "Site settings helper is unavailable.");
+      return;
+    }
+
+    var titleInput = pane.querySelector('[name="cloak-title"]');
+    var faviconInput = pane.querySelector('[name="cloak-favicon"]');
+
+    api.setTitle(titleInput ? titleInput.value : "");
+    api.setFavicon(faviconInput ? faviconInput.value : "");
+    renderShell();
+    syncSettingsPane(pane, "Cloak updated.");
+  }
+
+  function applyCloakPreset(pane, presetId) {
+    var api = getSiteSettingsApi();
+    if (!api) {
+      syncSettingsPane(pane, "Site settings helper is unavailable.");
+      return;
+    }
+
+    for (var index = 0; index < CLOAK_PRESETS.length; index += 1) {
+      var preset = CLOAK_PRESETS[index];
+      if (preset.id !== presetId) continue;
+
+      api.setTitle(preset.title);
+      api.setFavicon(preset.favicon);
+      renderShell();
+      syncSettingsPane(pane, "Applied " + preset.description + " cloak.");
+      return;
+    }
+  }
+
+  function applyThemeSetting(pane, themeName) {
+    var api = getSiteSettingsApi();
+    if (!api || typeof api.setTheme !== "function") {
+      syncSettingsPane(pane, "Site settings helper is unavailable.");
+      return;
+    }
+
+    api.setTheme(themeName);
+    renderShell();
+    syncSettingsPane(pane, "Theme updated to " + humanizeThemeName(themeName) + ".");
+  }
+
+  function resetCloakSettings(pane) {
+    var api = getSiteSettingsApi();
+    if (!api) {
+      syncSettingsPane(pane, "Site settings helper is unavailable.");
+      return;
+    }
+
+    api.setTitle("");
+    api.setFavicon("");
+    renderShell();
+    syncSettingsPane(pane, "Tab cloak reset.");
+  }
+
+  function resetAllSettings(pane) {
+    var api = getSiteSettingsApi();
+    if (!api || typeof api.reset !== "function") {
+      syncSettingsPane(pane, "Site settings helper is unavailable.");
+      return;
+    }
+
+    api.reset();
+    renderShell();
+    syncSettingsPane(pane, "Theme and cloaking reset.");
+  }
+
+  function openSettingsAboutBlank(pane, tab) {
+    var api = getSiteSettingsApi();
+    if (!api || typeof api.openInAboutBlank !== "function") {
+      syncSettingsPane(pane, "About:blank launcher is unavailable.");
+      return;
+    }
+
+    var result = api.openInAboutBlank(buildShellLaunchUrl(tab && tab.uri));
+    if (result && result.ok) {
+      syncSettingsPane(pane, "Opened Palladium in about:blank.");
+      return;
+    }
+
+    syncSettingsPane(pane, result && result.error ? result.error : "Popup blocked by browser.");
+  }
+
+  function createSettingsPane(tab) {
+    var pane = cloneTemplate("settings-pane-template");
+    if (!pane) return null;
+
+    var form = pane.querySelector('[data-role="cloak-form"]');
+    if (form) {
+      form.addEventListener("submit", function (event) {
+        event.preventDefault();
+        applyCloakForm(pane);
+      });
+    }
+
+    pane.addEventListener("click", function (event) {
+      var target = event.target;
+      if (!target || typeof target.closest !== "function") return;
+
+      var themeButton = target.closest("[data-theme-option]");
+      if (themeButton) {
+        applyThemeSetting(pane, themeButton.getAttribute("data-theme-option"));
+        return;
+      }
+
+      var presetButton = target.closest("[data-cloak-preset]");
+      if (presetButton) {
+        applyCloakPreset(pane, presetButton.getAttribute("data-cloak-preset"));
+        return;
+      }
+
+      var actionButton = target.closest("[data-settings-action]");
+      if (!actionButton) return;
+
+      var action = actionButton.getAttribute("data-settings-action");
+      if (action === "reset-cloak") {
+        resetCloakSettings(pane);
+        return;
+      }
+      if (action === "reset-all") {
+        resetAllSettings(pane);
+        return;
+      }
+      if (action === "aboutblank-shell") {
+        openSettingsAboutBlank(pane, tab);
+      }
+    });
+
+    syncSettingsPane(pane);
     return pane;
   }
 
@@ -1383,6 +1671,8 @@
       state.gamesCatalog = null;
       removePane(active);
       ensurePane(active);
+    } else if (active.view === "settings") {
+      syncSettingsPane(active.paneEl, "Settings refreshed.");
     } else if (active.view === "web") {
       if (active.webState && active.webState.frameController) {
         active.webState.frameController.reload();

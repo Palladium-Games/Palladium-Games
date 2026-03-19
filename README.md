@@ -36,7 +36,6 @@ Refresh those bundled assets from a sibling backend checkout with:
 
 ```bash
 npm run sync:games
-npm run sync:proxy
 ```
 
 Verify the static catalog wiring with:
@@ -59,7 +58,8 @@ The live backend contract is:
 Refresh the committed proxy runtime from the backend repo with:
 
 ```bash
-npm run sync:proxy
+cd ../palladium-backend
+npm run sync:frontend-proxy
 ```
 
 ## Links

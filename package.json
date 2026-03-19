@@ -5,7 +5,6 @@
   "description": "Static Palladium frontend with locally bundled games",
   "scripts": {
     "sync:games": "node scripts/sync-local-games.js",
-    "sync:proxy": "node scripts/sync-proxy-assets.js",
     "test": "node --test tests/*.test.js",
     "verify": "npm run test"
   }

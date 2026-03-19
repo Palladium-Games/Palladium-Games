@@ -14,39 +14,58 @@
   <link rel="shortcut icon" href="favicon.ico?v=4" type="image/x-icon" />
   <link rel="apple-touch-icon" href="images/favicon.png?v=4" />
   <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="settings-shell.css" />
 </head>
 <body>
   <div id="shell-root" class="shell">
     <aside id="shell-sidebar" class="shell-sidebar">
-      <div class="shell-sidebar__brand">
-        <div class="shell-sidebar__logo-mark" aria-hidden="true">
-          <img src="images/favicon.png" alt="" class="shell-sidebar__logo-image" />
+      <div class="shell-sidebar__brand shell-sidebar__row">
+        <div class="shell-sidebar__rail">
+          <div class="shell-sidebar__logo-mark" aria-hidden="true">
+            <img src="images/favicon.png" alt="" class="shell-sidebar__logo-image" />
+          </div>
         </div>
-        <button type="button" id="sidebar-toggle" class="sidebar-block__action sidebar-block__action--icon" aria-expanded="true" aria-label="Hide sidebar" title="Hide sidebar">
-          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M9 6l6 6-6 6" />
-          </svg>
-        </button>
-        <div>
+        <div class="shell-sidebar__rest shell-sidebar__rest--brand">
           <h1 class="shell-sidebar__title">PALLADIUM</h1>
         </div>
       </div>
 
-      <section class="sidebar-block">
-        <div class="sidebar-block__header">
-          <span>Tabs</span>
-          <button type="button" id="shell-new-tab" class="sidebar-block__action sidebar-block__action--icon" aria-label="New tab" title="New tab">
-            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
+      <div class="sidebar-toggle-row">
+        <button type="button" id="sidebar-toggle" class="sidebar-toggle-btn" aria-expanded="true">
+          <span class="sidebar-toggle-btn__rail" aria-hidden="true">
+            <svg class="ui-icon" viewBox="0 0 24 24">
+              <path d="M9 6l6 6-6 6" />
             </svg>
-          </button>
+          </span>
+          <span class="sidebar-toggle-btn__label">
+            <span class="sidebar-toggle-btn__word">Retract</span>
+            <span class="sidebar-toggle-btn__lt">&lt;</span>
+          </span>
+        </button>
+      </div>
+
+      <section class="sidebar-block sidebar-block--tabs">
+        <div class="sidebar-block__header sidebar-block__header--tabs shell-sidebar__row">
+          <div class="shell-sidebar__rail">
+            <button type="button" id="shell-new-tab" class="sidebar-block__action sidebar-block__action--icon" aria-label="New tab" title="New tab">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </button>
+          </div>
+          <div class="shell-sidebar__rest shell-sidebar__rest--header">
+            <span class="sidebar-block__heading">Tabs</span>
+          </div>
         </div>
         <div id="tab-list" class="tab-list" aria-live="polite"></div>
       </section>
 
-      <section class="sidebar-block">
-        <div class="sidebar-block__header">
-          <span>Links</span>
+      <section class="sidebar-block sidebar-block--links">
+        <div class="sidebar-block__header shell-sidebar__row">
+          <div class="shell-sidebar__rail shell-sidebar__rail--spacer" aria-hidden="true"></div>
+          <div class="shell-sidebar__rest shell-sidebar__rest--header">
+            <span class="sidebar-block__heading">Links</span>
+          </div>
         </div>
         <div class="route-list">
           <button type="button" class="route-link" data-route="palladium://home">
@@ -69,38 +88,34 @@
             </svg>
             <span class="route-link__label">AI</span>
           </button>
+          <button type="button" class="route-link" data-route="palladium://settings">
+            <svg class="ui-icon route-link__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3.5 14 5l2.5-.2 1 2.3 2 1.5-.8 2.4.8 2.4-2 1.5-1 2.3L14 19l-2 1.5L10 19l-2.5.2-1-2.3-2-1.5.8-2.4-.8-2.4 2-1.5 1-2.3L10 5l2-1.5Z" />
+              <circle cx="12" cy="12" r="3.2" />
+            </svg>
+            <span class="route-link__label">Settings</span>
+          </button>
         </div>
       </section>
 
-      <section class="sidebar-block sidebar-block--status">
-        <div class="status-card">
-          <span class="status-card__label">Proxy</span>
-          <strong id="proxy-status-chip" class="status-card__value">Locating proxy...</strong>
-        </div>
-        <div class="status-card">
-          <span class="status-card__label">AI</span>
-          <strong id="ai-status-chip" class="status-card__value">Standing by</strong>
-        </div>
-      </section>
     </aside>
 
     <main class="shell-main">
       <header class="shell-toolbar">
-        <div class="shell-toolbar__controls">
-          <button type="button" id="toolbar-home" class="toolbar-button toolbar-button--icon" aria-label="Home" title="Home">
-            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M3 11.5 12 4l9 7.5M6.5 10.5V20h11V10.5" />
-            </svg>
-          </button>
-          <button type="button" id="toolbar-refresh" class="toolbar-button toolbar-button--icon" aria-label="Refresh" title="Refresh">
-            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 5v5h-5" />
-              <path d="M20 10a8 8 0 1 0 2 5.3" />
-            </svg>
-          </button>
-        </div>
-
         <form id="address-form" class="address-bar">
+          <div class="shell-toolbar__controls">
+            <button type="button" id="toolbar-home" class="toolbar-button toolbar-button--icon" aria-label="Home" title="Home">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M3 11.5 12 4l9 7.5M6.5 10.5V20h11V10.5" />
+              </svg>
+            </button>
+            <button type="button" id="toolbar-refresh" class="toolbar-button toolbar-button--icon" aria-label="Refresh" title="Refresh">
+              <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M20 5v5h-5" />
+                <path d="M20 10a8 8 0 1 0 2 5.3" />
+              </svg>
+            </button>
+          </div>
           <label for="address-input" class="sr-only">Palladium address bar</label>
           <input
             id="address-input"
@@ -165,6 +180,9 @@
             </button>
             <button type="button" class="shortcut-card" data-route="palladium://ai">
               <span class="shortcut-card__title">AI</span>
+            </button>
+            <button type="button" class="shortcut-card" data-route="palladium://settings">
+              <span class="shortcut-card__title">Settings</span>
             </button>
             <button type="button" class="shortcut-card" data-query="speed test">
               <span class="shortcut-card__title">Search</span>
@@ -276,6 +294,80 @@
               <button type="submit" class="toolbar-button toolbar-button--accent">Send</button>
             </div>
           </form>
+        </section>
+      </div>
+    </section>
+  </template>
+
+  <template id="settings-pane-template">
+    <section class="shell-pane shell-pane--internal shell-pane--settings">
+      <div class="section-hero">
+        <div>
+          <p class="section-hero__eyebrow">palladium://settings</p>
+          <h2 class="section-hero__title">Shell Settings</h2>
+          <p class="section-hero__text">
+            Pick a theme, cloak the tab, and launch Palladium inside an about:blank wrapper.
+          </p>
+        </div>
+        <div class="section-hero__status" data-role="settings-status">Saved locally in this browser.</div>
+      </div>
+
+      <div class="settings-grid">
+        <section class="content-card settings-card">
+          <div class="content-card__header">
+            <div>
+              <p class="content-card__eyebrow">Themes</p>
+              <h3 class="content-card__title">Shell palette</h3>
+            </div>
+          </div>
+          <div class="theme-grid" data-role="theme-grid"></div>
+        </section>
+
+        <section class="content-card settings-card">
+          <div class="content-card__header">
+            <div>
+              <p class="content-card__eyebrow">Tab cloaking</p>
+              <h3 class="content-card__title">Title and favicon</h3>
+            </div>
+          </div>
+          <form class="settings-form" data-role="cloak-form">
+            <label class="settings-field">
+              <span class="settings-field__label">Tab title</span>
+              <input class="settings-field__input" type="text" name="cloak-title" placeholder="Google Classroom" autocomplete="off" />
+            </label>
+            <label class="settings-field">
+              <span class="settings-field__label">Favicon URL</span>
+              <input class="settings-field__input" type="url" name="cloak-favicon" placeholder="https://example.com/favicon.ico" autocomplete="off" />
+            </label>
+            <div class="settings-actions">
+              <button type="submit" class="toolbar-button toolbar-button--accent">Apply cloak</button>
+              <button type="button" class="toolbar-button" data-settings-action="reset-cloak">Reset cloak</button>
+            </div>
+          </form>
+          <div class="preset-grid" data-role="cloak-presets"></div>
+        </section>
+
+        <section class="content-card settings-card">
+          <div class="content-card__header">
+            <div>
+              <p class="content-card__eyebrow">Launch</p>
+              <h3 class="content-card__title">About:blank tools</h3>
+            </div>
+          </div>
+          <div class="settings-actions settings-actions--stacked">
+            <button type="button" class="toolbar-button toolbar-button--accent" data-settings-action="aboutblank-shell">
+              Open Palladium In About:Blank
+            </button>
+            <button type="button" class="toolbar-button" data-settings-action="reset-all">
+              Reset Theme And Cloak
+            </button>
+          </div>
+          <div class="settings-preview">
+            <div class="settings-preview__label">Current cloak</div>
+            <div class="settings-preview__value" data-role="settings-preview-title">Palladium Games</div>
+            <div class="settings-preview__meta" data-role="settings-preview-favicon">images/favicon.png?v=4</div>
+            <div class="settings-preview__meta" data-role="settings-preview-theme">default</div>
+          </div>
         </section>
       </div>
     </section>
