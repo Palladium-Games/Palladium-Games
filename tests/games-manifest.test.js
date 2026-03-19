@@ -24,7 +24,7 @@ test("frontend ships a committed local games manifest and bundled assets", () =>
 
   for (const entry of payload.games) {
     assert.match(entry.path, /^games\//);
-    assert.match(entry.playerPath, /^game-player\.html\?/);
+    assert.match(entry.launchUri, /^palladium:\/\/game\?/);
     assert.ok(fs.existsSync(path.join(FRONTEND_DIR, entry.path)), "Missing local game asset: " + entry.path);
 
     if (entry.image && !/^(?:[a-z]+:)?\/\//i.test(entry.image)) {
@@ -33,22 +33,20 @@ test("frontend ships a committed local games manifest and bundled assets", () =>
   }
 });
 
-test("games pages load the shared local-games helper", () => {
-  const gamesPage = fs.readFileSync(path.join(FRONTEND_DIR, "games.html"), "utf8");
-  const playerPage = fs.readFileSync(path.join(FRONTEND_DIR, "game-player.html"), "utf8");
-  const aiPage = fs.readFileSync(path.join(FRONTEND_DIR, "ai.html"), "utf8");
+test("frontend shell loads the shared local-games and shell helpers", () => {
+  const shellPage = fs.readFileSync(path.join(FRONTEND_DIR, "index.html"), "utf8");
 
-  assert.match(gamesPage, /games-static\.js/);
-  assert.match(playerPage, /games-static\.js/);
-  assert.match(aiPage, /games-static\.js/);
+  assert.match(shellPage, /games-static\.js/);
+  assert.match(shellPage, /shell-core\.js/);
+  assert.match(shellPage, /shell\.js/);
+  assert.match(shellPage, /Search games, authors, or categories/);
 });
 
-test("game player uses a fixed stage and non-scrolling iframe viewport", () => {
-  const playerPage = fs.readFileSync(path.join(FRONTEND_DIR, "game-player.html"), "utf8");
-  const styles = fs.readFileSync(path.join(FRONTEND_DIR, "styles.css"), "utf8");
+test("frontend root keeps a single app shell entrypoint", () => {
+  const topLevelHtmlFiles = fs
+    .readdirSync(FRONTEND_DIR)
+    .filter((entry) => entry.endsWith(".html"))
+    .sort();
 
-  assert.match(playerPage, /player-frame-stage/);
-  assert.match(playerPage, /scrolling="no"/);
-  assert.match(styles, /\.player-frame-stage/);
-  assert.match(styles, /transform-origin:\s*top left/);
+  assert.deepEqual(topLevelHtmlFiles, ["index.html"]);
 });

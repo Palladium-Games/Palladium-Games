@@ -2,7 +2,7 @@
 
 ## Our Purpose
 Our purpose is to provide gaming fun to everybody who is probably sitting bored in a classroom while their teacher drones on about the Civil War.
-We have games, AI, and a proxy will be coming soon!
+The frontend is now a single-shell browser experience where the main page is the proxy and internal routes like `palladium://home`, `palladium://games`, and `palladium://ai` live inside the built-in address bar.
 
 ## Our Tech Infrastructure
 We use games from [GN-MATH](https://gn-math.dev), and the [Internet Archive](https://archive.org)
@@ -30,6 +30,7 @@ You can also remix this on [Replit](https://replit.com/@sethpanng/Palladium-Game
 
 ## Local Game Hosting
 The frontend now commits the playable game files, SWFs, thumbnails, and a generated catalog manifest directly into this repo so a blocked `api.sethpang.com` domain does not take the whole games page down.
+The only top-level app page is `index.html`; games launch from the shell into their own tabs through `palladium://game?...` launch URIs.
 
 Refresh those bundled assets from a sibling backend checkout with:
 

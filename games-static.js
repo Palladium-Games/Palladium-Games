@@ -16,6 +16,31 @@
     return text.replace(/^\/+/, "");
   }
 
+  function normalizeGamePath(value) {
+    return normalizeAssetPath(value).replace(/\\/g, "/");
+  }
+
+  function buildLaunchUri(gamePath, title, author) {
+    var normalizedPath = normalizeGamePath(gamePath);
+    if (!normalizedPath) {
+      return "palladium://games";
+    }
+
+    var parts = ["path=" + encodeURIComponent(normalizedPath)];
+    var normalizedTitle = sanitizeText(title);
+    var normalizedAuthor = sanitizeText(author);
+
+    if (normalizedTitle) {
+      parts.push("title=" + encodeURIComponent(normalizedTitle));
+    }
+
+    if (normalizedAuthor) {
+      parts.push("author=" + encodeURIComponent(normalizedAuthor));
+    }
+
+    return "palladium://game?" + parts.join("&");
+  }
+
   async function loadLocalCatalog(forceRefresh) {
     if (!forceRefresh && catalogCache) {
       return catalogCache.slice();
@@ -55,11 +80,13 @@
   }
 
   window.PalladiumGames = {
-    manifestPath: LOCAL_MANIFEST_PATH,
-    normalizeAssetPath: normalizeAssetPath,
-    loadCatalog: loadCatalog,
+    buildLaunchUri: buildLaunchUri,
     getCachedCatalog: function () {
       return catalogCache ? catalogCache.slice() : [];
-    }
+    },
+    loadCatalog: loadCatalog,
+    manifestPath: LOCAL_MANIFEST_PATH,
+    normalizeAssetPath: normalizeAssetPath,
+    normalizeGamePath: normalizeGamePath
   };
 })();

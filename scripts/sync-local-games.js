@@ -140,7 +140,7 @@ async function buildCatalog(gamesDir, gameImageDir, overrides) {
       category: category,
       path: gamePath,
       image: image,
-      playerPath: buildPlayerPath(gamePath, title, author)
+      launchUri: buildLaunchUri(gamePath, title, author)
     });
   }
 
@@ -290,9 +290,9 @@ function humanizeFilename(value) {
     .trim();
 }
 
-function buildPlayerPath(gamePath, title, author) {
+function buildLaunchUri(gamePath, title, author) {
   return (
-    "game-player.html?game=" +
+    "palladium://game?path=" +
     encodeURIComponent(gamePath) +
     "&title=" +
     encodeURIComponent(title) +

@@ -1,0 +1,192 @@
+(function () {
+  var INTERNAL_ROUTES = {
+    home: "Home",
+    newtab: "New Tab",
+    games: "Games",
+    ai: "AI"
+  };
+
+  function cleanText(value) {
+    return String(value == null ? "" : value).trim();
+  }
+
+  function normalizeSlash(value) {
+    return cleanText(value).replace(/\\/g, "/").replace(/^\/+/, "");
+  }
+
+  function humanizeSlug(value) {
+    return cleanText(value)
+      .replace(/\.html(?:[?#].*)?$/i, "")
+      .split(/[\/?#]/)
+      .pop()
+      .replace(/[-_]+/g, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, function (character) {
+        return character.toUpperCase();
+      })
+      .trim();
+  }
+
+  function normalizeGamePath(value) {
+    var normalized = normalizeSlash(value);
+    if (!normalized) return "";
+    return normalized;
+  }
+
+  function buildInternalUri(route) {
+    var normalized = cleanText(route).toLowerCase();
+    if (!INTERNAL_ROUTES[normalized]) {
+      normalized = "newtab";
+    }
+    return "palladium://" + normalized;
+  }
+
+  function buildGameUri(gamePath, title, author) {
+    var normalizedPath = normalizeGamePath(gamePath);
+    if (!normalizedPath) {
+      return buildInternalUri("games");
+    }
+
+    var query = ["path=" + encodeURIComponent(normalizedPath)];
+    var normalizedTitle = cleanText(title);
+    var normalizedAuthor = cleanText(author);
+
+    if (normalizedTitle) {
+      query.push("title=" + encodeURIComponent(normalizedTitle));
+    }
+
+    if (normalizedAuthor) {
+      query.push("author=" + encodeURIComponent(normalizedAuthor));
+    }
+
+    return "palladium://game?" + query.join("&");
+  }
+
+  function parseInternalUri(value) {
+    var raw = cleanText(value);
+    if (!raw || !/^palladium:\/\//i.test(raw)) {
+      return null;
+    }
+
+    try {
+      var parsed = new URL(raw);
+      var route = cleanText(parsed.hostname || parsed.pathname.replace(/^\/+/, "")).toLowerCase();
+
+      if (!route) {
+        route = "newtab";
+      }
+
+      if (route === "game") {
+        var gamePath = normalizeGamePath(parsed.searchParams.get("path"));
+        if (!gamePath) {
+          return {
+            view: "games",
+            route: "games",
+            title: INTERNAL_ROUTES.games,
+            uri: buildInternalUri("games")
+          };
+        }
+
+        var title = cleanText(parsed.searchParams.get("title")) || humanizeSlug(gamePath);
+        return {
+          view: "game",
+          route: "game",
+          title: title,
+          author: cleanText(parsed.searchParams.get("author")),
+          path: gamePath,
+          uri: buildGameUri(gamePath, title, parsed.searchParams.get("author"))
+        };
+      }
+
+      if (route === "home" || route === "newtab") {
+        return {
+          view: "home",
+          route: route,
+          title: INTERNAL_ROUTES[route],
+          uri: buildInternalUri(route)
+        };
+      }
+
+      if (route === "games" || route === "ai") {
+        return {
+          view: route,
+          route: route,
+          title: INTERNAL_ROUTES[route],
+          uri: buildInternalUri(route)
+        };
+      }
+    } catch (error) {
+      return null;
+    }
+
+    return null;
+  }
+
+  function looksLikeGamePath(value) {
+    var normalized = normalizeGamePath(value);
+    return /^games\/.+\.html(?:[?#].*)?$/i.test(normalized);
+  }
+
+  function normalizeWebTarget(input) {
+    var raw = cleanText(input);
+    if (!raw) return "";
+    if (/^https?:\/\//i.test(raw)) return raw;
+    if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return "https://" + raw;
+    return "https://duckduckgo.com/?q=" + encodeURIComponent(raw);
+  }
+
+  function inferWebTitle(targetUrl) {
+    try {
+      var parsed = new URL(targetUrl);
+      return parsed.hostname || parsed.href;
+    } catch (error) {
+      return cleanText(targetUrl) || "Web";
+    }
+  }
+
+  function describeInput(input) {
+    var raw = cleanText(input);
+    if (!raw) {
+      return parseInternalUri(buildInternalUri("newtab"));
+    }
+
+    var internal = parseInternalUri(raw);
+    if (internal) {
+      return internal;
+    }
+
+    if (looksLikeGamePath(raw)) {
+      var title = humanizeSlug(raw);
+      return {
+        view: "game",
+        route: "game",
+        title: title,
+        author: "",
+        path: normalizeGamePath(raw),
+        uri: buildGameUri(raw, title, "")
+      };
+    }
+
+    var webTarget = normalizeWebTarget(raw);
+    return {
+      view: "web",
+      route: "web",
+      title: inferWebTitle(webTarget),
+      targetUrl: webTarget,
+      uri: webTarget
+    };
+  }
+
+  window.PalladiumShellCore = {
+    buildGameUri: buildGameUri,
+    buildInternalUri: buildInternalUri,
+    cleanText: cleanText,
+    describeInput: describeInput,
+    humanizeSlug: humanizeSlug,
+    inferWebTitle: inferWebTitle,
+    normalizeGamePath: normalizeGamePath,
+    normalizeSlash: normalizeSlash,
+    normalizeWebTarget: normalizeWebTarget,
+    parseInternalUri: parseInternalUri
+  };
+})();

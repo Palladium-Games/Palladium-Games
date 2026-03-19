@@ -11,7 +11,7 @@ function createHelperContext(overrides) {
   const calls = [];
   const window = (overrides && overrides.window) || {};
   const context = {
-    window,
+    URLSearchParams,
     console,
     fetch: async (url, init) => {
       calls.push({ url, init });
@@ -24,7 +24,8 @@ function createHelperContext(overrides) {
           return { games: [] };
         }
       };
-    }
+    },
+    window
   };
 
   vm.runInNewContext(helperSource, context, { filename: "games-static.js" });
@@ -37,6 +38,15 @@ test("normalizeAssetPath keeps local game assets on the frontend origin", () => 
   assert.equal(api.normalizeAssetPath("/games/fnaf/fnaf-1.html"), "games/fnaf/fnaf-1.html");
   assert.equal(api.normalizeAssetPath("images/game-img/fnaf-icon.png"), "images/game-img/fnaf-icon.png");
   assert.equal(api.normalizeAssetPath("https://cdn.example.com/game.html"), "https://cdn.example.com/game.html");
+});
+
+test("buildLaunchUri points game launches into the Palladium tab protocol", () => {
+  const { api } = createHelperContext();
+
+  assert.equal(
+    api.buildLaunchUri("games/platformer/ovo.html", "OvO", "Dedra Games"),
+    "palladium://game?path=games%2Fplatformer%2Fovo.html&title=OvO&author=Dedra%20Games"
+  );
 });
 
 test("loadCatalog prefers the committed local manifest", async () => {
