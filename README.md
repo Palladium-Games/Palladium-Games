@@ -36,6 +36,7 @@ Refresh those bundled assets from a sibling backend checkout with:
 
 ```bash
 npm run sync:games
+npm run sync:proxy
 ```
 
 Verify the static catalog wiring with:
@@ -45,6 +46,21 @@ npm test
 ```
 
 The sync script looks for `../palladium-backend` first and then `../backend`.
+
+## Static Proxy Shell
+The frontend stays fully static. Scramjet, BareMux, libcurl, and the service worker are committed into this repo so the shell can deploy to any static host without a long-running frontend server.
+
+The live backend contract is:
+
+- `https://api.sethpang.com/api/ai/chat` for AI
+- `https://api.sethpang.com/api/config/public` for public runtime config
+- `wss://api.sethpang.com/wisp/` for Scramjet transport
+
+Refresh the committed proxy runtime from the backend repo with:
+
+```bash
+npm run sync:proxy
+```
 
 ## Links
   1. https://sethpang.com (main link)

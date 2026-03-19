@@ -3,8 +3,15 @@
   if (!core) return;
 
   var STORAGE_KEY = "palladium.shell.state.v1";
-  var DEFAULT_PROXY_PROTOCOL = "https:";
-  var DEFAULT_PROXY_PORT = 443;
+  var SCRAMJET_PREFIX = "/service/scramjet/";
+  var SCRAMJET_SW_PATH = "/sw.js";
+  var BAREMUX_WORKER_PATH = "/baremux/worker.js";
+  var LIBCURL_TRANSPORT_PATH = "/libcurl/index.mjs";
+  var SCRAMJET_FILES = {
+    all: "/scram/scramjet.all.js",
+    sync: "/scram/scramjet.sync.js",
+    wasm: "/scram/scramjet.wasm.wasm"
+  };
 
   var elements = {
     addressForm: document.getElementById("address-form"),
@@ -16,21 +23,29 @@
     proxyStatusChip: document.getElementById("proxy-status-chip"),
     refreshButton: document.getElementById("toolbar-refresh"),
     routeList: document.querySelector(".route-list"),
+    shellRoot: document.getElementById("shell-root"),
+    stage: document.getElementById("shell-stage"),
     stageOverlay: document.getElementById("stage-overlay"),
     stageOverlayText: document.getElementById("stage-overlay-text"),
     tabList: document.getElementById("tab-list"),
-    toolbarNewTabButton: document.getElementById("toolbar-new-tab")
+    toolbarSidebarToggle: document.getElementById("sidebar-toggle")
   };
 
   var state = {
     activeTabId: "",
     config: null,
     gamesCatalog: null,
-    proxyBase: "",
     proxyHealth: {
       ok: false,
-      message: "Locating proxy..."
+      message: "Booting Scramjet..."
     },
+    proxyRuntime: {
+      controller: null,
+      initPromise: null,
+      ready: false,
+      transportUrl: ""
+    },
+    sidebarCollapsed: false,
     tabs: []
   };
 
@@ -91,6 +106,10 @@
       title: descriptor.title,
       route: descriptor.route,
       targetUrl: descriptor.targetUrl || "",
+      webState: {
+        currentTarget: "",
+        frameController: null
+      },
       path: descriptor.path || "",
       author: descriptor.author || "",
       uri: descriptor.uri,
@@ -102,6 +121,10 @@
     tab.title = descriptor.title;
     tab.route = descriptor.route;
     tab.targetUrl = descriptor.targetUrl || "";
+    tab.webState = {
+      currentTarget: "",
+      frameController: null
+    };
     tab.path = descriptor.path || "";
     tab.author = descriptor.author || "";
     tab.uri = descriptor.uri;
@@ -130,12 +153,17 @@
     }
     if (tab) {
       tab.paneEl = null;
+      tab.webState = {
+        currentTarget: "",
+        frameController: null
+      };
     }
   }
 
   function persistState() {
     writeStorage({
       activeTabId: state.activeTabId,
+      sidebarCollapsed: state.sidebarCollapsed,
       tabs: state.tabs.map(function (tab) {
         return {
           id: tab.id,
@@ -238,6 +266,8 @@
       state.activeTabId = restored.activeTabId || state.tabs[0].id;
     }
 
+    state.sidebarCollapsed = Boolean(restored && restored.sidebarCollapsed);
+
     if (!state.tabs.length) {
       state.tabs = [createTab(requestedUri || core.buildInternalUri("newtab"))];
       state.activeTabId = state.tabs[0].id;
@@ -268,9 +298,7 @@
       card.className = "tab-card" + (tab.id === state.activeTabId ? " tab-card--active" : "");
       card.dataset.tabId = tab.id;
 
-      var icon = document.createElement("span");
-      icon.className = "tab-card__icon";
-      icon.textContent = tabIcon(tab);
+      var icon = buildTabIcon(tab);
 
       var body = document.createElement("span");
       body.className = "tab-card__body";
@@ -279,19 +307,14 @@
       title.className = "tab-card__title";
       title.textContent = tab.title;
 
-      var meta = document.createElement("span");
-      meta.className = "tab-card__meta";
-      meta.textContent = tab.uri;
-
       body.appendChild(title);
-      body.appendChild(meta);
 
       var close = document.createElement("button");
       close.type = "button";
       close.className = "tab-card__close";
       close.dataset.closeTab = tab.id;
       close.setAttribute("aria-label", "Close " + tab.title);
-      close.textContent = "x";
+      close.appendChild(buildInlineSvgIcon("close", "tab-card__close-icon"));
 
       card.appendChild(icon);
       card.appendChild(body);
@@ -300,12 +323,89 @@
     });
   }
 
+  function buildTabIcon(tab) {
+    var icon = document.createElement("span");
+    icon.className = "tab-card__icon";
+
+    var faviconUrl = resolveTabFavicon(tab);
+    if (!faviconUrl) {
+      icon.appendChild(buildInlineSvgIcon(tabIcon(tab), "tab-card__fallback-icon"));
+      return icon;
+    }
+
+    var img = document.createElement("img");
+    img.className = "tab-card__favicon";
+    img.src = faviconUrl;
+    img.alt = "";
+    img.setAttribute("aria-hidden", "true");
+    img.loading = "lazy";
+
+    img.addEventListener("error", function () {
+      icon.innerHTML = "";
+      icon.appendChild(buildInlineSvgIcon(tabIcon(tab), "tab-card__fallback-icon"));
+    }, { once: true });
+
+    icon.appendChild(img);
+    return icon;
+  }
+
+  function resolveTabFavicon(tab) {
+    if (!tab) return "";
+    if (tab.view === "game") return "images/favicon.png";
+    if (tab.view !== "web" || !tab.targetUrl) return "";
+    try {
+      var origin = new URL(tab.targetUrl).origin;
+      return origin.replace(/\/+$/, "") + "/favicon.ico";
+    } catch (error) {
+      return "";
+    }
+  }
+
   function tabIcon(tab) {
-    if (tab.view === "home") return "NT";
-    if (tab.view === "games") return "GM";
-    if (tab.view === "ai") return "AI";
-    if (tab.view === "game") return "PL";
-    return "WB";
+    if (tab.view === "home") return "home";
+    if (tab.view === "games") return "games";
+    if (tab.view === "ai") return "ai";
+    if (tab.view === "game") return "play";
+    return "web";
+  }
+
+  function buildInlineSvgIcon(name, className) {
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    if (className) svg.setAttribute("class", className);
+
+    function addPath(d) {
+      var path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      path.setAttribute("d", d);
+      svg.appendChild(path);
+    }
+
+    if (name === "home") {
+      addPath("M3 11.5 12 4l9 7.5M6.5 10.5V20h11V10.5");
+      return svg;
+    }
+    if (name === "games") {
+      addPath("M6.5 9h11a3.5 3.5 0 0 1 3.5 3.5v0A3.5 3.5 0 0 1 17.5 16H6.5A3.5 3.5 0 0 1 3 12.5v0A3.5 3.5 0 0 1 6.5 9Z");
+      addPath("M8.5 12.5h3M10 11v3M15.5 12h0M17.5 13.5h0");
+      return svg;
+    }
+    if (name === "ai") {
+      addPath("M12 3v4M12 17v4M4.8 7.2l2.8 2.8M16.4 14.8l2.8 2.8M3 12h4M17 12h4M4.8 16.8l2.8-2.8M16.4 9.2l2.8-2.8");
+      addPath("M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z");
+      return svg;
+    }
+    if (name === "play") {
+      addPath("M8 6v12l10-6-10-6Z");
+      return svg;
+    }
+    if (name === "close") {
+      addPath("M7 7l10 10M17 7 7 17");
+      return svg;
+    }
+    addPath("M12 3a9 9 0 1 0 9 9");
+    addPath("M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18");
+    return svg;
   }
 
   function renderShell() {
@@ -319,9 +419,32 @@
       elements.addressInput.value = active.uri;
     }
 
+    renderSidebarState();
+
+    if (elements.stage) {
+      elements.stage.classList.toggle("shell-stage--full-bleed", Boolean(active && active.view === "web"));
+    }
+
     setDocumentTitle(active);
     syncBrowserUrl();
     persistState();
+  }
+
+  function renderSidebarState() {
+    if (elements.shellRoot) {
+      elements.shellRoot.classList.toggle("shell--sidebar-collapsed", state.sidebarCollapsed);
+    }
+    if (elements.toolbarSidebarToggle) {
+      var label = state.sidebarCollapsed ? "Show sidebar" : "Hide sidebar";
+      elements.toolbarSidebarToggle.setAttribute("aria-expanded", state.sidebarCollapsed ? "false" : "true");
+      elements.toolbarSidebarToggle.setAttribute("aria-label", label);
+      elements.toolbarSidebarToggle.setAttribute("title", label);
+    }
+  }
+
+  function toggleSidebar() {
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    renderShell();
   }
 
   function renderPanes() {
@@ -351,6 +474,9 @@
     if (tab.paneEl) {
       tab.paneEl.dataset.tabId = tab.id;
       elements.paneStack.appendChild(tab.paneEl);
+      if (tab.view === "web") {
+        hydrateWebPane(tab);
+      }
     }
   }
 
@@ -438,15 +564,232 @@
 
   function createWebPane(tab) {
     var pane = document.createElement("section");
-    pane.className = "shell-pane shell-pane--frame";
+    pane.className = "shell-pane shell-pane--frame shell-pane--proxy";
 
     var frame = document.createElement("iframe");
-    frame.className = "shell-pane__frame";
-    frame.src = buildProxyFrameSrc(tab.targetUrl);
+    frame.className = "shell-pane__frame shell-pane__frame--proxy";
+    frame.src = "about:blank";
     frame.setAttribute("allow", "clipboard-read; clipboard-write; fullscreen");
     frame.setAttribute("referrerpolicy", "no-referrer");
     pane.appendChild(frame);
     return pane;
+  }
+
+  function loadProxyConfig() {
+    if (!window.PalladiumBackend || typeof window.PalladiumBackend.getPublicConfig !== "function") {
+      return Promise.reject(new Error("Backend helper unavailable."));
+    }
+
+    return window.PalladiumBackend.getPublicConfig().then(function (config) {
+      state.config = config || state.config;
+      return config || {};
+    });
+  }
+
+  function normalizeBase(value) {
+    var raw = cleanText(value);
+    if (!raw) return "";
+    if (!/^https?:\/\//i.test(raw)) {
+      raw = "http://" + raw;
+    }
+    raw = raw.replace(/\/+$/, "");
+    try {
+      return new URL(raw).origin;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function normalizeWispPath(value) {
+    var raw = cleanText(value || "/wisp/");
+    raw = "/" + raw.replace(/^\/+/, "").replace(/\/+$/, "") + "/";
+    return raw === "//" ? "/" : raw;
+  }
+
+  function toWebSocketUrl(originValue, pathValue) {
+    var origin = normalizeBase(originValue);
+    if (!origin) return "";
+
+    try {
+      var parsed = new URL(origin);
+      parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+      parsed.pathname = normalizeWispPath(pathValue);
+      parsed.search = "";
+      parsed.hash = "";
+      return parsed.toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function resolveWispUrl(config) {
+    var explicit = cleanText(config && config.services && config.services.wispUrl);
+    if (explicit) return explicit;
+
+    var backendBase = normalizeBase(config && config.backendBase);
+    if (!backendBase && window.PalladiumBackend && typeof window.PalladiumBackend.getBaseUrl === "function") {
+      backendBase = normalizeBase(window.PalladiumBackend.getBaseUrl());
+    }
+
+    if (!backendBase) return "";
+    return toWebSocketUrl(backendBase, config && config.services && config.services.wispPath);
+  }
+
+  function setProxyHealth(ok, message, chipLabel) {
+    state.proxyHealth = {
+      ok: Boolean(ok),
+      message: cleanText(message) || (ok ? "Scramjet is ready." : "Scramjet is unavailable.")
+    };
+
+    if (elements.proxyStatusChip) {
+      elements.proxyStatusChip.textContent = chipLabel || (ok ? "Online" : "Offline");
+    }
+
+    renderStageOverlay(getActiveTab());
+  }
+
+  function decodeScramjetUrl(value) {
+    var text = cleanText(value);
+    if (!text) return "";
+    if (text.indexOf(SCRAMJET_PREFIX) === -1 && text.indexOf(window.location.origin + SCRAMJET_PREFIX) !== 0) {
+      return text;
+    }
+    if (!state.proxyRuntime.controller || typeof state.proxyRuntime.controller.decodeUrl !== "function") {
+      return text;
+    }
+
+    try {
+      return state.proxyRuntime.controller.decodeUrl(text);
+    } catch (error) {
+      return text;
+    }
+  }
+
+  function loadScramjetControllerClass() {
+    if (typeof window.$scramjetLoadController !== "function") {
+      throw new Error("Scramjet bundle is not loaded on the static frontend.");
+    }
+
+    var loaded = window.$scramjetLoadController();
+    if (!loaded || typeof loaded.ScramjetController !== "function") {
+      throw new Error("Scramjet controller factory is unavailable.");
+    }
+
+    return loaded.ScramjetController;
+  }
+
+  function registerProxyServiceWorker() {
+    if (!window.navigator || !window.navigator.serviceWorker) {
+      return Promise.reject(new Error("This browser does not support service workers."));
+    }
+
+    return window.navigator.serviceWorker.register(SCRAMJET_SW_PATH).then(function () {
+      return window.navigator.serviceWorker.ready;
+    });
+  }
+
+  function ensureProxyRuntime() {
+    if (state.proxyRuntime.ready && state.proxyRuntime.controller) {
+      return Promise.resolve(state.proxyRuntime);
+    }
+
+    if (state.proxyRuntime.initPromise) {
+      return state.proxyRuntime.initPromise;
+    }
+
+    state.proxyRuntime.initPromise = loadProxyConfig().then(function (config) {
+      var wispUrl = resolveWispUrl(config);
+      if (!wispUrl) {
+        throw new Error("No backend Wisp websocket is configured.");
+      }
+
+      if (!window.BareMux || typeof window.BareMux.BareMuxConnection !== "function") {
+        throw new Error("BareMux is not available on the static frontend.");
+      }
+
+      return registerProxyServiceWorker().then(function () {
+        var ScramjetController = loadScramjetControllerClass();
+        var controller = state.proxyRuntime.controller;
+
+        if (!controller) {
+          controller = new ScramjetController({
+            prefix: SCRAMJET_PREFIX,
+            files: SCRAMJET_FILES
+          });
+        }
+
+        return controller.init().then(function () {
+          var mux = new window.BareMux.BareMuxConnection(BAREMUX_WORKER_PATH);
+          return mux.setTransport(LIBCURL_TRANSPORT_PATH, [{ wisp: wispUrl }]).then(function () {
+            state.proxyRuntime.controller = controller;
+            state.proxyRuntime.ready = true;
+            state.proxyRuntime.transportUrl = wispUrl;
+            return state.proxyRuntime;
+          });
+        });
+      });
+    }).then(function (runtime) {
+      state.proxyRuntime.initPromise = null;
+      return runtime;
+    }).catch(function (error) {
+      state.proxyRuntime.initPromise = null;
+      state.proxyRuntime.ready = false;
+      throw error;
+    });
+
+    return state.proxyRuntime.initPromise;
+  }
+
+  function syncWebTabFromUrl(tab, value) {
+    var nextUrl = decodeScramjetUrl(value);
+    if (!nextUrl) return;
+
+    tab.targetUrl = nextUrl;
+    tab.uri = nextUrl;
+    tab.title = core.inferWebTitle(nextUrl);
+    tab.webState.currentTarget = nextUrl;
+    renderShell();
+  }
+
+  function navigateWebPane(tab, force) {
+    if (!tab || tab.view !== "web" || !tab.webState || !tab.webState.frameController) return;
+    var targetUrl = cleanText(tab.targetUrl);
+    if (!targetUrl) return;
+    if (!force && tab.webState.currentTarget === targetUrl) return;
+
+    tab.webState.currentTarget = targetUrl;
+
+    try {
+      tab.webState.frameController.go(targetUrl);
+    } catch (error) {
+      setProxyHealth(false, error && error.message ? error.message : error, "Offline");
+    }
+  }
+
+  function hydrateWebPane(tab) {
+    if (!tab || tab.view !== "web" || !tab.paneEl) return;
+
+    var frame = tab.paneEl.querySelector("iframe");
+    if (!frame) return;
+
+    ensureProxyRuntime().then(function (runtime) {
+      if (!tab.paneEl || frame !== tab.paneEl.querySelector("iframe")) return;
+
+      if (!tab.webState.frameController) {
+        tab.webState.frameController = runtime.controller.createFrame(frame);
+        tab.webState.frameController.addEventListener("urlchange", function (event) {
+          syncWebTabFromUrl(tab, event && event.url);
+        });
+        tab.webState.frameController.addEventListener("navigate", function (event) {
+          syncWebTabFromUrl(tab, event && event.url);
+        });
+      }
+
+      navigateWebPane(tab, true);
+    }).catch(function (error) {
+      frame.src = "about:blank";
+      setProxyHealth(false, error && error.message ? error.message : error, "Offline");
+    });
   }
 
   function buildThumbMarkup(game) {
@@ -995,117 +1338,29 @@
     });
   }
 
-  function normalizeBase(value) {
-    var raw = cleanText(value);
-    if (!raw) return "";
-    if (!/^https?:\/\//i.test(raw)) {
-      raw = "http://" + raw;
-    }
-    raw = raw.replace(/\/+$/, "");
-    try {
-      return new URL(raw).origin;
-    } catch (error) {
-      return "";
-    }
-  }
-
-  function resolveProxyBase() {
-    if (state.config && state.config.services && state.config.services.proxyBase) {
-      return Promise.resolve(normalizeBase(state.config.services.proxyBase));
-    }
-
-    if (window.PalladiumBackend && typeof window.PalladiumBackend.getPublicConfig === "function") {
-      return window.PalladiumBackend.getPublicConfig().then(function (config) {
-        state.config = config || state.config;
-        var explicit = normalizeBase(config && config.services && config.services.proxyBase);
-        if (explicit) return explicit;
-
-        var backendBase = normalizeBase(config && config.backendBase);
-        if (backendBase) {
-          try {
-            var parsed = new URL(backendBase);
-            parsed.protocol = DEFAULT_PROXY_PROTOCOL;
-            parsed.port = String(DEFAULT_PROXY_PORT);
-            return parsed.origin;
-          } catch (error) {
-            return "";
-          }
-        }
-
-        return "";
-      }).catch(function () {
-        return "";
-      });
-    }
-
-    return Promise.resolve("");
-  }
-
-  function checkProxyHealth(base) {
-    if (!base) {
-      return Promise.resolve({
-        ok: false,
-        message: "No proxy base is configured yet."
-      });
-    }
-
-    return fetch(base + "/health", { method: "GET" }).then(function (response) {
-      if (!response.ok) {
-        return {
-          ok: false,
-          message: "Proxy health endpoint returned status " + response.status + "."
-        };
-      }
-
-      return {
-        ok: true,
-        message: "Connected to proxy at " + base
-      };
-    }).catch(function () {
-      return {
-        ok: false,
-        message: "Proxy is offline at " + base + ". Start or restart the backend."
-      };
-    });
-  }
-
-  function buildProxyFrameSrc(targetUrl) {
-    if (!state.proxyBase) return "about:blank";
-    var query = new URLSearchParams();
-    query.set("url", targetUrl);
-    return state.proxyBase.replace(/\/+$/, "") + "/?" + query.toString();
-  }
-
   function refreshProxyStatus() {
-    resolveProxyBase().then(function (base) {
-      state.proxyBase = base;
-      return checkProxyHealth(base);
-    }).then(function (health) {
-      state.proxyHealth = health;
-      if (elements.proxyStatusChip) {
-        elements.proxyStatusChip.textContent = health.ok ? "Connected" : "Offline";
-      }
+    setProxyHealth(false, "Checking the backend Scramjet transport...", "Booting");
+
+    if (!window.PalladiumBackend || typeof window.PalladiumBackend.fetchJson !== "function") {
+      setProxyHealth(false, "Backend helper unavailable.", "Offline");
+      return;
+    }
+
+    window.PalladiumBackend.fetchJson("/api/proxy/health").then(function (health) {
+      setProxyHealth(true, health && health.message ? health.message : "Backend proxy transport is online.", "Connecting");
+      return ensureProxyRuntime();
+    }).then(function (runtime) {
+      setProxyHealth(true, "Scramjet ready via " + runtime.transportUrl, "Online");
       refreshAllWebFrames();
-      renderStageOverlay(getActiveTab());
-    }).catch(function () {
-      state.proxyHealth = {
-        ok: false,
-        message: "Proxy detection failed."
-      };
-      if (elements.proxyStatusChip) {
-        elements.proxyStatusChip.textContent = "Unavailable";
-      }
-      renderStageOverlay(getActiveTab());
+    }).catch(function (error) {
+      setProxyHealth(false, error && error.message ? error.message : error, "Offline");
     });
   }
 
   function refreshAllWebFrames() {
     state.tabs.forEach(function (tab) {
       if (tab.view !== "web" || !tab.paneEl) return;
-      var frame = tab.paneEl.querySelector("iframe");
-      if (frame) {
-        frame.src = buildProxyFrameSrc(tab.targetUrl);
-      }
+      hydrateWebPane(tab);
     });
   }
 
@@ -1129,8 +1384,11 @@
       removePane(active);
       ensurePane(active);
     } else if (active.view === "web") {
-      var webFrame = active.paneEl && active.paneEl.querySelector("iframe");
-      if (webFrame) webFrame.src = buildProxyFrameSrc(active.targetUrl);
+      if (active.webState && active.webState.frameController) {
+        active.webState.frameController.reload();
+      } else {
+        hydrateWebPane(active);
+      }
     } else if (active.view === "game") {
       var gameFrame = active.paneEl && active.paneEl.querySelector("iframe");
       if (gameFrame) gameFrame.src = active.path;
@@ -1153,18 +1411,16 @@
       });
     }
 
+    if (elements.toolbarSidebarToggle) {
+      elements.toolbarSidebarToggle.addEventListener("click", toggleSidebar);
+    }
+
     if (elements.refreshButton) {
       elements.refreshButton.addEventListener("click", refreshActivePane);
     }
 
     if (elements.newTabButton) {
       elements.newTabButton.addEventListener("click", function () {
-        openNewTab(core.buildInternalUri("newtab"));
-      });
-    }
-
-    if (elements.toolbarNewTabButton) {
-      elements.toolbarNewTabButton.addEventListener("click", function () {
         openNewTab(core.buildInternalUri("newtab"));
       });
     }

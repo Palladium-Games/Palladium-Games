@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;700&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
   <link rel="icon" href="images/favicon.png?v=4" type="image/png" />
@@ -16,16 +16,18 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="shell">
-    <aside class="shell-sidebar">
+  <div id="shell-root" class="shell">
+    <aside id="shell-sidebar" class="shell-sidebar">
       <div class="shell-sidebar__brand">
         <div class="shell-sidebar__logo-mark" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
+          <img src="images/favicon.png" alt="" class="shell-sidebar__logo-image" />
         </div>
+        <button type="button" id="sidebar-toggle" class="sidebar-block__action sidebar-block__action--icon" aria-expanded="true" aria-label="Hide sidebar" title="Hide sidebar">
+          <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M9 6l6 6-6 6" />
+          </svg>
+        </button>
         <div>
-          <p class="shell-sidebar__eyebrow">Built-In Browser</p>
           <h1 class="shell-sidebar__title">PALLADIUM</h1>
         </div>
       </div>
@@ -33,8 +35,10 @@
       <section class="sidebar-block">
         <div class="sidebar-block__header">
           <span>Tabs</span>
-          <button type="button" id="shell-new-tab" class="sidebar-block__action">
-            New
+          <button type="button" id="shell-new-tab" class="sidebar-block__action sidebar-block__action--icon" aria-label="New tab" title="New tab">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
           </button>
         </div>
         <div id="tab-list" class="tab-list" aria-live="polite"></div>
@@ -46,16 +50,24 @@
         </div>
         <div class="route-list">
           <button type="button" class="route-link" data-route="palladium://home">
+            <svg class="ui-icon route-link__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 11.5 12 4l9 7.5M6.5 10.5V20h11V10.5" />
+            </svg>
             <span class="route-link__label">Home</span>
-            <span class="route-link__uri">palladium://home</span>
           </button>
           <button type="button" class="route-link" data-route="palladium://games">
+            <svg class="ui-icon route-link__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6.5 9h11a3.5 3.5 0 0 1 3.5 3.5v0A3.5 3.5 0 0 1 17.5 16H6.5A3.5 3.5 0 0 1 3 12.5v0A3.5 3.5 0 0 1 6.5 9Z" />
+              <path d="M8.5 12.5h3M10 11v3M15.5 12h0M17.5 13.5h0" />
+            </svg>
             <span class="route-link__label">Games</span>
-            <span class="route-link__uri">palladium://games</span>
           </button>
           <button type="button" class="route-link" data-route="palladium://ai">
+            <svg class="ui-icon route-link__icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M12 3v4M12 17v4M4.8 7.2l2.8 2.8M16.4 14.8l2.8 2.8M3 12h4M17 12h4M4.8 16.8l2.8-2.8M16.4 9.2l2.8-2.8" />
+              <circle cx="12" cy="12" r="4" />
+            </svg>
             <span class="route-link__label">AI</span>
-            <span class="route-link__uri">palladium://ai</span>
           </button>
         </div>
       </section>
@@ -75,8 +87,17 @@
     <main class="shell-main">
       <header class="shell-toolbar">
         <div class="shell-toolbar__controls">
-          <button type="button" id="toolbar-home" class="toolbar-button">Home</button>
-          <button type="button" id="toolbar-refresh" class="toolbar-button">Refresh</button>
+          <button type="button" id="toolbar-home" class="toolbar-button toolbar-button--icon" aria-label="Home" title="Home">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M3 11.5 12 4l9 7.5M6.5 10.5V20h11V10.5" />
+            </svg>
+          </button>
+          <button type="button" id="toolbar-refresh" class="toolbar-button toolbar-button--icon" aria-label="Refresh" title="Refresh">
+            <svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M20 5v5h-5" />
+              <path d="M20 10a8 8 0 1 0 2 5.3" />
+            </svg>
+          </button>
         </div>
 
         <form id="address-form" class="address-bar">
@@ -92,20 +113,16 @@
           />
           <button type="submit" class="address-bar__submit">Go</button>
         </form>
-
-        <button type="button" id="toolbar-new-tab" class="toolbar-button toolbar-button--accent">
-          New Tab
-        </button>
       </header>
 
-      <section class="shell-stage">
+      <section id="shell-stage" class="shell-stage">
         <div id="pane-stack" class="pane-stack"></div>
         <div id="stage-overlay" class="stage-overlay" hidden>
           <div class="stage-overlay__content">
             <p class="stage-overlay__eyebrow">Proxy status</p>
             <h2 class="stage-overlay__title">The proxy is not reachable right now.</h2>
             <p id="stage-overlay-text" class="stage-overlay__text">
-              Start or reconfigure the backend proxy and try again.
+              Check the backend transport at api.sethpang.com and try again.
             </p>
           </div>
         </div>
@@ -119,8 +136,8 @@
         <p class="hero-panel__eyebrow">palladium://newtab</p>
         <h2 class="hero-panel__title">A cooler built-in browser shell for Palladium.</h2>
         <p class="hero-panel__text">
-          The main screen is the browser now. Internal tabs live right inside the address bar, and
-          everything important stays one click away.
+          The main screen is the proxy now. Scramjet runs right inside the shell, internal tabs live
+          in the browser chrome, and the live backend stays tucked away at api.sethpang.com.
         </p>
         <div class="hero-panel__actions">
           <button type="button" class="hero-action" data-route="palladium://games">Open Games</button>
@@ -142,19 +159,15 @@
           <div class="shortcut-grid">
             <button type="button" class="shortcut-card" data-route="palladium://home">
               <span class="shortcut-card__title">Home</span>
-              <span class="shortcut-card__meta">palladium://home</span>
             </button>
             <button type="button" class="shortcut-card" data-route="palladium://games">
               <span class="shortcut-card__title">Games</span>
-              <span class="shortcut-card__meta">palladium://games</span>
             </button>
             <button type="button" class="shortcut-card" data-route="palladium://ai">
               <span class="shortcut-card__title">AI</span>
-              <span class="shortcut-card__meta">palladium://ai</span>
             </button>
             <button type="button" class="shortcut-card" data-query="speed test">
               <span class="shortcut-card__title">Search</span>
-              <span class="shortcut-card__meta">Type anything</span>
             </button>
           </div>
         </section>
@@ -270,6 +283,8 @@
 
   <script src="site-settings.js"></script>
   <script src="backend.js"></script>
+  <script src="baremux/index.js"></script>
+  <script src="scram/scramjet.all.js"></script>
   <script src="games-static.js"></script>
   <script src="shell-core.js"></script>
   <script src="shell.js"></script>
