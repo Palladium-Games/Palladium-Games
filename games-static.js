@@ -42,6 +42,41 @@
     return "palladium://gamelauncher?" + parts.join("&");
   }
 
+  function matchesCatalogQuery(game, rawQuery) {
+    var query = sanitizeText(rawQuery).toLowerCase();
+    if (!query) return true;
+
+    var haystack = [
+      sanitizeText(game && game.title),
+      sanitizeText(game && game.author),
+      sanitizeText(game && game.category),
+      normalizeGamePath(game && game.path)
+    ].join(" ").toLowerCase();
+
+    return haystack.indexOf(query) !== -1;
+  }
+
+  function filterCatalog(games, rawQuery) {
+    if (!Array.isArray(games)) return [];
+    return games.filter(function (game) {
+      return matchesCatalogQuery(game, rawQuery);
+    });
+  }
+
+  function pickFeaturedGame(games) {
+    if (!Array.isArray(games) || !games.length) {
+      return null;
+    }
+
+    for (var index = 0; index < games.length; index += 1) {
+      if (sanitizeText(games[index] && games[index].image)) {
+        return games[index];
+      }
+    }
+
+    return games[0];
+  }
+
   function readEmbeddedCatalog() {
     var payload = window.PALLADIUM_GAMES_CATALOG;
     return Array.isArray(payload && payload.games) ? payload.games : null;
@@ -134,12 +169,14 @@
 
   window.PalladiumGames = {
     buildLaunchUri: buildLaunchUri,
+    filterCatalog: filterCatalog,
     getCachedCatalog: function () {
       return catalogCache ? catalogCache.slice() : [];
     },
     loadCatalog: loadCatalog,
     manifestPath: LOCAL_MANIFEST_PATH,
     normalizeAssetPath: normalizeAssetPath,
-    normalizeGamePath: normalizeGamePath
+    normalizeGamePath: normalizeGamePath,
+    pickFeaturedGame: pickFeaturedGame
   };
 })();

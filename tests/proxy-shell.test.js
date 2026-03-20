@@ -40,3 +40,12 @@ test("service worker bootstraps Scramjet from the static frontend origin", () =>
   assert.match(serviceWorker, /scramjet\.route\(event\)/);
   assert.match(serviceWorker, /scramjet\.fetch\(event\)/);
 });
+
+test("settings shell keeps the featured game compact and the sidebar on a fixed rail", () => {
+  const shellCss = fs.readFileSync(path.join(FRONTEND_DIR, "settings-shell.css"), "utf8");
+
+  assert.match(shellCss, /\.featured-launch\s*\{[\s\S]*grid-template-columns:\s*minmax\(11rem, 12\.75rem\) minmax\(0, 1fr\);/);
+  assert.match(shellCss, /\.featured-launch__thumb\s*\{[\s\S]*min-height:\s*clamp\(8\.75rem, 20vh, 10\.5rem\);/);
+  assert.match(shellCss, /@media \(max-width: 1100px\)\s*\{[\s\S]*\.shell,\s*\.shell--sidebar-collapsed\s*\{[\s\S]*flex-direction:\s*row;/);
+  assert.match(shellCss, /\.shell--sidebar-collapsed \.shell-sidebar\s*\{[\s\S]*flex:\s*0 0 var\(--sidebar-collapsed-width\);/);
+});

@@ -1139,6 +1139,32 @@
     return core.buildGameUri(game.path, game.title, game.author);
   }
 
+  function filterCatalogGames(games, rawQuery) {
+    if (window.PalladiumGames && typeof window.PalladiumGames.filterCatalog === "function") {
+      return window.PalladiumGames.filterCatalog(games, rawQuery);
+    }
+    var query = cleanText(rawQuery).toLowerCase();
+    if (!Array.isArray(games)) return [];
+    return games.filter(function (game) {
+      if (!query) return true;
+      var haystack = [
+        cleanText(game && game.title),
+        cleanText(game && game.author),
+        cleanText(game && game.category),
+        cleanText(game && game.path)
+      ].join(" ").toLowerCase();
+      return haystack.indexOf(query) !== -1;
+    });
+  }
+
+  function resolveFeaturedGame(games) {
+    if (window.PalladiumGames && typeof window.PalladiumGames.pickFeaturedGame === "function") {
+      return window.PalladiumGames.pickFeaturedGame(games);
+    }
+    if (!Array.isArray(games) || !games.length) return null;
+    return games[0];
+  }
+
   function fillHomeLibrary(pane) {
     var container = pane.querySelector('[data-role="home-library"]');
     if (!container) return;
@@ -1170,23 +1196,15 @@
     var statusEl = pane.querySelector('[data-role="games-status"]');
     var featuredEl = pane.querySelector('[data-role="games-featured"]');
     var gridEl = pane.querySelector('[data-role="games-grid"]');
-    var query = cleanText(tab.gamesQuery).toLowerCase();
+    var query = cleanText(tab.gamesQuery);
 
     if (!state.gamesCatalog) {
       if (statusEl) statusEl.textContent = "Loading local catalog...";
       return;
     }
 
-    var games = state.gamesCatalog.filter(function (game) {
-      if (!query) return true;
-      var haystack = [
-        cleanText(game.title),
-        cleanText(game.author),
-        cleanText(game.category),
-        cleanText(game.path)
-      ].join(" ").toLowerCase();
-      return haystack.indexOf(query) !== -1;
-    });
+    var games = filterCatalogGames(state.gamesCatalog, query);
+    var featuredGame = resolveFeaturedGame(state.gamesCatalog);
 
     if (statusEl) {
       statusEl.textContent = query
@@ -1195,21 +1213,20 @@
     }
 
     if (featuredEl) {
-      if (!games.length) {
-        featuredEl.innerHTML = '<div class="empty-state">No games match that search yet.</div>';
+      if (!featuredGame) {
+        featuredEl.innerHTML = '<div class="empty-state">No local games are available yet.</div>';
       } else {
-        var featured = games[0];
         featuredEl.innerHTML =
           '<div class="featured-launch__thumb">' +
-            (cleanText(featured.image)
-              ? '<img src="' + escapeHtml(featured.image) + '" alt="' + escapeHtml(featured.title) + '" loading="lazy" />'
+            (cleanText(featuredGame.image)
+              ? '<img src="' + escapeHtml(featuredGame.image) + '" alt="' + escapeHtml(featuredGame.title) + '" loading="lazy" />'
               : "") +
           "</div>" +
           '<div class="featured-launch__body">' +
-            '<h3 class="featured-launch__title">' + escapeHtml(featured.title) + "</h3>" +
-            '<p class="featured-launch__meta">' + escapeHtml(featured.author || "Unknown") + " · " + escapeHtml(featured.category || "game") + "</p>" +
+            '<h3 class="featured-launch__title">' + escapeHtml(featuredGame.title) + "</h3>" +
+            '<p class="featured-launch__meta">' + escapeHtml(featuredGame.author || "Unknown") + " · " + escapeHtml(featuredGame.category || "game") + "</p>" +
             '<p class="featured-launch__meta">Launch it in its own Palladium tab.</p>' +
-            '<button type="button" class="toolbar-button toolbar-button--accent featured-launch__cta" data-launch-uri="' + escapeHtml(makeLaunchUri(featured)) + '">Play now</button>' +
+            '<button type="button" class="toolbar-button toolbar-button--accent featured-launch__cta" data-launch-uri="' + escapeHtml(makeLaunchUri(featuredGame)) + '">Play now</button>' +
           "</div>";
       }
     }

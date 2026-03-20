@@ -50,6 +50,30 @@ test("buildLaunchUri points game launches into the Palladium tab protocol", () =
   );
 });
 
+test("filterCatalog narrows the library without mutating the source list", () => {
+  const { api } = createHelperContext();
+  const sampleGames = [
+    { title: "OvO", author: "Dedra Games", category: "Platformer", path: "games/platformer/ovo.html" },
+    { title: "Brotato", author: "Blobfish", category: "Shooter", path: "games/bullet-hell/brotato.html" }
+  ];
+
+  const results = api.filterCatalog(sampleGames, "blobfish");
+
+  assert.deepEqual(results, [sampleGames[1]]);
+  assert.deepEqual(sampleGames.map((game) => game.title), ["OvO", "Brotato"]);
+});
+
+test("pickFeaturedGame stays stable and prefers entries with artwork", () => {
+  const { api } = createHelperContext();
+  const sampleGames = [
+    { title: "No Image Yet", path: "games/misc/no-image.html" },
+    { title: "Featured Pick", image: "images/game-img/featured-pick.png", path: "games/misc/featured-pick.html" }
+  ];
+
+  assert.equal(api.pickFeaturedGame(sampleGames), sampleGames[1]);
+  assert.equal(api.pickFeaturedGame([]), null);
+});
+
 test("loadCatalog prefers the committed local manifest", async () => {
   const sampleGames = [{ title: "Brotato", path: "games/bullet-hell/brotato.html" }];
   const { api, calls } = createHelperContext({

@@ -118,6 +118,34 @@
   width: 100%;
 }
 
+.featured-launch {
+  grid-template-columns: minmax(11rem, 12.75rem) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.85rem;
+}
+
+.featured-launch__thumb {
+  min-height: clamp(8.75rem, 20vh, 10.5rem);
+}
+
+.featured-launch__body {
+  gap: 0.55rem;
+  padding: 0.9rem 0.95rem 0.95rem;
+}
+
+.featured-launch__title {
+  font-size: clamp(1.12rem, 1.45vw, 1.3rem);
+}
+
+.featured-launch__meta {
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.featured-launch__cta {
+  margin-top: 0.2rem;
+}
+
 .pane-stack {
   height: 100%;
 }
@@ -678,24 +706,22 @@
 }
 
 @media (max-width: 1100px) {
-  .shell {
-    flex-direction: column;
+  .shell,
+  .shell--sidebar-collapsed {
+    flex-direction: row;
+    align-items: stretch;
   }
 
   .shell-sidebar {
-    flex: 0 0 auto;
-    width: 100%;
-    max-width: none;
-  }
-
-  .shell--sidebar-collapsed {
-    flex-direction: row;
+    flex: 0 0 var(--sidebar-open-width);
+    width: var(--sidebar-open-width);
+    max-width: var(--sidebar-open-width);
   }
 
   .shell--sidebar-collapsed .shell-sidebar {
-    flex: 0 0 4.6rem;
-    width: 4.6rem;
-    max-width: 4.6rem;
+    flex: 0 0 var(--sidebar-collapsed-width);
+    width: var(--sidebar-collapsed-width);
+    max-width: var(--sidebar-collapsed-width);
   }
 
   .settings-grid {
@@ -729,6 +755,10 @@
 
   .shell-pane--ai {
     padding: 0.8rem;
+  }
+
+  .featured-launch {
+    grid-template-columns: 1fr;
   }
 
   .ai-chat__messages {
