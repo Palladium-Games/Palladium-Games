@@ -22,6 +22,15 @@ window.ANTARCTIC_GAMES_CATALOG = {
       "launchUri": "antarctic://gamelauncher?path=games%2Fplatformer%2Fachievement-unlocked-2.html&title=Achievement%20Unlocked%202&author=Revelance%20Match"
     },
     {
+      "file": "adventure-capitalist.html",
+      "title": "AdVenture Capitalist!",
+      "author": "Hyper Hippo Games",
+      "category": "Clicker",
+      "path": "games/clickers/adventure-capitalist.html",
+      "image": "images/game-img/adventure-capitalist.png",
+      "launchUri": "antarctic://gamelauncher?path=games%2Fclickers%2Fadventure-capitalist.html&title=AdVenture%20Capitalist%21&author=Hyper%20Hippo%20Games"
+    },
+    {
       "file": "baseballbros.html",
       "title": "Baseball Bros",
       "author": "Blue Wizard Digital",

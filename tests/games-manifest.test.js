@@ -25,6 +25,12 @@ test("frontend ships a committed local games manifest and bundled assets", () =>
   assert.ok(payload.games.length >= 30);
   assert.ok(!payload.games.some((entry) => /stick-war/i.test(entry.path)), "Stick War games should not remain in the local manifest.");
 
+  const adventureCapitalist = payload.games.find((entry) => entry.path === "games/clickers/adventure-capitalist.html");
+  assert.ok(adventureCapitalist, "Expected AdVenture Capitalist! in the local manifest");
+  assert.equal(adventureCapitalist.title, "AdVenture Capitalist!");
+  assert.equal(adventureCapitalist.author, "Hyper Hippo Games");
+  assert.equal(adventureCapitalist.image, "images/game-img/adventure-capitalist.png");
+
   for (const entry of payload.games) {
     assert.match(entry.path, /^games\//);
     assert.match(entry.launchUri, /^antarctic:\/\/gamelauncher\?/);
