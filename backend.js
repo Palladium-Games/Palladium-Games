@@ -1,5 +1,6 @@
 (function () {
-  var STORAGE_KEY = "palladium-backend-base";
+  var STORAGE_KEY = "antarctic-backend-base";
+  var LEGACY_STORAGE_KEY = "palladium-backend-base";
   var CONFIG_CACHE = null;
 
   function normalizeBase(value) {
@@ -30,13 +31,15 @@
   }
 
   function fromMeta() {
-    var meta = document.querySelector('meta[name="palladium-backend"]');
+    var meta =
+      document.querySelector('meta[name="antarctic-backend"]') ||
+      document.querySelector('meta[name="palladium-backend"]');
     return meta && meta.content ? meta.content : "";
   }
 
   function readStoredBase() {
     try {
-      return window.localStorage.getItem(STORAGE_KEY) || "";
+      return window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY) || "";
     } catch (e) {
       return "";
     }
@@ -46,9 +49,11 @@
     try {
       if (!base) {
         window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(LEGACY_STORAGE_KEY);
         return;
       }
       window.localStorage.setItem(STORAGE_KEY, base);
+      window.localStorage.removeItem(LEGACY_STORAGE_KEY);
     } catch (e) {
       // Ignore storage errors.
     }
@@ -82,7 +87,7 @@
       return query;
     }
 
-    var globalBase = normalizeBase(window.PALLADIUM_BACKEND_BASE || "");
+    var globalBase = normalizeBase(window.ANTARCTIC_GAMES_BACKEND_BASE || window.PALLADIUM_BACKEND_BASE || "");
     if (globalBase) return globalBase;
 
     var metaBase = normalizeBase(fromMeta());
@@ -133,7 +138,7 @@
     }
   }
 
-  window.PalladiumBackend = {
+  var api = {
     getBaseUrl: resolveBase,
     setBaseUrl: function (value) {
       var normalized = normalizeBase(value);
@@ -150,4 +155,7 @@
     getPublicConfig: getPublicConfig,
     withPort: withPort
   };
+
+  window.AntarcticGamesBackend = api;
+  window.PalladiumBackend = api;
 })();
