@@ -186,6 +186,7 @@
     proxyRuntime: {
       controller: null,
       initPromise: null,
+      repairPromise: null,
       ready: false,
       transportUrl: ""
     },
@@ -1353,6 +1354,145 @@
     });
   }
 
+  function getProxyStorageErrorMessage(error) {
+    if (!error) return "";
+    if (typeof error === "string") return error;
+    if (error && typeof error.message === "string") return error.message;
+    return String(error);
+  }
+
+  function isRecoverableProxyStorageError(error) {
+    var message = getProxyStorageErrorMessage(error);
+    return /IDBDatabase/i.test(message) || /object stores? was not found/i.test(message) || /NotFoundError/i.test(message);
+  }
+
+  function getProxyDatabaseNames() {
+    var names = [];
+    var pathname = "/";
+    try {
+      pathname = String(window.location.pathname || "/") || "/";
+    } catch (error) {
+      pathname = "/";
+    }
+
+    function pushCandidate(pathValue) {
+      var cleanPath = String(pathValue || "/");
+      if (!cleanPath) cleanPath = "/";
+      var dbName = "EM_FS_" + cleanPath;
+      if (names.indexOf(dbName) === -1) {
+        names.push(dbName);
+      }
+    }
+
+    pushCandidate(pathname);
+    pushCandidate("/");
+    pushCandidate("/index.html");
+
+    if (pathname !== "/" && /\/index\.html$/i.test(pathname)) {
+      pushCandidate(pathname.replace(/index\.html$/i, ""));
+    } else if (pathname !== "/" && pathname.charAt(pathname.length - 1) === "/") {
+      pushCandidate(pathname + "index.html");
+    }
+
+    return names;
+  }
+
+  function deleteIndexedDatabase(name) {
+    return new Promise(function (resolve) {
+      if (!window.indexedDB || !name) {
+        resolve();
+        return;
+      }
+
+      try {
+        var request = window.indexedDB.deleteDatabase(name);
+        request.onsuccess = function () {
+          resolve();
+        };
+        request.onerror = function () {
+          resolve();
+        };
+        request.onblocked = function () {
+          resolve();
+        };
+      } catch (error) {
+        resolve();
+      }
+    });
+  }
+
+  function repairProxyRuntimeStorage() {
+    if (state.proxyRuntime.repairPromise) {
+      return state.proxyRuntime.repairPromise;
+    }
+
+    setProxyHealth(false, "Resetting proxy storage and retrying...", "Repairing");
+
+    state.proxyRuntime.repairPromise = Promise.all(
+      getProxyDatabaseNames().map(function (name) {
+        return deleteIndexedDatabase(name);
+      })
+    ).then(function () {
+      try {
+        window.localStorage.removeItem("bare-mux-path");
+      } catch (error) {
+        // Ignore storage access failures during recovery.
+      }
+
+      state.proxyRuntime.controller = null;
+      state.proxyRuntime.ready = false;
+      state.proxyRuntime.transportUrl = "";
+    }).then(function () {
+      state.proxyRuntime.repairPromise = null;
+    }, function (error) {
+      state.proxyRuntime.repairPromise = null;
+      throw error;
+    });
+
+    return state.proxyRuntime.repairPromise;
+  }
+
+  function initializeProxyRuntime(config, allowRepair) {
+    var wispUrl = resolveWispUrl(config);
+    if (!wispUrl) {
+      return Promise.reject(new Error("No backend Wisp websocket is configured."));
+    }
+
+    if (!window.BareMux || typeof window.BareMux.BareMuxConnection !== "function") {
+      return Promise.reject(new Error("BareMux is not available on the static frontend."));
+    }
+
+    return registerProxyServiceWorker().then(function () {
+      var ScramjetController = loadScramjetControllerClass();
+      var controller = state.proxyRuntime.controller;
+
+      if (!controller) {
+        controller = new ScramjetController({
+          prefix: SCRAMJET_PREFIX,
+          files: SCRAMJET_FILES
+        });
+      }
+
+      return controller.init().then(function () {
+        var mux = new window.BareMux.BareMuxConnection(BAREMUX_WORKER_PATH);
+        return mux.setTransport(LIBCURL_TRANSPORT_PATH, [{ wisp: wispUrl }]).then(function () {
+          state.proxyRuntime.controller = controller;
+          state.proxyRuntime.ready = true;
+          state.proxyRuntime.transportUrl = wispUrl;
+          return state.proxyRuntime;
+        });
+      });
+    }).catch(function (error) {
+      if (!allowRepair || !isRecoverableProxyStorageError(error)) {
+        throw error;
+      }
+
+      return repairProxyRuntimeStorage().then(function () {
+        return initializeProxyRuntime(config, false);
+      });
+    });
+  }
+
   function ensureProxyRuntime() {
     if (state.proxyRuntime.ready && state.proxyRuntime.controller) {
       return Promise.resolve(state.proxyRuntime);
@@ -1363,36 +1503,7 @@
     }
 
     state.proxyRuntime.initPromise = loadProxyConfig().then(function (config) {
-      var wispUrl = resolveWispUrl(config);
-      if (!wispUrl) {
-        throw new Error("No backend Wisp websocket is configured.");
-      }
-
-      if (!window.BareMux || typeof window.BareMux.BareMuxConnection !== "function") {
-        throw new Error("BareMux is not available on the static frontend.");
-      }
-
-      return registerProxyServiceWorker().then(function () {
-        var ScramjetController = loadScramjetControllerClass();
-        var controller = state.proxyRuntime.controller;
-
-        if (!controller) {
-          controller = new ScramjetController({
-            prefix: SCRAMJET_PREFIX,
-            files: SCRAMJET_FILES
-          });
-        }
-
-        return controller.init().then(function () {
-          var mux = new window.BareMux.BareMuxConnection(BAREMUX_WORKER_PATH);
-          return mux.setTransport(LIBCURL_TRANSPORT_PATH, [{ wisp: wispUrl }]).then(function () {
-            state.proxyRuntime.controller = controller;
-            state.proxyRuntime.ready = true;
-            state.proxyRuntime.transportUrl = wispUrl;
-            return state.proxyRuntime;
-          });
-        });
-      });
+      return initializeProxyRuntime(config, true);
     }).then(function (runtime) {
       state.proxyRuntime.initPromise = null;
       return runtime;

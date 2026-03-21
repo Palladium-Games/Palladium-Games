@@ -24,15 +24,21 @@ test("frontend ships static Scramjet proxy assets", () => {
 
 test("frontend shell references Scramjet assets and sidebar controls", () => {
   const shellPage = fs.readFileSync(path.join(FRONTEND_DIR, "index.html"), "utf8");
+  const shellScript = fs.readFileSync(path.join(FRONTEND_DIR, "shell.js"), "utf8");
 
   assert.match(shellPage, /id="sidebar-toggle"/);
   assert.match(shellPage, /baremux\/index\.js/);
   assert.match(shellPage, /scram\/scramjet\.all\.js/);
+  assert.match(shellPage, /<script src="data\/games-catalog\.js" data-antarctic-games-catalog="true" data-palladium-games-catalog="true"><\/script>/);
   assert.match(shellPage, /antarctic:\/\/settings/);
   assert.match(shellPage, /Open Antarctic In About:Blank/);
   assert.match(shellPage, /antarctic:\/\/ai/);
   assert.match(shellPage, /prompt-list--composer/);
   assert.doesNotMatch(shellPage, /data-role="ai-status"/);
+  assert.match(shellScript, /function isRecoverableProxyStorageError\(error\)/);
+  assert.match(shellScript, /window\.indexedDB\.deleteDatabase\(name\)/);
+  assert.match(shellScript, /Resetting proxy storage and retrying/);
+  assert.match(shellScript, /return initializeProxyRuntime\(config, false\);/);
 });
 
 test("service worker bootstraps Scramjet from the static frontend origin", () => {

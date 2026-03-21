@@ -113,3 +113,8 @@ test("loadCatalog stays local-only when the embedded manifest is unavailable", a
     /Embedded games catalog is unavailable/
   );
 });
+
+test("games helper targets the committed absolute manifest path", () => {
+  assert.match(helperSource, /var LOCAL_MANIFEST_PATH = "\/data\/games-catalog\.js";/);
+  assert.match(helperSource, /data-antarctic-games-catalog/);
+});

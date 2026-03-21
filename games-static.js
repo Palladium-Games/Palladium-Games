@@ -2,7 +2,9 @@
   var LAUNCH_SCHEME = "antarctic://";
   var PRIMARY_CATALOG_GLOBAL = "ANTARCTIC_GAMES_CATALOG";
   var LEGACY_CATALOG_GLOBAL = "PALLADIUM_GAMES_CATALOG";
-  var LOCAL_MANIFEST_PATH = "data/games-catalog.js";
+  var LOCAL_MANIFEST_PATH = "/data/games-catalog.js";
+  var PRIMARY_SCRIPT_SELECTOR = 'script[data-antarctic-games-catalog="true"]';
+  var LEGACY_SCRIPT_SELECTOR = 'script[data-palladium-games-catalog="true"]';
   var catalogCache = null;
   var catalogLoadPromise = null;
 
@@ -124,8 +126,7 @@
         return;
       }
 
-      var selector = 'script[data-palladium-games-catalog="true"]';
-      var script = document.querySelector(selector);
+      var script = document.querySelector(PRIMARY_SCRIPT_SELECTOR) || document.querySelector(LEGACY_SCRIPT_SELECTOR);
       var settled = false;
 
       function finishWithCatalog() {
@@ -148,10 +149,16 @@
         script = document.createElement("script");
         script.src = LOCAL_MANIFEST_PATH;
         script.async = true;
+        script.setAttribute("data-antarctic-games-catalog", "true");
         script.setAttribute("data-palladium-games-catalog", "true");
         script.addEventListener("load", finishWithCatalog, { once: true });
         script.addEventListener("error", failLoad, { once: true });
         (document.head || document.body || document.documentElement).appendChild(script);
+        return;
+      }
+
+      if (readEmbeddedCatalog()) {
+        finishWithCatalog();
         return;
       }
 
