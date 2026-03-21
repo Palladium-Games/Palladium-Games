@@ -38,8 +38,11 @@
 
   function buildInternalUri(route) {
     var normalized = cleanText(route).toLowerCase();
+    if (normalized === "newtab") {
+      normalized = "home";
+    }
     if (!INTERNAL_ROUTES[normalized]) {
-      normalized = "newtab";
+      normalized = "home";
     }
     return PRIMARY_SCHEME + normalized;
   }
@@ -76,7 +79,7 @@
       var route = cleanText(parsed.hostname || parsed.pathname.replace(/^\/+/, "")).toLowerCase();
 
       if (!route) {
-        route = "newtab";
+        route = "home";
       }
 
       if (route === "game" || route === "gamelauncher") {
@@ -106,9 +109,9 @@
       if (route === "home" || route === "newtab") {
         return {
           view: "home",
-          route: route,
-          title: INTERNAL_ROUTES[route],
-          uri: buildInternalUri(route)
+          route: "home",
+          title: INTERNAL_ROUTES.home,
+          uri: buildInternalUri("home")
         };
       }
 
@@ -152,7 +155,7 @@
   function describeInput(input) {
     var raw = cleanText(input);
     if (!raw) {
-      return parseInternalUri(buildInternalUri("newtab"));
+      return parseInternalUri(buildInternalUri("home"));
     }
 
     var internal = parseInternalUri(raw);

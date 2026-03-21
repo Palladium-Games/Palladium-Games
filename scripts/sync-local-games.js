@@ -115,10 +115,21 @@ async function buildCatalog(gamesDir, gameImageDir, overrides) {
   for (const absolutePath of files) {
     if (!absolutePath.endsWith(".html")) continue;
 
+    let source = "";
+    try {
+      source = await fsp.readFile(absolutePath, "utf8");
+    } catch {
+      continue;
+    }
+
+    if (isDirectoryListingHtml(source)) {
+      continue;
+    }
+
     const relativeGamePath = normalizeSlash(path.relative(gamesDir, absolutePath));
     const gamePath = "games/" + relativeGamePath;
     const override = overrides[gamePath] || {};
-    const metadata = await extractGameMetadata(absolutePath);
+    const metadata = extractGameMetadataFromSource(source);
     const title =
       safeText(override.title, 160) ||
       safeText(metadata.title, 160) ||
@@ -183,21 +194,33 @@ async function readJsonObject(filePath) {
   }
 }
 
+function isDirectoryListingHtml(source) {
+  const head = String(source || "").slice(0, 16000);
+  if (/<title>\s*Index of\b/i.test(head)) return true;
+  if (/<h1>\s*Index of\b/i.test(head)) return true;
+  if (/Directory listing for\b/i.test(head)) return true;
+  return false;
+}
+
+function extractGameMetadataFromSource(source) {
+  return {
+    title:
+      decodeHtmlEntities(findMetaContent(source, "og:title")) ||
+      decodeHtmlEntities(findTagText(source, "title")) ||
+      "",
+    author:
+      decodeHtmlEntities(findMetaNameContent(source, "author")) ||
+      decodeHtmlEntities(findMetaContent(source, "author")) ||
+      "",
+    image: decodeHtmlEntities(findMetaContent(source, "og:image")) || "",
+    category: ""
+  };
+}
+
 async function extractGameMetadata(filePath) {
   try {
     const source = await fsp.readFile(filePath, "utf8");
-    return {
-      title:
-        decodeHtmlEntities(findMetaContent(source, "og:title")) ||
-        decodeHtmlEntities(findTagText(source, "title")) ||
-        "",
-      author:
-        decodeHtmlEntities(findMetaNameContent(source, "author")) ||
-        decodeHtmlEntities(findMetaContent(source, "author")) ||
-        "",
-      image: decodeHtmlEntities(findMetaContent(source, "og:image")) || "",
-      category: ""
-    };
+    return extractGameMetadataFromSource(source);
   } catch {
     return {
       title: "",

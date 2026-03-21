@@ -59,7 +59,7 @@ test("game launcher routes carry the game path inside the Antarctic protocol", (
   assert.equal(descriptor.title, "Achievement Unlocked");
 });
 
-test("legacy Palladium routes still normalize into the new Antarctic launcher route", () => {
+test("legacy game routes still normalize into the new Antarctic launcher route", () => {
   const core = loadCore();
   const descriptor = core.describeInput(
     "palladium://game?path=games%2Fplatformer%2Fovo.html&title=OvO"
@@ -68,6 +68,20 @@ test("legacy Palladium routes still normalize into the new Antarctic launcher ro
   assert.equal(descriptor.view, "gamelauncher");
   assert.equal(descriptor.route, "gamelauncher");
   assert.equal(descriptor.uri, "antarctic://gamelauncher?path=games%2Fplatformer%2Fovo.html&title=OvO");
+});
+
+test("empty input and palladium://newtab both resolve to home", () => {
+  const core = loadCore();
+  const empty = core.describeInput("");
+  const legacyNewTab = core.describeInput("palladium://newtab");
+
+  assert.equal(empty.view, "home");
+  assert.equal(empty.route, "home");
+  assert.equal(empty.uri, "antarctic://home");
+
+  assert.equal(legacyNewTab.view, "home");
+  assert.equal(legacyNewTab.route, "home");
+  assert.equal(legacyNewTab.uri, "antarctic://home");
 });
 
 test("plain browser input falls back to web navigation or search", () => {

@@ -276,7 +276,6 @@
     window.addEventListener("beforeunload", function (event) {
       if (suppressPrompt) return;
 
-      // Modern browsers ignore custom text but require returnValue to show the prompt.
       var message = "Are you sure you want to leave this page? Changes you made might not be saved.";
       event.preventDefault();
       event.returnValue = message;

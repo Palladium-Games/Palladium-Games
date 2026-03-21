@@ -45,6 +45,21 @@
     return LAUNCH_SCHEME + "gamelauncher?" + parts.join("&");
   }
 
+  function isJunkCatalogGame(game) {
+    var title = sanitizeText(game && game.title);
+    if (!title) return false;
+    if (/^Index of\b/i.test(title)) return true;
+    if (/Directory listing for\b/i.test(title)) return true;
+    return false;
+  }
+
+  function sanitizeCatalogGames(games) {
+    if (!Array.isArray(games)) return [];
+    return games.filter(function (game) {
+      return !isJunkCatalogGame(game);
+    });
+  }
+
   function matchesCatalogQuery(game, rawQuery) {
     var query = sanitizeText(rawQuery).toLowerCase();
     if (!query) return true;
@@ -90,7 +105,7 @@
     if (!games) {
       throw new Error("Embedded games catalog is unavailable.");
     }
-    catalogCache = games.slice();
+    catalogCache = sanitizeCatalogGames(games);
     return catalogCache.slice();
   }
 

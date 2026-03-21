@@ -87,6 +87,22 @@ test("loadCatalog prefers the committed local manifest", async () => {
   assert.equal(calls.length, 0);
 });
 
+test("loadCatalog drops directory-listing junk titles", async () => {
+  const { api } = createHelperContext({
+    window: {
+      ANTARCTIC_GAMES_CATALOG: {
+        games: [
+          { title: "Index of /cookieclicker/snd", path: "games/clickers/cookie-clicker.zip/snd/index.html" },
+          { title: "Real Game", path: "games/misc/real.html" }
+        ]
+      }
+    }
+  });
+
+  const games = await api.loadCatalog();
+  assert.deepEqual(games, [{ title: "Real Game", path: "games/misc/real.html" }]);
+});
+
 test("loadCatalog stays local-only when the embedded manifest is unavailable", async () => {
   const { api } = createHelperContext({
     window: {}

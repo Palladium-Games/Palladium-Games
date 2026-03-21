@@ -12,14 +12,113 @@
     sync: "/scram/scramjet.sync.js",
     wasm: "/scram/scramjet.wasm.wasm"
   };
+  /* Same artwork as sidebar Games link; viewBox crops top to hide cord */
+  var GAMES_CONTROLLER_PATH_MAIN =
+    "M373.1,256.2H267.4v-21.4c0-17,13.9-30.9,30.9-30.9h102.3c30.6,0,55.4-24.9,55.4-55.4s-24.9-55.4-55.4-55.4H111.4c-17,0-30.9-13.9-30.9-30.9V23.8c0-6.8-5.5-12.3-12.3-12.3S56,17.1,56,23.8v38.3c0,30.6,24.9,55.4,55.4,55.4h289.2c17,0,30.9,13.9,30.9,30.9s-13.9,30.9-30.9,30.9H298.3c-30.6,0-55.4,24.9-55.4,55.4v21.4h-104c-67.3,0-122.1,54.8-122.1,122.1c0,67.3,54.8,122.1,122.1,122.1c36.4,0,66.3-16.3,86.8-47.1h60.7c20.6,30.9,50.4,47.1,86.8,47.1c67.3,0,122.1-54.8,122.1-122.1C495.3,311,440.5,256.2,373.1,256.2z M373.1,475.9c-30.4,0-53.1-13.5-69.5-41.1c-2.2-3.7-6.2-6-10.5-6h-74.2c-4.3,0-8.3,2.3-10.5,6c-16.4,27.7-39.1,41.1-69.5,41.1c-53.8,0-97.6-43.8-97.6-97.6c0-53.8,43.8-97.6,97.6-97.6h234.3c53.8,0,97.6,43.8,97.6,97.6C470.8,432.1,427,475.9,373.1,475.9z";
+  var GAMES_CONTROLLER_PATH_DPAD =
+    "M171.7,361.6h-25v-25c0-6.8-5.5-12.3-12.3-12.3c-6.8,0-12.3,5.5-12.3,12.3v25h-25c-6.8,0-12.3,5.5-12.3,12.3c0,6.8,5.5,12.3,12.3,12.3h25v25c0,6.8,5.5,12.3,12.3,12.3c6.8,0,12.3-5.5,12.3-12.3v-25h25c6.8,0,12.3-5.5,12.3-12.3C184,367,178.5,361.6,171.7,361.6z";
+  /* Same artwork as sidebar Settings link; 15×15 gear (filled) */
+  var SETTINGS_GEAR_PATH =
+    "M7.07.65a.85.85 0 0 0-.828.662l-.238 1.05c-.38.11-.74.262-1.08.448l-.91-.574a.85.85 0 0 0-1.055.118l-.606.606a.85.85 0 0 0-.118 1.054l.574.912c-.186.338-.337.7-.447 1.079l-1.05.238a.85.85 0 0 0-.662.829v.857a.85.85 0 0 0 .662.829l1.05.238c.11.379.261.74.448 1.08l-.575.91a.85.85 0 0 0 .118 1.055l.607.606a.85.85 0 0 0 1.054.118l.911-.574c.339.186.7.337 1.079.447l.238 1.05a.85.85 0 0 0 .829.662h.857a.85.85 0 0 0 .829-.662l.238-1.05c.38-.11.74-.26 1.08-.447l.911.574a.85.85 0 0 0 1.054-.118l.606-.606a.85.85 0 0 0 .118-1.054l-.574-.911c.187-.34.338-.7.448-1.08l1.05-.238a.85.85 0 0 0 .662-.829v-.857a.85.85 0 0 0-.662-.83l-1.05-.237c-.11-.38-.26-.74-.447-1.08l.574-.91a.85.85 0 0 0-.118-1.055l-.606-.606a.85.85 0 0 0-1.055-.118l-.91.574a5.323 5.323 0 0 0-1.08-.448l-.239-1.05A.85.85 0 0 0 7.928.65zM4.92 3.813a4.476 4.476 0 0 1 1.795-.745L7.071 1.5h.857l.356 1.568a4.48 4.48 0 0 1 1.795.744l1.36-.857l.607.606l-.858 1.36c.37.527.628 1.136.744 1.795l1.568.356v.857l-1.568.355a4.475 4.475 0 0 1-.744 1.796l.857 1.36l-.606.606l-1.36-.857a4.476 4.476 0 0 1-1.795.743L7.928 13.5h-.857l-.356-1.568a4.475 4.475 0 0 1-1.794-.744l-1.36.858l-.607-.606l.858-1.36a4.476 4.476 0 0 1-.744-1.796L1.5 7.93v-.857l1.568-.356a4.476 4.476 0 0 1 .744-1.794L2.954 3.56l.606-.606zM9.026 7.5a1.525 1.525 0 1 1-3.05 0a1.525 1.525 0 0 1 3.05 0m.9 0a2.425 2.425 0 1 1-4.85 0a2.425 2.425 0 0 1 4.85 0";
+  /* Same artwork as sidebar AI link; Bootstrap Icons robot (16×16) */
+  var AI_ROBOT_PATH_FACE =
+    "M6 12.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5M3 8.062C3 6.76 4.235 5.765 5.53 5.886a26.6 26.6 0 0 0 4.94 0C11.765 5.765 13 6.76 13 8.062v1.157a.93.93 0 0 1-.765.935c-.845.147-2.34.346-4.235.346s-3.39-.2-4.235-.346A.93.93 0 0 1 3 9.219zm4.542-.827a.25.25 0 0 0-.217.068l-.92.9a25 25 0 0 1-1.871-.183.25.25 0 0 0-.068.495c.55.076 1.232.149 2.02.193a.25.25 0 0 0 .189-.071l.754-.736.847 1.71a.25.25 0 0 0 .404.062l.932-.97a25 25 0 0 0 1.922-.188.25.25 0 0 0-.068-.495c-.538.074-1.207.145-1.98.189a.25.25 0 0 0-.166.076l-.754.785-.842-1.7a.25.25 0 0 0-.182-.135";
+  var AI_ROBOT_PATH_BODY =
+    "M8.5 1.866a1 1 0 1 0-1 0V3h-2A4.5 4.5 0 0 0 1 7.5V8a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1v1a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-1a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1v-.5A4.5 4.5 0 0 0 10.5 3h-2zM14 7.5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5A3.5 3.5 0 0 1 5.5 4h5A3.5 3.5 0 0 1 14 7.5";
+  /* Match index.html + styles.css (--sans / --mono); each iframe document needs its own copy. */
+  var ANTARCTIC_GFONTS_URL =
+    "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap";
+  var ANTARCTIC_IN_FRAME_FONT_CSS =
+    'html,body{font-family:"Sora","Avenir Next","Segoe UI",sans-serif} ' +
+    'code,kbd,pre,samp{font-family:"JetBrains Mono","JetBrains Mono NL",ui-monospace,monospace}';
   var SETTINGS_THEME_ORDER = [
     "default",
-    "oceanic",
-    "forest",
+    "color-wash",
+    "miami",
+    "rainbow",
+    "aurora",
     "sunset",
+    "forest",
+    "oceanic",
     "graphite",
+    "arctic",
+    "ember",
     "neon"
   ];
+  var THEME_DETAILS = {
+    "default": {
+      label: "Default",
+      description: "Polar glass with crisp Antarctic blues.",
+      preview: "linear-gradient(135deg, #031120 0%, #0b2f52 55%, #6bb6ff 100%)",
+      swatches: ["#3b8cff", "#6bb6ff", "#a8d4ff"]
+    },
+    "color-wash": {
+      label: "Color Wash",
+      description: "Lavender dusk with soft cyan highlights.",
+      preview: "linear-gradient(135deg, #201438 0%, #5b49c7 48%, #d7f4ff 100%)",
+      swatches: ["#7c6cff", "#a898ff", "#d0c8ff"]
+    },
+    "miami": {
+      label: "Miami",
+      description: "Hot pink, sunset orange, and poolside aqua.",
+      preview: "linear-gradient(135deg, #200822 0%, #ff5c9d 42%, #ffaa3d 72%, #5cfffb 100%)",
+      swatches: ["#ff5c9d", "#ffaa3d", "#5cfffb"]
+    },
+    "rainbow": {
+      label: "Rainbow",
+      description: "Festival neon with full-spectrum contrast.",
+      preview: "linear-gradient(135deg, #23120b 0%, #ff5340 24%, #ffe14a 49%, #3dffc8 75%, #4f8dff 100%)",
+      swatches: ["#ff5340", "#ffe14a", "#3dffc8"]
+    },
+    "aurora": {
+      label: "Aurora",
+      description: "Northern-light greens over a cold dark sky.",
+      preview: "linear-gradient(135deg, #041912 0%, #0d4b38 52%, #2ef5a8 82%, #cafff4 100%)",
+      swatches: ["#2ef5a8", "#9dffe8", "#b8fff0"]
+    },
+    "sunset": {
+      label: "Sunset",
+      description: "Burnt orange sky fading into warm gold.",
+      preview: "linear-gradient(135deg, #2a0907 0%, #7d1e18 44%, #ff6a38 72%, #ffc24a 100%)",
+      swatches: ["#ff6a38", "#ffc24a", "#ffe0b8"]
+    },
+    "forest": {
+      label: "Forest",
+      description: "Deep spruce panels with bright moss energy.",
+      preview: "linear-gradient(135deg, #071108 0%, #163922 55%, #3dff7a 82%, #d4ffe0 100%)",
+      swatches: ["#3dff7a", "#9affb0", "#c8ffd8"]
+    },
+    "oceanic": {
+      label: "Oceanic",
+      description: "Abyss blues with electric surf accents.",
+      preview: "linear-gradient(135deg, #03111e 0%, #0a3150 55%, #2eb0ff 82%, #d2f8ff 100%)",
+      swatches: ["#2eb0ff", "#7ad8ff", "#b8f0ff"]
+    },
+    "graphite": {
+      label: "Graphite",
+      description: "Minimal monochrome steel and white glow.",
+      preview: "linear-gradient(135deg, #090a0c 0%, #20242d 58%, #d4dcf0 100%)",
+      swatches: ["#7f8898", "#d4dcf0", "#ffffff"]
+    },
+    "arctic": {
+      label: "Arctic",
+      description: "Glacial blues with a bright frozen edge.",
+      preview: "linear-gradient(135deg, #071521 0%, #123f62 55%, #5ab8ff 80%, #e8fcff 100%)",
+      swatches: ["#5ab8ff", "#c4f2ff", "#e8fcff"]
+    },
+    "ember": {
+      label: "Ember",
+      description: "Coal-black reds with furnace-orange heat.",
+      preview: "linear-gradient(135deg, #220806 0%, #5e180f 50%, #ff5724 76%, #ffb04a 100%)",
+      swatches: ["#ff5724", "#ffb04a", "#ffe0b0"]
+    },
+    "neon": {
+      label: "Neon",
+      description: "Cyber violet with bright mint circuitry.",
+      preview: "linear-gradient(135deg, #10081d 0%, #341464 52%, #9b6cff 70%, #48fff8 100%)",
+      swatches: ["#9b6cff", "#48fff8", "#b8fffc"]
+    }
+  };
   var CLOAK_PRESETS = [
     {
       id: "classroom",
@@ -62,7 +161,18 @@
     stageOverlay: document.getElementById("stage-overlay"),
     stageOverlayText: document.getElementById("stage-overlay-text"),
     tabList: document.getElementById("tab-list"),
-    toolbarSidebarToggle: document.getElementById("sidebar-toggle")
+    toolbarSidebarToggle: document.getElementById("sidebar-toggle"),
+    addressUndoButton: document.getElementById("toolbar-address-undo"),
+    addressRedoButton: document.getElementById("toolbar-address-redo")
+  };
+
+  var ADDRESS_HISTORY_LIMIT = 50;
+  var addressBarHistoryState = {
+    past: [],
+    future: [],
+    applying: false,
+    commitSnapshot: "",
+    ready: false
   };
 
   var state = {
@@ -96,6 +206,52 @@
       .replace(/'/g, "&#39;");
   }
 
+  function getGamesApi() {
+    return window.AntarcticGames || window.PalladiumGames || null;
+  }
+
+  function getBackendApi() {
+    return window.AntarcticGamesBackend || window.PalladiumBackend || null;
+  }
+
+  function injectAntarcticFontsIntoDocument(doc) {
+    if (!doc || !doc.head) return;
+    if (doc.getElementById("antarctic-font-bridge")) return;
+    try {
+      var link = doc.createElement("link");
+      link.rel = "stylesheet";
+      link.href = ANTARCTIC_GFONTS_URL;
+      link.id = "antarctic-font-link";
+      var style = doc.createElement("style");
+      style.id = "antarctic-font-bridge";
+      style.textContent = ANTARCTIC_IN_FRAME_FONT_CSS;
+      doc.head.appendChild(link);
+      doc.head.appendChild(style);
+    } catch (err) {
+      /* Cross-origin or inert document */
+    }
+  }
+
+  function attachAntarcticFontBridge(frame) {
+    if (!frame || frame.getAttribute("data-antarctic-font-bridge") === "1") return;
+    frame.setAttribute("data-antarctic-font-bridge", "1");
+    function onLoad() {
+      try {
+        injectAntarcticFontsIntoDocument(frame.contentDocument);
+      } catch (err) {
+        /* SecurityError */
+      }
+    }
+    frame.addEventListener("load", onLoad);
+    try {
+      if (frame.contentDocument && frame.contentDocument.readyState === "complete") {
+        onLoad();
+      }
+    } catch (err) {
+      /* ignore */
+    }
+  }
+
   function readStorage() {
     try {
       var raw = window.sessionStorage.getItem(STORAGE_KEY);
@@ -124,7 +280,7 @@
   }
 
   function describeUri(value) {
-    return core.describeInput(value || core.buildInternalUri("newtab"));
+    return core.describeInput(value || core.buildInternalUri("home"));
   }
 
   function createTab(uri, existingId) {
@@ -226,7 +382,7 @@
 
   function setDocumentTitle(tab) {
     var baseTitle = (tab && tab.title ? tab.title + " | " : "") + "Antarctic Games";
-    var siteSettings = window.AntarcticGamesSiteSettings || window.PalladiumSiteSettings;
+    var siteSettings = getSiteSettingsApi();
     if (siteSettings && typeof siteSettings.decorateTitle === "function") {
       document.title = siteSettings.decorateTitle(baseTitle);
       return;
@@ -240,7 +396,7 @@
   }
 
   function openNewTab(uri) {
-    var tab = createTab(uri || core.buildInternalUri("newtab"));
+    var tab = createTab(uri || core.buildInternalUri("home"));
     state.tabs.push(tab);
     state.activeTabId = tab.id;
     renderShell();
@@ -267,7 +423,7 @@
     state.tabs = nextTabs;
 
     if (!state.tabs.length) {
-      openNewTab(core.buildInternalUri("newtab"));
+      openNewTab(core.buildInternalUri("home"));
       return;
     }
 
@@ -309,7 +465,7 @@
     state.sidebarCollapsed = Boolean(restored && restored.sidebarCollapsed);
 
     if (!state.tabs.length) {
-      state.tabs = [createTab(requestedUri || core.buildInternalUri("newtab"))];
+      state.tabs = [createTab(requestedUri || core.buildInternalUri("home"))];
       state.activeTabId = state.tabs[0].id;
       return;
     }
@@ -391,7 +547,7 @@
 
   function resolveTabFavicon(tab) {
     if (!tab) return "";
-    if (tab.view === "gamelauncher") return "images/favicon.png";
+    if (tab.view === "gamelauncher") return "";
     if (tab.view !== "web" || !tab.targetUrl) return "";
     try {
       var origin = new URL(tab.targetUrl).origin;
@@ -406,7 +562,7 @@
     if (tab.view === "games") return "games";
     if (tab.view === "ai") return "ai";
     if (tab.view === "settings") return "settings";
-    if (tab.view === "gamelauncher") return "play";
+    if (tab.view === "gamelauncher") return "games";
     return "web";
   }
 
@@ -427,13 +583,31 @@
       return svg;
     }
     if (name === "games") {
-      addPath("M6.5 9h11a3.5 3.5 0 0 1 3.5 3.5v0A3.5 3.5 0 0 1 17.5 16H6.5A3.5 3.5 0 0 1 3 12.5v0A3.5 3.5 0 0 1 6.5 9Z");
-      addPath("M8.5 12.5h3M10 11v3M15.5 12h0M17.5 13.5h0");
+      svg.setAttribute("viewBox", "0 58 512 454");
+      svg.setAttribute("class", (className ? className + " " : "") + "ui-icon--filled");
+      addPath(GAMES_CONTROLLER_PATH_MAIN);
+      var circles = [
+        [334.8, 373.8, 16.3],
+        [413.7, 373.8, 16.3],
+        [374.2, 413.3, 16.3],
+        [374.2, 334.3, 16.3]
+      ];
+      for (var gi = 0; gi < circles.length; gi += 1) {
+        var cc = circles[gi];
+        var circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circ.setAttribute("cx", String(cc[0]));
+        circ.setAttribute("cy", String(cc[1]));
+        circ.setAttribute("r", String(cc[2]));
+        svg.appendChild(circ);
+      }
+      addPath(GAMES_CONTROLLER_PATH_DPAD);
       return svg;
     }
     if (name === "ai") {
-      addPath("M12 3v4M12 17v4M4.8 7.2l2.8 2.8M16.4 14.8l2.8 2.8M3 12h4M17 12h4M4.8 16.8l2.8-2.8M16.4 9.2l2.8-2.8");
-      addPath("M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z");
+      svg.setAttribute("viewBox", "0 0 16 16");
+      svg.setAttribute("class", (className ? className + " " : "") + "ui-icon--filled");
+      addPath(AI_ROBOT_PATH_FACE);
+      addPath(AI_ROBOT_PATH_BODY);
       return svg;
     }
     if (name === "play") {
@@ -441,8 +615,13 @@
       return svg;
     }
     if (name === "settings") {
-      addPath("M12 3.5 14 5l2.5-.2 1 2.3 2 1.5-.8 2.4.8 2.4-2 1.5-1 2.3L14 19l-2 1.5L10 19l-2.5.2-1-2.3-2-1.5.8-2.4-.8-2.4 2-1.5 1-2.3L10 5l2-1.5Z");
-      addPath("M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4Z");
+      svg.setAttribute("viewBox", "0 0 15 15");
+      svg.setAttribute("class", (className ? className + " " : "") + "ui-icon--filled");
+      var gearPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+      gearPath.setAttribute("fill-rule", "evenodd");
+      gearPath.setAttribute("clip-rule", "evenodd");
+      gearPath.setAttribute("d", SETTINGS_GEAR_PATH);
+      svg.appendChild(gearPath);
       return svg;
     }
     if (name === "close") {
@@ -454,6 +633,76 @@
     return svg;
   }
 
+  function trimAddressHistoryPast(value) {
+    addressBarHistoryState.past.push(value);
+    while (addressBarHistoryState.past.length > ADDRESS_HISTORY_LIMIT) {
+      addressBarHistoryState.past.shift();
+    }
+  }
+
+  function updateAddressBarHistoryButtons() {
+    if (elements.addressUndoButton) {
+      elements.addressUndoButton.disabled = addressBarHistoryState.past.length === 0;
+    }
+    if (elements.addressRedoButton) {
+      elements.addressRedoButton.disabled = addressBarHistoryState.future.length === 0;
+    }
+  }
+
+  function syncAddressBarValueFromNavigation(nextUri) {
+    if (!elements.addressInput) return;
+    var next = cleanText(nextUri) || "";
+    if (addressBarHistoryState.applying) {
+      elements.addressInput.value = next;
+      addressBarHistoryState.commitSnapshot = next;
+      updateAddressBarHistoryButtons();
+      return;
+    }
+    var cur = elements.addressInput.value;
+    if (addressBarHistoryState.ready && cur !== next) {
+      trimAddressHistoryPast(cur);
+      addressBarHistoryState.future = [];
+    }
+    elements.addressInput.value = next;
+    addressBarHistoryState.commitSnapshot = next;
+    addressBarHistoryState.ready = true;
+    updateAddressBarHistoryButtons();
+  }
+
+  function addressBarRecordSubmitOverride(active, typedValue) {
+    if (!active || addressBarHistoryState.applying || !addressBarHistoryState.ready) return;
+    var v = cleanText(typedValue) || "";
+    var tabUri = cleanText(active.uri) || "";
+    if (v !== tabUri) {
+      trimAddressHistoryPast(tabUri);
+      addressBarHistoryState.future = [];
+    }
+  }
+
+  function addressBarUndo() {
+    if (!elements.addressInput || addressBarHistoryState.past.length === 0) return;
+    addressBarHistoryState.applying = true;
+    var cur = elements.addressInput.value;
+    var prev = addressBarHistoryState.past.pop();
+    addressBarHistoryState.future.push(cur);
+    elements.addressInput.value = prev;
+    addressBarHistoryState.commitSnapshot = prev;
+    addressBarHistoryState.applying = false;
+    updateAddressBarHistoryButtons();
+  }
+
+  function addressBarRedo() {
+    if (!elements.addressInput || addressBarHistoryState.future.length === 0) return;
+    addressBarHistoryState.applying = true;
+    var cur = elements.addressInput.value;
+    var next = addressBarHistoryState.future.pop();
+    trimAddressHistoryPast(cur);
+    elements.addressInput.value = next;
+    addressBarHistoryState.commitSnapshot = next;
+    addressBarHistoryState.applying = false;
+    updateAddressBarHistoryButtons();
+  }
+
   function renderShell() {
     var active = getActiveTab();
 
@@ -462,7 +711,7 @@
     renderStageOverlay(active);
 
     if (elements.addressInput && active) {
-      elements.addressInput.value = active.uri;
+      syncAddressBarValueFromNavigation(active.uri);
     }
 
     renderSidebarState();
@@ -533,7 +782,15 @@
     if (!pane) return null;
 
     pane.addEventListener("click", handlePaneAction);
-    fillHomeLibrary(pane);
+    var homeForm = pane.querySelector('[data-role="home-search-form"]');
+    if (homeForm) {
+      homeForm.addEventListener("submit", function (event) {
+        event.preventDefault();
+        var input = homeForm.querySelector(".home-search-bar__input");
+        var q = cleanText(input && input.value);
+        if (q) navigateCurrent(q);
+      });
+    }
     return pane;
   }
 
@@ -575,6 +832,16 @@
       if (label) {
         label.setAttribute("for", uniqueId);
       }
+      textarea.addEventListener("input", function () {
+        syncAiInputHeight(textarea);
+      });
+      textarea.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          submitAiMessage(tab, pane);
+        }
+      });
+      syncAiInputHeight(textarea);
     }
 
     var form = pane.querySelector('[data-role="ai-form"]');
@@ -588,7 +855,7 @@
     if (!tab.aiState.memory.length) {
       tab.aiState.memory.push({
         role: "assistant",
-        content: "Ask me about Antarctic Games, the game catalog, or anything else you want."
+        content: "Ask me about the Antarctic Games site, the game catalog, or anything else you want."
       });
     }
 
@@ -622,12 +889,27 @@
     return SETTINGS_THEME_ORDER.slice();
   }
 
-  function humanizeThemeName(themeName) {
+  function fallbackHumanizeThemeName(themeName) {
     return cleanText(themeName)
       .replace(/[-_]+/g, " ")
       .replace(/\b\w/g, function (character) {
         return character.toUpperCase();
       });
+  }
+
+  function getThemeDetails(themeName) {
+    var key = cleanText(themeName).toLowerCase();
+    var details = THEME_DETAILS[key] || {};
+    return {
+      label: cleanText(details.label) || fallbackHumanizeThemeName(key),
+      description: cleanText(details.description) || (fallbackHumanizeThemeName(key) + " palette"),
+      preview: cleanText(details.preview) || "linear-gradient(135deg, #08101b 0%, #123a58 55%, #6bb6ff 100%)",
+      swatches: Array.isArray(details.swatches) && details.swatches.length ? details.swatches.slice(0, 3) : ["#3b8cff", "#6bb6ff", "#a8d4ff"]
+    };
+  }
+
+  function humanizeThemeName(themeName) {
+    return getThemeDetails(themeName).label;
   }
 
   function buildShellLaunchUrl(uri) {
@@ -656,14 +938,40 @@
     var themes = getSettingsThemes();
 
     container.innerHTML = themes.map(function (themeName) {
-      var displayName = humanizeThemeName(themeName);
+      var details = getThemeDetails(themeName);
+      var swatches = details.swatches.map(function (color) {
+        return '<span class="theme-chip__swatch" style="--theme-swatch:' + escapeHtml(color) + '"></span>';
+      }).join("");
       return (
         '<button type="button" class="theme-chip' + (themeName === activeTheme ? ' theme-chip--active' : '') + '" data-theme-option="' + escapeHtml(themeName) + '">' +
-          '<span class="theme-chip__name">' + escapeHtml(displayName) + "</span>" +
-          '<span class="theme-chip__meta">' + escapeHtml(themeName === "default" ? "Antarctic Games default" : displayName + " palette") + "</span>" +
+          '<span class="theme-chip__preview" style="--theme-preview:' + escapeHtml(details.preview) + '">' +
+            '<span class="theme-chip__swatches">' + swatches + "</span>" +
+          "</span>" +
+          '<span class="theme-chip__content">' +
+            '<span class="theme-chip__name">' + escapeHtml(details.label) + "</span>" +
+            '<span class="theme-chip__meta">' + escapeHtml(details.description) + "</span>" +
+          "</span>" +
         "</button>"
       );
     }).join("");
+  }
+
+  function syncAiInputHeight(textarea) {
+    if (!textarea) return;
+
+    textarea.style.height = "0px";
+
+    var computed = window.getComputedStyle(textarea);
+    var minHeight = parseFloat(computed.minHeight) || 0;
+    var maxHeight = parseFloat(computed.getPropertyValue("--ai-input-max-height")) || 176;
+    var nextHeight = Math.max(textarea.scrollHeight, minHeight);
+
+    if (maxHeight) {
+      nextHeight = Math.min(nextHeight, maxHeight);
+    }
+
+    textarea.style.height = nextHeight + "px";
+    textarea.style.overflowY = textarea.scrollHeight > nextHeight + 2 ? "auto" : "hidden";
   }
 
   function renderCloakPresets(pane) {
@@ -846,24 +1154,47 @@
     var title = cleanText(tab.title) || "Game Launcher";
     var author = cleanText(tab.author);
     var gamePath = cleanText(tab.path);
-    var details = [];
 
-    if (author) details.push(author);
-    if (gamePath) details.push(gamePath);
+    var fullscreenDisabled = gamePath ? "" : " disabled";
+
+    var barHintHtml =
+      !gamePath && !author
+        ? '<span class="game-launcher__bar-hint"><span class="game-launcher__bar-sep" aria-hidden="true"> -- </span>Pick a game from the library.</span>'
+        : "";
 
     pane.innerHTML =
       '<div class="game-launcher">' +
-        '<div class="game-launcher__header">' +
-          '<div class="game-launcher__copy">' +
-            '<p class="game-launcher__eyebrow">antarctic://gamelauncher</p>' +
-            '<h2 class="game-launcher__title">' + escapeHtml(title) + "</h2>" +
-            '<p class="game-launcher__meta">' + escapeHtml(details.join(" · ") || "Pick a game from the library to launch it here.") + "</p>" +
-          "</div>" +
-          '<div class="game-launcher__actions">' +
-            '<button type="button" class="toolbar-button" data-route="antarctic://games">Game Library</button>' +
+        '<div class="game-launcher__stage">' +
+          '<div class="game-launcher__viewport" data-role="game-launcher-viewport"></div>' +
+          '<div class="game-launcher__bar">' +
+            '<div class="game-launcher__bar-start">' +
+              '<span class="game-launcher__bar-title">' +
+                escapeHtml(title) +
+                "</span>" +
+                (author
+                  ? '<span class="game-launcher__bar-sep" aria-hidden="true">\u00A0--\u00A0</span>' +
+                    '<span class="game-launcher__bar-author">' +
+                    escapeHtml(author) +
+                    "</span>"
+                  : "") +
+              barHintHtml +
+            "</div>" +
+            '<div class="game-launcher__bar-end">' +
+              '<button type="button" class="game-launcher__back toolbar-button" data-route="antarctic://games">' +
+              "Back to games" +
+              "</button>" +
+              '<button type="button" class="game-launcher__fullscreen-btn toolbar-button"' +
+              ' data-game-fullscreen="1" aria-label="Enter fullscreen"' +
+              fullscreenDisabled +
+              ">" +
+              '<svg class="ui-icon ui-icon--filled game-launcher__fullscreen-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+              '<path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>' +
+              "</svg>" +
+              "<span>Fullscreen</span>" +
+              "</button>" +
+            "</div>" +
           "</div>" +
         "</div>" +
-        '<div class="game-launcher__viewport" data-role="game-launcher-viewport"></div>' +
       "</div>";
 
     var viewport = pane.querySelector('[data-role="game-launcher-viewport"]');
@@ -873,7 +1204,7 @@
       viewport.innerHTML =
         '<div class="empty-state empty-state--launcher">' +
           "<strong>No game selected yet.</strong>" +
-          "<span>Open a title from antarctic://games and it will launch here.</span>" +
+          "<span>Open a title from the game library to launch it here.</span>" +
         "</div>";
       return pane;
     }
@@ -884,6 +1215,7 @@
     frame.setAttribute("allow", "clipboard-read; clipboard-write; fullscreen");
     frame.setAttribute("referrerpolicy", "no-referrer");
     viewport.appendChild(frame);
+    attachAntarcticFontBridge(frame);
     return pane;
   }
 
@@ -891,21 +1223,28 @@
     var pane = document.createElement("section");
     pane.className = "shell-pane shell-pane--frame shell-pane--proxy";
 
+    var wrap = document.createElement("div");
+    wrap.className = "shell-pane__frame-wrap";
+
     var frame = document.createElement("iframe");
     frame.className = "shell-pane__frame shell-pane__frame--proxy";
     frame.src = "about:blank";
     frame.setAttribute("allow", "clipboard-read; clipboard-write; fullscreen");
     frame.setAttribute("referrerpolicy", "no-referrer");
-    pane.appendChild(frame);
+
+    wrap.appendChild(frame);
+    pane.appendChild(wrap);
+    attachAntarcticFontBridge(frame);
     return pane;
   }
 
   function loadProxyConfig() {
-    if (!window.PalladiumBackend || typeof window.PalladiumBackend.getPublicConfig !== "function") {
+    var backendApi = getBackendApi();
+    if (!backendApi || typeof backendApi.getPublicConfig !== "function") {
       return Promise.reject(new Error("Backend helper unavailable."));
     }
 
-    return window.PalladiumBackend.getPublicConfig().then(function (config) {
+    return backendApi.getPublicConfig().then(function (config) {
       state.config = config || state.config;
       return config || {};
     });
@@ -952,8 +1291,9 @@
     if (explicit) return explicit;
 
     var backendBase = normalizeBase(config && config.backendBase);
-    if (!backendBase && window.PalladiumBackend && typeof window.PalladiumBackend.getBaseUrl === "function") {
-      backendBase = normalizeBase(window.PalladiumBackend.getBaseUrl());
+    var backendApi = getBackendApi();
+    if (!backendBase && backendApi && typeof backendApi.getBaseUrl === "function") {
+      backendBase = normalizeBase(backendApi.getBaseUrl());
     }
 
     if (!backendBase) return "";
@@ -1125,24 +1465,18 @@
     return '<div class="game-card__thumb"></div>';
   }
 
-  function buildMiniThumbMarkup(game) {
-    var image = cleanText(game && game.image);
-    if (image) {
-      return '<div class="mini-game-card__thumb"><img src="' + escapeHtml(image) + '" alt="' + escapeHtml(game.title) + '" loading="lazy" /></div>';
-    }
-    return '<div class="mini-game-card__thumb"></div>';
-  }
-
   function makeLaunchUri(game) {
-    if (window.PalladiumGames && typeof window.PalladiumGames.buildLaunchUri === "function") {
-      return window.PalladiumGames.buildLaunchUri(game.path, game.title, game.author);
+    var gamesApi = getGamesApi();
+    if (gamesApi && typeof gamesApi.buildLaunchUri === "function") {
+      return gamesApi.buildLaunchUri(game.path, game.title, game.author);
     }
     return core.buildGameUri(game.path, game.title, game.author);
   }
 
   function filterCatalogGames(games, rawQuery) {
-    if (window.PalladiumGames && typeof window.PalladiumGames.filterCatalog === "function") {
-      return window.PalladiumGames.filterCatalog(games, rawQuery);
+    var gamesApi = getGamesApi();
+    if (gamesApi && typeof gamesApi.filterCatalog === "function") {
+      return gamesApi.filterCatalog(games, rawQuery);
     }
     var query = cleanText(rawQuery).toLowerCase();
     if (!Array.isArray(games)) return [];
@@ -1159,38 +1493,12 @@
   }
 
   function resolveFeaturedGame(games) {
-    if (window.PalladiumGames && typeof window.PalladiumGames.pickFeaturedGame === "function") {
-      return window.PalladiumGames.pickFeaturedGame(games);
+    var gamesApi = getGamesApi();
+    if (gamesApi && typeof gamesApi.pickFeaturedGame === "function") {
+      return gamesApi.pickFeaturedGame(games);
     }
     if (!Array.isArray(games) || !games.length) return null;
     return games[0];
-  }
-
-  function fillHomeLibrary(pane) {
-    var container = pane.querySelector('[data-role="home-library"]');
-    if (!container) return;
-
-    loadGamesCatalog().then(function (games) {
-      var sample = games.slice(0, 6);
-      if (!sample.length) {
-        container.innerHTML = '<div class="empty-state">No local games are available yet.</div>';
-        return;
-      }
-
-      container.innerHTML = sample.map(function (game) {
-        return (
-          '<button type="button" class="mini-game-card" data-launch-uri="' + escapeHtml(makeLaunchUri(game)) + '">' +
-            buildMiniThumbMarkup(game).replace("game-card__", "mini-game-card__") +
-            '<div class="mini-game-card__body">' +
-              '<h4 class="mini-game-card__title">' + escapeHtml(game.title) + '</h4>' +
-              '<div class="mini-game-card__meta">' + escapeHtml(game.author || "Unknown") + "</div>" +
-            "</div>" +
-          "</button>"
-        );
-      }).join("");
-    }).catch(function () {
-      container.innerHTML = '<div class="empty-state">The local games catalog could not be loaded.</div>';
-    });
   }
 
   function renderGamesCatalog(pane, tab) {
@@ -1225,8 +1533,16 @@
           "</div>" +
           '<div class="featured-launch__body">' +
             '<h3 class="featured-launch__title">' + escapeHtml(featuredGame.title) + "</h3>" +
-            '<p class="featured-launch__meta">' + escapeHtml(featuredGame.author || "Unknown") + " · " + escapeHtml(featuredGame.category || "game") + "</p>" +
-            '<p class="featured-launch__meta">Launch it in its own Antarctic Games tab.</p>' +
+            '<p class="featured-launch__meta">' +
+              '<span class="featured-launch__meta-author">' +
+              escapeHtml(featuredGame.author || "Unknown") +
+              "</span>" +
+              '<span class="featured-launch__meta-sep" aria-hidden="true">\u00a0--\u00a0</span>' +
+              '<span class="featured-launch__meta-category">' +
+              escapeHtml(featuredGame.category || "game") +
+              "</span>" +
+              "</p>" +
+            '<p class="featured-launch__meta">Launch it in its own Antarctic tab.</p>' +
             '<button type="button" class="toolbar-button toolbar-button--accent featured-launch__cta" data-launch-uri="' + escapeHtml(makeLaunchUri(featuredGame)) + '">Play now</button>' +
           "</div>";
       }
@@ -1245,7 +1561,11 @@
           buildThumbMarkup(game) +
           '<div class="game-card__body">' +
             '<h4 class="game-card__title">' + escapeHtml(game.title) + "</h4>" +
-            '<div class="game-card__meta">' + escapeHtml(game.author || "Unknown") + " · " + escapeHtml(game.category || "game") + "</div>" +
+            '<div class="game-card__meta">' +
+              escapeHtml(game.author || "Unknown") +
+              '<span class="game-card__meta-sep" aria-hidden="true">\u00a0--\u00a0</span>' +
+              escapeHtml(game.category || "game") +
+              "</div>" +
           "</div>" +
         "</button>"
       );
@@ -1276,6 +1596,21 @@
       return;
     }
 
+    var fullscreenBtn = target.closest("[data-game-fullscreen]");
+    if (fullscreenBtn) {
+      if (fullscreenBtn.disabled) return;
+      var gamePane = target.closest(".shell-pane--gamelauncher");
+      if (!gamePane) return;
+      var gameFrame = gamePane.querySelector("iframe.game-launcher__frame");
+      if (!gameFrame) return;
+      if (document.fullscreenElement === gameFrame) {
+        document.exitFullscreen().catch(function () {});
+      } else {
+        gameFrame.requestFullscreen().catch(function () {});
+      }
+      return;
+    }
+
     var launchButton = target.closest("[data-launch-uri]");
     if (launchButton) {
       openNewTab(launchButton.getAttribute("data-launch-uri"));
@@ -1297,7 +1632,12 @@
       var input = pane.querySelector(".ai-chat__input");
       if (!input) return;
       input.value = promptButton.getAttribute("data-prompt");
+      syncAiInputHeight(input);
       input.focus();
+      if (typeof input.setSelectionRange === "function") {
+        var end = input.value.length;
+        input.setSelectionRange(end, end);
+      }
     }
   }
 
@@ -1306,11 +1646,12 @@
       return Promise.resolve(state.gamesCatalog.slice());
     }
 
-    if (!window.PalladiumGames || typeof window.PalladiumGames.loadCatalog !== "function") {
+    var gamesApi = getGamesApi();
+    if (!gamesApi || typeof gamesApi.loadCatalog !== "function") {
       return Promise.reject(new Error("Games helper not available."));
     }
 
-    return window.PalladiumGames.loadCatalog().then(function (games) {
+    return gamesApi.loadCatalog().then(function (games) {
       state.gamesCatalog = Array.isArray(games) ? games : [];
       return state.gamesCatalog.slice();
     });
@@ -1420,13 +1761,14 @@
   function refreshAiStatus(pane) {
     var statusEl = pane.querySelector('[data-role="ai-status"]');
 
-    if (!window.PalladiumBackend || typeof window.PalladiumBackend.getPublicConfig !== "function") {
+    var backendApi = getBackendApi();
+    if (!backendApi || typeof backendApi.getPublicConfig !== "function") {
       if (statusEl) statusEl.textContent = "Backend helper unavailable";
       if (elements.aiStatusChip) elements.aiStatusChip.textContent = "Backend missing";
       return;
     }
 
-    window.PalladiumBackend.getPublicConfig().then(function (config) {
+    backendApi.getPublicConfig().then(function (config) {
       state.config = config || state.config;
       var model = cleanText(config && config.services && config.services.defaultAiModel) || "AI";
       if (statusEl) statusEl.textContent = "Online · " + model;
@@ -1447,6 +1789,7 @@
     if (!text) return;
 
     input.value = "";
+    syncAiInputHeight(input);
     tab.aiState.busy = true;
 
     var userMessage = { role: "user", content: text };
@@ -1536,7 +1879,7 @@
   }
 
   function requestAi(payload, onDelta) {
-    return fetch(window.PalladiumBackend.apiUrl("/api/ai/chat"), {
+    return fetch(getBackendApi().apiUrl("/api/ai/chat"), {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload)
@@ -1636,7 +1979,7 @@
 
   function buildAiSystemPrompt(userText) {
     var lines = [
-      "You are Antarctic Games AI for the Antarctic Games browser shell.",
+      "You are Antarctic Games AI for the Antarctic browser shell.",
       "Never make up games, links, or site features.",
       "Always format replies in Markdown.",
       "Prefer short, direct answers."
@@ -1662,7 +2005,7 @@
   }
 
   function requestAiResponse(tab, userText, onDelta) {
-    if (!window.PalladiumBackend) {
+    if (!getBackendApi()) {
       return Promise.reject(new Error("Backend helper not loaded."));
     }
 
@@ -1683,12 +2026,13 @@
   function refreshProxyStatus() {
     setProxyHealth(false, "Checking the backend Scramjet transport...", "Booting");
 
-    if (!window.PalladiumBackend || typeof window.PalladiumBackend.fetchJson !== "function") {
+    var backendApi = getBackendApi();
+    if (!backendApi || typeof backendApi.fetchJson !== "function") {
       setProxyHealth(false, "Backend helper unavailable.", "Offline");
       return;
     }
 
-    window.PalladiumBackend.fetchJson("/api/proxy/health").then(function (health) {
+    backendApi.fetchJson("/api/proxy/health").then(function (health) {
       setProxyHealth(true, health && health.message ? health.message : "Backend proxy transport is online.", "Connecting");
       return ensureProxyRuntime();
     }).then(function (runtime) {
@@ -1745,7 +2089,21 @@
     if (elements.addressForm && elements.addressInput) {
       elements.addressForm.addEventListener("submit", function (event) {
         event.preventDefault();
-        navigateCurrent(elements.addressInput.value);
+        var active = getActiveTab();
+        var typed = elements.addressInput.value;
+        addressBarRecordSubmitOverride(active, typed);
+        navigateCurrent(typed);
+      });
+    }
+
+    if (elements.addressUndoButton) {
+      elements.addressUndoButton.addEventListener("click", function () {
+        addressBarUndo();
+      });
+    }
+    if (elements.addressRedoButton) {
+      elements.addressRedoButton.addEventListener("click", function () {
+        addressBarRedo();
       });
     }
 
@@ -1765,7 +2123,7 @@
 
     if (elements.newTabButton) {
       elements.newTabButton.addEventListener("click", function () {
-        openNewTab(core.buildInternalUri("newtab"));
+        openNewTab(core.buildInternalUri("home"));
       });
     }
 
@@ -1809,13 +2167,43 @@
 
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "t") {
         event.preventDefault();
-        openNewTab(core.buildInternalUri("newtab"));
+        openNewTab(core.buildInternalUri("home"));
       }
     });
   }
 
+  function padTimeUnit(value) {
+    var n = Number(value);
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  function startShellClock() {
+    var el = document.getElementById("shell-clock");
+    if (!el) return;
+
+    function tick() {
+      var now = new Date();
+      var text =
+        padTimeUnit(now.getHours()) +
+        ":" +
+        padTimeUnit(now.getMinutes()) +
+        ":" +
+        padTimeUnit(now.getSeconds());
+      el.textContent = text;
+      try {
+        el.setAttribute("datetime", now.toISOString());
+      } catch (err) {
+        el.removeAttribute("datetime");
+      }
+    }
+
+    tick();
+    window.setInterval(tick, 1000);
+  }
+
   restoreTabs();
   bindEvents();
+  startShellClock();
   renderShell();
   refreshProxyStatus();
 })();
