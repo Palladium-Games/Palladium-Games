@@ -50,13 +50,14 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /<script src="data\/games-catalog\.js" data-antarctic-games-catalog="true" data-palladium-games-catalog="true"><\/script>/);
   assert.match(shellPage, /antarctic:\/\/settings/);
   assert.match(shellPage, /antarctic:\/\/account/);
-  assert.match(shellPage, /antarctic:\/\/dms/);
+  assert.match(shellPage, /antarctic:\/\/chats/);
   assert.match(shellPage, /antarctic:\/\/groupchats/);
   assert.match(shellPage, /Open Antarctic In About:Blank/);
   assert.match(shellPage, /antarctic:\/\/ai/);
   assert.match(shellPage, /Cloud Saves/);
-  assert.match(shellPage, /DMs/);
+  assert.match(shellPage, />Chats</);
   assert.match(shellPage, /Group Chats/);
+  assert.match(shellPage, /route-link route-link--sub/);
   assert.match(shellPage, /data-role="account-metrics"/);
   assert.match(shellPage, /data-role="account-quick-actions"/);
   assert.match(shellPage, /data-role="chat-intro-eyebrow"/);
@@ -83,6 +84,8 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /function flattenAssistantContent\(value\)/);
   assert.match(shellScript, /function buildCatalogAiResponseFromCatalog\(userText, games\)/);
   assert.match(shellScript, /function buildShellHelpAiResponse\(userText\)/);
+  assert.match(shellScript, /function bindGhostClickGuard\(pane\)/);
+  assert.match(shellScript, /function shouldSuppressGhostClick\(pane\)/);
   assert.match(shellScript, /function findCatalogCategoryInQuery\(userText, games\)/);
   assert.match(shellScript, /function extractRequestedGameCount\(userText\)/);
   assert.match(shellScript, /function resolveLocalAppUrl\(value\)/);

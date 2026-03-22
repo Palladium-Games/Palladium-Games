@@ -24,6 +24,7 @@ test("internal Antarctic routes normalize into view descriptors", () => {
   const home = core.describeInput("antarctic://home");
   const games = core.describeInput("antarctic://games");
   const account = core.describeInput("antarctic://account");
+  const chats = core.describeInput("antarctic://chats");
   const dms = core.describeInput("antarctic://dms");
   const groupChats = core.describeInput("antarctic://groupchats");
   const legacyChat = core.describeInput("antarctic://chat");
@@ -45,10 +46,15 @@ test("internal Antarctic routes normalize into view descriptors", () => {
   assert.equal(account.title, "Account");
   assert.equal(account.uri, "antarctic://account");
 
+  assert.equal(chats.view, "dms");
+  assert.equal(chats.route, "chats");
+  assert.equal(chats.title, "Chats");
+  assert.equal(chats.uri, "antarctic://chats");
+
   assert.equal(dms.view, "dms");
-  assert.equal(dms.route, "dms");
-  assert.equal(dms.title, "DMs");
-  assert.equal(dms.uri, "antarctic://dms");
+  assert.equal(dms.route, "chats");
+  assert.equal(dms.title, "Chats");
+  assert.equal(dms.uri, "antarctic://chats");
 
   assert.equal(groupChats.view, "groupchats");
   assert.equal(groupChats.route, "groupchats");

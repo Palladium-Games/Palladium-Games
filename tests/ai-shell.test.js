@@ -180,6 +180,7 @@ test("buildShellHelpAiResponse explains supported address bar inputs", () => {
   const answer = buildShellHelpAiResponse("What can I type in the Antarctic Games address bar?");
 
   assert.match(answer, /antarctic:\/\/home/);
+  assert.match(answer, /antarctic:\/\/chats/);
   assert.match(answer, /antarctic:\/\/games/);
   assert.match(answer, /https:\/\/duckduckgo\.com/);
   assert.match(answer, /plain search terms/);

@@ -206,6 +206,24 @@
       title: "Calendar",
       favicon: "https://ssl.gstatic.com/calendar/images/dynamiclogo_2020q4/calendar_31_2x.png",
       description: "Google Calendar"
+    },
+    {
+      id: "Schoology",
+      title: "Home | Schoology",
+      favicon: "https://powerschool.com/favicon.ico",
+      description: "Schoology"
+    },
+    {
+      id: "khan-academy",
+      title: "Khan Academy | Free Online Courses, Lessons & Practice",
+      favicon: "https://www.khanacademy.org/favicon.ico",
+      description: "Khan Academy"
+    },
+    {
+      id: "google",
+      title: "Google",
+      favicon: "https://www.google.com/favicon.ico",
+      description: "Google Search"
     }
   ];
 
@@ -624,7 +642,19 @@
         memory: []
       };
     }
-    if (!isChatViewName(tab.view)) {
+    if (isChatViewName(tab.view)) {
+      if (!tab.chatState || typeof tab.chatState !== "object") {
+        tab.chatState = {
+          activeThreadId: "",
+          pollHandle: 0,
+          wizardStep: 1
+        };
+      }
+      tab.chatState.activeThreadId = "";
+      if (Number(tab.chatState.wizardStep || 1) > 2) {
+        tab.chatState.wizardStep = 2;
+      }
+    } else {
       tab.chatState = {
         activeThreadId: "",
         pollHandle: 0,
@@ -1318,12 +1348,12 @@
     if (mode === "dms") {
       return {
         mode: "dms",
-        routeUri: "antarctic://dms",
-        introTitle: "Direct Messages",
+        routeUri: "antarctic://chats",
+        introTitle: "Chats",
         introLede: "Review incoming requests, start one-on-one conversations, and jump back into your private threads.",
-        listEyebrow: "DMs",
+        listEyebrow: "Chats",
         listTitle: "Direct Threads",
-        nextLabel: "Open DMs",
+        nextLabel: "Open chats",
         emptyThreadsTitle: "No direct messages yet.",
         emptyThreadsBody: "Send a DM request to start talking.",
         emptySelectionBody: "Pick a DM from the left.",
@@ -1413,6 +1443,57 @@
     });
   }
 
+  function bindGhostClickGuard(pane) {
+    if (!pane || pane.__ghostClickBound) return;
+    pane.__ghostClickBound = true;
+    pane.__ghostClickState = {
+      moved: false,
+      pointerActive: false,
+      startX: 0,
+      startY: 0,
+      suppressUntil: 0
+    };
+
+    pane.addEventListener("pointerdown", function (event) {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      pane.__ghostClickState.pointerActive = true;
+      pane.__ghostClickState.moved = false;
+      pane.__ghostClickState.startX = Number(event.clientX || 0);
+      pane.__ghostClickState.startY = Number(event.clientY || 0);
+    }, true);
+
+    pane.addEventListener("pointermove", function (event) {
+      var state = pane.__ghostClickState;
+      if (!state || !state.pointerActive) return;
+      var deltaX = Math.abs(Number(event.clientX || 0) - state.startX);
+      var deltaY = Math.abs(Number(event.clientY || 0) - state.startY);
+      if (deltaX > 10 || deltaY > 10) {
+        state.moved = true;
+      }
+    }, true);
+
+    function settlePointer() {
+      var state = pane.__ghostClickState;
+      if (!state) return;
+      if (state.pointerActive && state.moved) {
+        state.suppressUntil = Date.now() + 240;
+      }
+      state.pointerActive = false;
+      state.moved = false;
+    }
+
+    pane.addEventListener("pointerup", settlePointer, true);
+    pane.addEventListener("pointercancel", settlePointer, true);
+  }
+
+  function shouldSuppressGhostClick(pane) {
+    return Boolean(
+      pane &&
+      pane.__ghostClickState &&
+      Number(pane.__ghostClickState.suppressUntil || 0) > Date.now()
+    );
+  }
+
   function setPaneAuthenticatedState(pane, authenticated) {
     if (!pane) return;
     pane.classList.toggle("shell-pane--authenticated", Boolean(authenticated));
@@ -1425,7 +1506,7 @@
   function getPrimaryCommunityRoute(bootstrap) {
     var stats = bootstrap && bootstrap.stats ? bootstrap.stats : emptyCommunityBootstrap().stats;
     if (Number(stats.incomingDirectRequestCount || 0) > 0 || Number(stats.directCount || 0) > 0) {
-      return "antarctic://dms";
+      return "antarctic://chats";
     }
     return "antarctic://groupchats";
   }
@@ -1472,6 +1553,7 @@
       }
     });
 
+    bindGhostClickGuard(pane);
     wireAccountWizard(tab, pane);
     bindSocialPaneListener(pane, function () {
       syncAccountPane(pane, tab, "Account updated.");
@@ -1546,7 +1628,7 @@
         '<div class="account-summary__actions">' +
           '<button type="button" class="toolbar-button toolbar-button--accent" data-account-route="' + escapeHtml(primaryCommunityRoute) + '">Open community</button>' +
           '<button type="button" class="toolbar-button" data-account-route="antarctic://groupchats">Group chats</button>' +
-          '<button type="button" class="toolbar-button" data-account-route="antarctic://dms">DMs</button>' +
+          '<button type="button" class="toolbar-button" data-account-route="antarctic://chats">Chats</button>' +
           '<button type="button" class="toolbar-button" data-account-action="logout">Log out</button>' +
         "</div>" +
       "</div>";
@@ -1597,7 +1679,7 @@
           : "Jump into " + escapeHtml(String(stats.threadCount || 0)) + " chats") +
       "</button>" +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://groupchats">Open group chats</button>' +
-      '<button type="button" class="toolbar-button" data-account-route="antarctic://dms">Open DMs</button>' +
+      '<button type="button" class="toolbar-button" data-account-route="antarctic://chats">Open chats</button>' +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://games">Explore games</button>' +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://home">Back home</button>';
   }
@@ -1729,6 +1811,7 @@
     }
 
     if (typeof tab.chatState.wizardStep !== "number") tab.chatState.wizardStep = 1;
+    bindGhostClickGuard(pane);
     wireChatWizard(tab, pane);
     bindSocialPaneListener(pane, function () {
       syncChatPane(pane, tab, "Conversations updated.");
@@ -1738,9 +1821,14 @@
     pane.addEventListener("click", function (event) {
       var target = event.target;
       if (!target || typeof target.closest !== "function") return;
+      if (shouldSuppressGhostClick(pane)) {
+        event.preventDefault();
+        return;
+      }
 
       var threadButton = target.closest("[data-chat-thread]");
       if (threadButton) {
+        event.preventDefault();
         tab.chatState.activeThreadId = cleanText(threadButton.getAttribute("data-chat-thread"));
         setChatWizardStep(tab, pane, 3);
         syncChatPane(pane, tab, "Conversation loaded.");
@@ -4255,7 +4343,8 @@
       "- `antarctic://ai`",
       "- `antarctic://settings`",
       "- `antarctic://account`",
-      "- `antarctic://dms`",
+      "- `antarctic://chats`",
+      "- `antarctic://dms` as a legacy shortcut to chats",
       "- `antarctic://groupchats`",
       "- `antarctic://chat` as a legacy shortcut to group chats",
       "- a normal URL like `https://duckduckgo.com`",
