@@ -1449,10 +1449,34 @@
     pane.__ghostClickState = {
       moved: false,
       pointerActive: false,
+      touchActive: false,
       startX: 0,
       startY: 0,
       suppressUntil: 0
     };
+
+    function suppressGhostClick(durationMs) {
+      var state = pane.__ghostClickState;
+      if (!state) return;
+      state.suppressUntil = Date.now() + Math.max(0, Number(durationMs || 0) || 0);
+    }
+
+    function readTouchPoint(event) {
+      if (!event) return null;
+      if (event.touches && event.touches[0]) return event.touches[0];
+      if (event.changedTouches && event.changedTouches[0]) return event.changedTouches[0];
+      return null;
+    }
+
+    function updateMoveState(clientX, clientY) {
+      var state = pane.__ghostClickState;
+      if (!state) return;
+      var deltaX = Math.abs(Number(clientX || 0) - state.startX);
+      var deltaY = Math.abs(Number(clientY || 0) - state.startY);
+      if (deltaX > 10 || deltaY > 10) {
+        state.moved = true;
+      }
+    }
 
     pane.addEventListener("pointerdown", function (event) {
       if (event.pointerType === "mouse" && event.button !== 0) return;
@@ -1465,18 +1489,14 @@
     pane.addEventListener("pointermove", function (event) {
       var state = pane.__ghostClickState;
       if (!state || !state.pointerActive) return;
-      var deltaX = Math.abs(Number(event.clientX || 0) - state.startX);
-      var deltaY = Math.abs(Number(event.clientY || 0) - state.startY);
-      if (deltaX > 10 || deltaY > 10) {
-        state.moved = true;
-      }
+      updateMoveState(event.clientX, event.clientY);
     }, true);
 
     function settlePointer() {
       var state = pane.__ghostClickState;
       if (!state) return;
       if (state.pointerActive && state.moved) {
-        state.suppressUntil = Date.now() + 240;
+        suppressGhostClick(320);
       }
       state.pointerActive = false;
       state.moved = false;
@@ -1484,6 +1504,52 @@
 
     pane.addEventListener("pointerup", settlePointer, true);
     pane.addEventListener("pointercancel", settlePointer, true);
+
+    pane.addEventListener("touchstart", function (event) {
+      var point = readTouchPoint(event);
+      if (!point) return;
+      pane.__ghostClickState.touchActive = true;
+      pane.__ghostClickState.moved = false;
+      pane.__ghostClickState.startX = Number(point.clientX || 0);
+      pane.__ghostClickState.startY = Number(point.clientY || 0);
+    }, { capture: true, passive: true });
+
+    pane.addEventListener("touchmove", function (event) {
+      var state = pane.__ghostClickState;
+      if (!state || !state.touchActive) return;
+      var point = readTouchPoint(event);
+      if (!point) return;
+      updateMoveState(point.clientX, point.clientY);
+      if (state.moved) {
+        suppressGhostClick(320);
+      }
+    }, { capture: true, passive: true });
+
+    function settleTouch(event) {
+      var state = pane.__ghostClickState;
+      if (!state) return;
+      if (state.touchActive && state.moved) {
+        suppressGhostClick(360);
+      }
+      state.touchActive = false;
+      state.moved = false;
+      var point = readTouchPoint(event);
+      if (point) {
+        state.startX = Number(point.clientX || 0);
+        state.startY = Number(point.clientY || 0);
+      }
+    }
+
+    pane.addEventListener("touchend", settleTouch, { capture: true, passive: true });
+    pane.addEventListener("touchcancel", settleTouch, { capture: true, passive: true });
+    pane.addEventListener("wheel", function () {
+      suppressGhostClick(260);
+    }, { capture: true, passive: true });
+    pane.addEventListener("click", function (event) {
+      if (!shouldSuppressGhostClick(pane)) return;
+      event.preventDefault();
+      event.stopPropagation();
+    }, true);
   }
 
   function shouldSuppressGhostClick(pane) {
