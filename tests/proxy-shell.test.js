@@ -134,6 +134,9 @@ test("service worker bootstraps Scramjet from the static frontend origin", () =>
   const serviceWorker = fs.readFileSync(path.join(FRONTEND_DIR, "sw.js"), "utf8");
 
   assert.match(serviceWorker, /importScripts\("\/scram\/scramjet\.all\.js"\)/);
+  assert.match(serviceWorker, /if \(!scramjet\.route\(event\)\) \{\s*return;\s*\}/);
+  assert.match(serviceWorker, /await scramjet\.loadConfig\(\);\s*return scramjet\.fetch\(event\);/);
+  assert.doesNotMatch(serviceWorker, /await scramjet\.loadConfig\(\);[\s\S]*return fetch\(event\.request\);/);
   assert.match(serviceWorker, /scramjet\.route\(event\)/);
   assert.match(serviceWorker, /scramjet\.fetch\(event\)/);
 });

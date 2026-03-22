@@ -16,14 +16,12 @@ self.addEventListener("activate", function (event) {
 
 self.addEventListener("fetch", function (event) {
   if (!scramjet) return;
+  if (!scramjet.route(event)) {
+    return;
+  }
 
   event.respondWith((async function () {
     await scramjet.loadConfig();
-
-    if (scramjet.route(event)) {
-      return scramjet.fetch(event);
-    }
-
-    return fetch(event.request);
+    return scramjet.fetch(event);
   })());
 });
