@@ -3,10 +3,21 @@
   var LEGACY_STORAGE_KEY = "palladium.account.session.v1";
   var SESSION_HEADER = "x-antarctic-session";
   var cachedSession = undefined;
+  var sessionRequest = null;
+  var cachedBootstrap = undefined;
+  var bootstrapRequest = null;
   var listeners = [];
 
   function cleanText(value) {
     return String(value == null ? "" : value).trim();
+  }
+
+  function clonePlain(value) {
+    try {
+      return JSON.parse(JSON.stringify(value == null ? null : value));
+    } catch (error) {
+      return value == null ? null : value;
+    }
   }
 
   function getStorageApi() {
@@ -62,22 +73,154 @@
     });
   }
 
-  function setSessionFromResponse(payload) {
-    var token = cleanText(payload && payload.token);
-    if (token) {
-      writeStoredToken(token);
-    }
-    cachedSession = payload && payload.authenticated ? {
-      authenticated: true,
-      token: token || readStoredToken(),
-      user: payload.user || null
-    } : {
-      authenticated: false,
-      token: "",
-      user: null
+  function createEmptyBootstrap() {
+    return {
+      threads: [],
+      rooms: [],
+      saves: [],
+      stats: {
+        threadCount: 0,
+        roomCount: 0,
+        joinedRoomCount: 0,
+        directCount: 0,
+        saveCount: 0
+      }
     };
-    emitSessionChange(cachedSession);
-    return cachedSession;
+  }
+
+  function deriveBootstrapStats(bootstrap) {
+    var threads = Array.isArray(bootstrap && bootstrap.threads) ? bootstrap.threads : [];
+    var rooms = Array.isArray(bootstrap && bootstrap.rooms) ? bootstrap.rooms : [];
+    var saves = Array.isArray(bootstrap && bootstrap.saves) ? bootstrap.saves : [];
+
+    return {
+      threadCount: threads.length,
+      roomCount: rooms.length,
+      joinedRoomCount: rooms.filter(function (room) {
+        return room && room.joined;
+      }).length,
+      directCount: threads.filter(function (thread) {
+        return thread && thread.type === "direct";
+      }).length,
+      saveCount: saves.length
+    };
+  }
+
+  function normalizeBootstrap(raw) {
+    var bootstrap = createEmptyBootstrap();
+    if (raw && typeof raw === "object") {
+      if (Array.isArray(raw.threads)) bootstrap.threads = clonePlain(raw.threads) || [];
+      if (Array.isArray(raw.rooms)) bootstrap.rooms = clonePlain(raw.rooms) || [];
+      if (Array.isArray(raw.saves)) bootstrap.saves = clonePlain(raw.saves) || [];
+      bootstrap.stats = Object.assign(
+        deriveBootstrapStats(bootstrap),
+        raw.stats && typeof raw.stats === "object" ? clonePlain(raw.stats) : {}
+      );
+      return bootstrap;
+    }
+
+    bootstrap.stats = deriveBootstrapStats(bootstrap);
+    return bootstrap;
+  }
+
+  function getBootstrapSnapshot() {
+    return normalizeBootstrap(cachedBootstrap);
+  }
+
+  function setBootstrapCache(next) {
+    cachedBootstrap = normalizeBootstrap(next);
+    return getBootstrapSnapshot();
+  }
+
+  function mergeBootstrapPatch(patch) {
+    var base = getBootstrapSnapshot();
+    var next = {
+      threads: Object.prototype.hasOwnProperty.call(patch, "threads") ? patch.threads : base.threads,
+      rooms: Object.prototype.hasOwnProperty.call(patch, "rooms") ? patch.rooms : base.rooms,
+      saves: Object.prototype.hasOwnProperty.call(patch, "saves") ? patch.saves : base.saves,
+      stats: Object.prototype.hasOwnProperty.call(patch, "stats") ? patch.stats : deriveBootstrapStats({
+        threads: Object.prototype.hasOwnProperty.call(patch, "threads") ? patch.threads : base.threads,
+        rooms: Object.prototype.hasOwnProperty.call(patch, "rooms") ? patch.rooms : base.rooms,
+        saves: Object.prototype.hasOwnProperty.call(patch, "saves") ? patch.saves : base.saves
+      })
+    };
+
+    return setBootstrapCache(next);
+  }
+
+  function setBootstrapFromPayload(payload) {
+    if (!payload || typeof payload !== "object") {
+      return getBootstrapSnapshot();
+    }
+
+    if (payload.bootstrap && typeof payload.bootstrap === "object") {
+      return setBootstrapCache(payload.bootstrap);
+    }
+
+    var patch = {};
+    var hasPatch = false;
+    ["threads", "rooms", "saves", "stats"].forEach(function (key) {
+      if (Object.prototype.hasOwnProperty.call(payload, key)) {
+        patch[key] = payload[key];
+        hasPatch = true;
+      }
+    });
+
+    return hasPatch ? mergeBootstrapPatch(patch) : getBootstrapSnapshot();
+  }
+
+  function currentSession() {
+    if (!cachedSession) {
+      return {
+        authenticated: false,
+        token: "",
+        user: null
+      };
+    }
+
+    return {
+      authenticated: Boolean(cachedSession.authenticated),
+      token: cleanText(cachedSession.token),
+      user: cachedSession.user ? clonePlain(cachedSession.user) : null
+    };
+  }
+
+  function currentCommunityState() {
+    var session = currentSession();
+    return {
+      authenticated: session.authenticated,
+      token: session.token,
+      user: session.user,
+      bootstrap: getBootstrapSnapshot()
+    };
+  }
+
+  function setSessionFromPayload(payload) {
+    var authenticated = Boolean(payload && payload.authenticated);
+    var token = cleanText(payload && payload.token);
+
+    if (authenticated) {
+      if (token) {
+        writeStoredToken(token);
+      }
+      cachedSession = {
+        authenticated: true,
+        token: token || readStoredToken(),
+        user: payload && payload.user ? clonePlain(payload.user) : null
+      };
+      setBootstrapFromPayload(payload);
+    } else {
+      writeStoredToken("");
+      cachedSession = {
+        authenticated: false,
+        token: "",
+        user: null
+      };
+      setBootstrapCache(createEmptyBootstrap());
+    }
+
+    emitSessionChange(currentSession());
+    return currentSession();
   }
 
   async function requestJson(pathValue, init) {
@@ -94,11 +237,14 @@
     });
 
     var token = readStoredToken();
-    if (token && !headers[SESSION_HEADER] && !headers["authorization"]) {
+    if (token && !headers[SESSION_HEADER] && !headers.authorization) {
       headers[SESSION_HEADER] = token;
     }
 
-    var response = await fetch(backendApi.apiUrl(pathValue), Object.assign({}, options, { headers: headers }));
+    var response = await fetch(backendApi.apiUrl(pathValue), Object.assign({}, options, {
+      headers: headers,
+      credentials: "same-origin"
+    }));
     var text = await response.text();
     var payload = {};
 
@@ -109,11 +255,17 @@
     }
 
     if (response.status === 401) {
-      setSessionFromResponse({ authenticated: false, user: null, token: "" });
+      setSessionFromPayload({ authenticated: false, user: null, token: "" });
     }
 
     if (!response.ok) {
       throw new Error(cleanText(payload && payload.error) || ("Request failed with status " + response.status));
+    }
+
+    if (payload && typeof payload.authenticated === "boolean") {
+      setSessionFromPayload(payload);
+    } else {
+      setBootstrapFromPayload(payload);
     }
 
     return payload;
@@ -121,37 +273,68 @@
 
   async function getSession(forceRefresh) {
     if (!forceRefresh && cachedSession !== undefined) {
-      return cachedSession;
+      return currentSession();
     }
 
-    try {
-      var payload = await requestJson("/api/account/session", { method: "GET" });
-      return setSessionFromResponse(payload);
-    } catch (error) {
+    if (sessionRequest) {
+      return sessionRequest;
+    }
+
+    sessionRequest = requestJson("/api/account/session", { method: "GET" }).then(function () {
+      return currentSession();
+    }).catch(function (error) {
       if (!readStoredToken()) {
-        cachedSession = { authenticated: false, token: "", user: null };
-        return cachedSession;
+        setSessionFromPayload({ authenticated: false, user: null, token: "" });
+        return currentSession();
       }
       throw error;
+    }).finally(function () {
+      sessionRequest = null;
+    });
+
+    return sessionRequest;
+  }
+
+  async function getBootstrap(forceRefresh) {
+    if (!forceRefresh && cachedSession !== undefined && cachedBootstrap !== undefined) {
+      return currentCommunityState();
     }
+
+    if (bootstrapRequest) {
+      return bootstrapRequest;
+    }
+
+    bootstrapRequest = requestJson("/api/community/bootstrap", { method: "GET" }).then(function () {
+      return currentCommunityState();
+    }).catch(function (error) {
+      if (!readStoredToken()) {
+        setSessionFromPayload({ authenticated: false, user: null, token: "" });
+        return currentCommunityState();
+      }
+      throw error;
+    }).finally(function () {
+      bootstrapRequest = null;
+    });
+
+    return bootstrapRequest;
   }
 
   async function signUp(username, password) {
-    var payload = await requestJson("/api/account/signup", {
+    await requestJson("/api/account/signup", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ username: cleanText(username), password: cleanText(password) })
     });
-    return setSessionFromResponse(payload);
+    return currentCommunityState();
   }
 
   async function login(username, password) {
-    var payload = await requestJson("/api/account/login", {
+    await requestJson("/api/account/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ username: cleanText(username), password: cleanText(password) })
     });
-    return setSessionFromResponse(payload);
+    return currentCommunityState();
   }
 
   async function logout() {
@@ -159,10 +342,15 @@
       await requestJson("/api/account/logout", { method: "POST" });
     } finally {
       writeStoredToken("");
-      cachedSession = { authenticated: false, token: "", user: null };
-      emitSessionChange(cachedSession);
+      cachedSession = {
+        authenticated: false,
+        token: "",
+        user: null
+      };
+      cachedBootstrap = createEmptyBootstrap();
+      emitSessionChange(currentSession());
     }
-    return cachedSession;
+    return currentSession();
   }
 
   function requirePathSegment(value) {
@@ -186,6 +374,7 @@
       };
     },
     getSession: getSession,
+    getBootstrap: getBootstrap,
     signUp: signUp,
     login: login,
     logout: logout,
@@ -220,6 +409,20 @@
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ content: cleanText(content) })
+      }).then(function (payload) {
+        if (payload && payload.thread && payload.message) {
+          var snapshot = getBootstrapSnapshot();
+          var nextThreads = snapshot.threads.map(function (thread) {
+            if (String(thread.id) !== String(payload.thread.id)) {
+              return thread;
+            }
+            var patched = clonePlain(payload.thread) || {};
+            patched.lastMessage = clonePlain(payload.message);
+            return patched;
+          });
+          mergeBootstrapPatch({ threads: nextThreads });
+        }
+        return payload;
       });
     },
     listSaves: function () {
@@ -229,14 +432,40 @@
       return requestJson("/api/saves/" + encodeURIComponent(requirePathSegment(gameKey)), { method: "GET" });
     },
     putSave: function (gameKey, data, summary) {
-      return requestJson("/api/saves/" + encodeURIComponent(requirePathSegment(gameKey)), {
+      var normalizedKey = requirePathSegment(gameKey);
+      return requestJson("/api/saves/" + encodeURIComponent(normalizedKey), {
         method: "PUT",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ data: data, summary: cleanText(summary) })
+      }).then(function (payload) {
+        if (payload && payload.save) {
+          var snapshot = getBootstrapSnapshot();
+          var nextSave = {
+            gameKey: cleanText(payload.save.gameKey || normalizedKey),
+            summary: cleanText(payload.save.summary),
+            updatedAt: cleanText(payload.save.updatedAt),
+            sizeBytes: JSON.stringify(payload.save.data == null ? null : payload.save.data).length
+          };
+          var nextSaves = snapshot.saves.filter(function (save) {
+            return String(save.gameKey) !== String(nextSave.gameKey);
+          });
+          nextSaves.unshift(nextSave);
+          mergeBootstrapPatch({ saves: nextSaves });
+        }
+        return payload;
       });
     },
     deleteSave: function (gameKey) {
-      return requestJson("/api/saves/" + encodeURIComponent(requirePathSegment(gameKey)), { method: "DELETE" });
+      var normalizedKey = requirePathSegment(gameKey);
+      return requestJson("/api/saves/" + encodeURIComponent(normalizedKey), { method: "DELETE" }).then(function (payload) {
+        var snapshot = getBootstrapSnapshot();
+        mergeBootstrapPatch({
+          saves: snapshot.saves.filter(function (save) {
+            return String(save.gameKey) !== String(normalizedKey);
+          })
+        });
+        return payload;
+      });
     }
   };
 

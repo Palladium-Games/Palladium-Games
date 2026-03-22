@@ -380,7 +380,7 @@
           <div class="theme-grid" data-role="theme-grid"></div>
         </section>
 
-        <section class="content-card settings-card">
+        <section class="content-card settings-card settings-card--cloak">
           <div class="content-card__header">
             <div>
               <p class="content-card__eyebrow">Tab cloaking</p>
@@ -402,28 +402,61 @@
             </div>
           </form>
           <div class="preset-grid" data-role="cloak-presets"></div>
-        </section>
 
-        <section class="content-card settings-card">
-          <div class="content-card__header">
-            <div>
-              <p class="content-card__eyebrow">Launch</p>
-              <h3 class="content-card__title">About:blank tools</h3>
+          <div class="settings-cloak-divider" aria-hidden="true"></div>
+
+          <div class="settings-cloak-launch">
+            <p class="settings-field__label">About:blank</p>
+            <p class="settings-field__hint">Open the full shell in a new about:blank tab, or reset everything.</p>
+            <div class="settings-actions settings-actions--stacked">
+              <button type="button" class="toolbar-button toolbar-button--accent" data-settings-action="aboutblank-shell">
+                Open Antarctic In About:Blank
+              </button>
+              <button type="button" class="toolbar-button" data-settings-action="reset-all">
+                Reset Theme And Cloak
+              </button>
             </div>
           </div>
-          <div class="settings-actions settings-actions--stacked">
-            <button type="button" class="toolbar-button toolbar-button--accent" data-settings-action="aboutblank-shell">
-              Open Antarctic In About:Blank
-            </button>
-            <button type="button" class="toolbar-button" data-settings-action="reset-all">
-              Reset Theme And Cloak
-            </button>
+        </section>
+
+        <section class="content-card settings-card settings-card--appearance-preview">
+          <div class="content-card__header">
+            <div>
+              <p class="content-card__eyebrow">Preview</p>
+              <h3 class="content-card__title">Tab &amp; theme</h3>
+            </div>
           </div>
-          <div class="settings-preview">
-            <div class="settings-preview__label">Current cloak</div>
-            <div class="settings-preview__value" data-role="settings-preview-title">Antarctic Games</div>
-            <div class="settings-preview__meta" data-role="settings-preview-favicon">images/favicon.png?v=4</div>
-            <div class="settings-preview__meta" data-role="settings-preview-theme">default</div>
+          <div class="settings-appearance-preview" data-role="settings-appearance-preview">
+            <div class="settings-appearance-preview__window">
+              <div class="settings-appearance-preview__titlebar" aria-hidden="true">
+                <span class="settings-appearance-preview__traffic"></span>
+                <span class="settings-appearance-preview__traffic"></span>
+                <span class="settings-appearance-preview__traffic"></span>
+              </div>
+              <div class="settings-appearance-preview__tabstrip">
+                <div class="settings-appearance-preview__tab">
+                  <img
+                    class="settings-appearance-preview__favicon"
+                    data-role="settings-preview-favicon-img"
+                    src=""
+                    alt=""
+                    width="18"
+                    height="18"
+                    decoding="async"
+                  />
+                  <span class="settings-appearance-preview__tab-title" data-role="settings-preview-title">Antarctic Games</span>
+                </div>
+              </div>
+              <div class="settings-appearance-preview__page">
+                <div class="settings-appearance-preview__theme-row">
+                  <span class="settings-appearance-preview__theme-label">Shell theme</span>
+                  <span class="settings-appearance-preview__theme-value" data-role="settings-preview-theme">Default</span>
+                </div>
+                <p class="settings-appearance-preview__favicon-url settings-preview__meta" data-role="settings-preview-favicon-url">
+                  images/favicon.png?v=4
+                </p>
+              </div>
+            </div>
           </div>
         </section>
       </div>
@@ -490,6 +523,16 @@
               <section class="content-card account-card">
                 <div class="content-card__header">
                   <div>
+                    <p class="content-card__eyebrow">Overview</p>
+                    <h3 class="content-card__title">Your activity</h3>
+                  </div>
+                </div>
+                <div class="account-metrics" data-role="account-metrics"></div>
+                <div class="account-quick-actions" data-role="account-quick-actions"></div>
+              </section>
+              <section class="content-card account-card">
+                <div class="content-card__header">
+                  <div>
                     <p class="content-card__eyebrow">Cloud Saves</p>
                     <h3 class="content-card__title">Saved game progress</h3>
                   </div>
@@ -542,6 +585,7 @@
                     <h3 class="content-card__title">Rooms and DMs</h3>
                   </div>
                 </div>
+                <div class="chat-session" data-role="chat-session"></div>
                 <form class="chat-create-form" data-role="chat-room-form">
                   <label class="settings-field">
                     <span class="settings-field__label">Create room</span>

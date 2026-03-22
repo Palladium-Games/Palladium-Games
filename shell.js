@@ -381,6 +381,10 @@
       window.clearInterval(tab.chatState.pollHandle);
       tab.chatState.pollHandle = 0;
     }
+    if (tab && tab.paneEl && typeof tab.paneEl.__socialUnsubscribe === "function") {
+      tab.paneEl.__socialUnsubscribe();
+      tab.paneEl.__socialUnsubscribe = null;
+    }
     if (tab && tab.paneEl && tab.paneEl.parentNode) {
       tab.paneEl.parentNode.removeChild(tab.paneEl);
     }
@@ -1025,6 +1029,42 @@
     }
   }
 
+  function emptyCommunityBootstrap() {
+    return {
+      threads: [],
+      rooms: [],
+      saves: [],
+      stats: {
+        threadCount: 0,
+        roomCount: 0,
+        joinedRoomCount: 0,
+        directCount: 0,
+        saveCount: 0
+      }
+    };
+  }
+
+  function bindSocialPaneListener(pane, callback) {
+    var socialApi = getSocialApi();
+    if (!pane || !socialApi || typeof socialApi.onSessionChange !== "function" || pane.__socialUnsubscribe) {
+      return;
+    }
+
+    pane.__socialUnsubscribe = socialApi.onSessionChange(function () {
+      if (!pane.isConnected) return;
+      callback();
+    });
+  }
+
+  function setPaneAuthenticatedState(pane, authenticated) {
+    if (!pane) return;
+    pane.classList.toggle("shell-pane--authenticated", Boolean(authenticated));
+    var wizard = pane.querySelector(".pane-wizard");
+    if (wizard) {
+      wizard.classList.toggle("is-authenticated", Boolean(authenticated));
+    }
+  }
+
   function createAccountPane(tab) {
     var pane = cloneTemplate("account-pane-template");
     if (!pane) return null;
@@ -1054,6 +1094,13 @@
         return;
       }
 
+      var routeButton = target.closest("[data-account-route]");
+      if (routeButton) {
+        event.preventDefault();
+        openNewTab(routeButton.getAttribute("data-account-route"));
+        return;
+      }
+
       var saveLaunchButton = target.closest("[data-save-launch]");
       if (saveLaunchButton) {
         openNewTab(saveLaunchButton.getAttribute("data-save-launch"));
@@ -1061,8 +1108,11 @@
     });
 
     wireAccountWizard(tab, pane);
+    bindSocialPaneListener(pane, function () {
+      syncAccountPane(pane, tab, "Account updated.");
+    });
     setAccountWizardStep(tab, pane, tab.accountWizardStep);
-    syncAccountPane(pane);
+    syncAccountPane(pane, tab);
     return pane;
   }
 
@@ -1076,7 +1126,7 @@
     if (action === "logout") {
       socialApi.logout().then(function () {
         if (tab && pane) setAccountWizardStep(tab, pane, 2);
-        syncAccountPane(pane, "Logged out.");
+        syncAccountPane(pane, tab, "Logged out.");
       }).catch(function (error) {
         setAccountStatus(pane, cleanText(error && error.message ? error.message : error));
       });
@@ -1099,13 +1149,13 @@
     request.then(function () {
       if (passwordInput) passwordInput.value = "";
       if (tab && pane) setAccountWizardStep(tab, pane, 3);
-      syncAccountPane(pane, action === "signup" ? "Account created." : "Logged in.");
+      syncAccountPane(pane, tab, action === "signup" ? "Account created." : "Logged in.");
     }).catch(function (error) {
       setAccountStatus(pane, cleanText(error && error.message ? error.message : error));
     });
   }
 
-  function renderAccountSummary(pane, session) {
+  function renderAccountSummary(pane, session, bootstrap) {
     var summaryEl = pane.querySelector('[data-role="account-summary"]');
     if (!summaryEl) return;
 
@@ -1118,11 +1168,61 @@
       return;
     }
 
+    var stats = bootstrap && bootstrap.stats ? bootstrap.stats : emptyCommunityBootstrap().stats;
     summaryEl.innerHTML =
-      '<div class="account-summary__user">' +
-        '<strong>@' + escapeHtml(session.user.username) + "</strong>" +
-        '<span>Joined ' + escapeHtml(formatTimestamp(session.user.createdAt)) + "</span>" +
+      '<div class="account-summary__hero">' +
+        '<div class="account-summary__identity">' +
+          '<span class="account-summary__eyebrow">Signed in</span>' +
+          '<strong>@' + escapeHtml(session.user.username) + "</strong>" +
+          '<span>Joined ' + escapeHtml(formatTimestamp(session.user.createdAt)) + "</span>" +
+          '<span>' + escapeHtml(String(stats.threadCount || 0)) + " conversations synced in this browser.</span>" +
+        "</div>" +
+        '<div class="account-summary__actions">' +
+          '<button type="button" class="toolbar-button toolbar-button--accent" data-account-route="antarctic://chat">Open chat</button>' +
+          '<button type="button" class="toolbar-button" data-account-action="logout">Log out</button>' +
+        "</div>" +
       "</div>";
+  }
+
+  function renderAccountMetrics(pane, bootstrap) {
+    var metricsEl = pane.querySelector('[data-role="account-metrics"]');
+    if (!metricsEl) return;
+
+    var stats = bootstrap && bootstrap.stats ? bootstrap.stats : null;
+    if (!stats) {
+      metricsEl.innerHTML = "";
+      return;
+    }
+
+    metricsEl.innerHTML = [
+      { label: "Joined chats", value: stats.threadCount || 0 },
+      { label: "Direct messages", value: stats.directCount || 0 },
+      { label: "Public rooms", value: stats.roomCount || 0 },
+      { label: "Cloud saves", value: stats.saveCount || 0 }
+    ].map(function (metric) {
+      return (
+        '<article class="account-metric-card">' +
+          '<span class="account-metric-card__label">' + escapeHtml(metric.label) + "</span>" +
+          '<strong class="account-metric-card__value">' + escapeHtml(String(metric.value)) + "</strong>" +
+        "</article>"
+      );
+    }).join("");
+  }
+
+  function renderAccountQuickActions(pane, session, bootstrap) {
+    var quickActionsEl = pane.querySelector('[data-role="account-quick-actions"]');
+    if (!quickActionsEl) return;
+
+    if (!session || !session.authenticated) {
+      quickActionsEl.innerHTML = "";
+      return;
+    }
+
+    var stats = bootstrap && bootstrap.stats ? bootstrap.stats : emptyCommunityBootstrap().stats;
+    quickActionsEl.innerHTML =
+      '<button type="button" class="toolbar-button toolbar-button--accent" data-account-route="antarctic://chat">Jump into ' + escapeHtml(String(stats.threadCount || 0)) + " chats</button>" +
+      '<button type="button" class="toolbar-button" data-account-route="antarctic://games">Explore games</button>' +
+      '<button type="button" class="toolbar-button" data-account-route="antarctic://home">Back home</button>';
   }
 
   function renderAccountSaves(pane, saves) {
@@ -1154,28 +1254,40 @@
     }).join("");
   }
 
-  function syncAccountPane(pane, message) {
+  function syncAccountPane(pane, tab, message, forceRefresh) {
     var socialApi = getSocialApi();
     if (!socialApi) {
+      setPaneAuthenticatedState(pane, false);
       setAccountStatus(pane, "Account service unavailable.");
-      renderAccountSummary(pane, null);
+      renderAccountSummary(pane, null, emptyCommunityBootstrap());
+      renderAccountMetrics(pane, null);
+      renderAccountQuickActions(pane, null, null);
       renderAccountSaves(pane, []);
       return;
     }
 
-    socialApi.getSession(true).then(function (session) {
-      renderAccountSummary(pane, session);
-      if (!session || !session.authenticated) {
-        renderAccountSaves(pane, []);
-        setAccountStatus(pane, message || "Not logged in.");
-        return null;
+    socialApi.getBootstrap(Boolean(forceRefresh)).then(function (community) {
+      var authenticated = Boolean(community && community.authenticated && community.user);
+      var bootstrap = community && community.bootstrap ? community.bootstrap : emptyCommunityBootstrap();
+      setPaneAuthenticatedState(pane, authenticated);
+      renderAccountSummary(pane, authenticated ? community : null, bootstrap);
+      renderAccountMetrics(pane, authenticated ? bootstrap : null);
+      renderAccountQuickActions(pane, authenticated ? community : null, bootstrap);
+      renderAccountSaves(pane, authenticated ? bootstrap.saves : []);
+
+      if (!authenticated) {
+        if (tab && pane) setAccountWizardStep(tab, pane, 2);
+        setAccountStatus(pane, message || "Log in to sync your saves and community profile.");
+        return;
       }
-      return socialApi.listSaves().then(function (payload) {
-        renderAccountSaves(pane, payload && payload.saves);
-        setAccountStatus(pane, message || ("Logged in as @" + session.user.username + "."));
-      });
+
+      if (tab && pane) setAccountWizardStep(tab, pane, 3);
+      setAccountStatus(pane, message || ("Logged in as @" + community.user.username + "."));
     }).catch(function (error) {
-      renderAccountSummary(pane, null);
+      setPaneAuthenticatedState(pane, false);
+      renderAccountSummary(pane, null, emptyCommunityBootstrap());
+      renderAccountMetrics(pane, null);
+      renderAccountQuickActions(pane, null, null);
       renderAccountSaves(pane, []);
       setAccountStatus(pane, cleanText(error && error.message ? error.message : error));
     });
@@ -1225,6 +1337,9 @@
 
     if (typeof tab.chatState.wizardStep !== "number") tab.chatState.wizardStep = 1;
     wireChatWizard(tab, pane);
+    bindSocialPaneListener(pane, function () {
+      syncChatPane(pane, tab, "Chat updated.");
+    });
     setChatWizardStep(tab, pane, tab.chatState.wizardStep);
 
     pane.addEventListener("click", function (event) {
@@ -1262,6 +1377,30 @@
     }
   }
 
+  function renderChatSessionCard(pane, community) {
+    var sessionEl = pane.querySelector('[data-role="chat-session"]');
+    if (!sessionEl) return;
+
+    if (!community || !community.authenticated || !community.user) {
+      sessionEl.innerHTML =
+        '<div class="empty-state empty-state--compact">' +
+          "<strong>Community locked.</strong>" +
+          "<span>Log in from Account to unlock rooms and DMs.</span>" +
+        "</div>";
+      return;
+    }
+
+    var stats = community.bootstrap && community.bootstrap.stats ? community.bootstrap.stats : emptyCommunityBootstrap().stats;
+    sessionEl.innerHTML =
+      '<div class="chat-session-card">' +
+        '<div class="chat-session-card__identity">' +
+          '<strong>@' + escapeHtml(community.user.username) + "</strong>" +
+          '<span>' + escapeHtml(String(stats.threadCount || 0)) + " joined chats • " + escapeHtml(String(stats.directCount || 0)) + " DMs</span>" +
+        "</div>" +
+        '<button type="button" class="toolbar-button" data-route="antarctic://account">Account</button>' +
+      "</div>";
+  }
+
   function renderChatThreads(pane, tab, payload) {
     var listEl = pane.querySelector('[data-role="chat-thread-list"]');
     var roomCatalogEl = pane.querySelector('[data-role="chat-room-catalog"]');
@@ -1274,10 +1413,14 @@
       ? threads.map(function (thread) {
           var label = thread.type === "direct" && thread.peer ? "@" + thread.peer.username : thread.name;
           var preview = thread.lastMessage ? thread.lastMessage.username + ": " + thread.lastMessage.content : "No messages yet.";
+          var meta = thread.type === "direct" ? "DM" : "Room";
           return (
             '<button type="button" class="chat-thread-card' + (String(thread.id) === String(tab.chatState.activeThreadId) ? ' chat-thread-card--active' : '') + '" data-chat-thread="' + escapeHtml(thread.id) + '">' +
-              '<strong>' + escapeHtml(label) + "</strong>" +
-              '<span>' + escapeHtml(preview) + "</span>" +
+              '<span class="chat-thread-card__content">' +
+                '<strong>' + escapeHtml(label) + "</strong>" +
+                '<span>' + escapeHtml(preview) + "</span>" +
+              "</span>" +
+              '<span class="chat-thread-card__badge">' + escapeHtml(meta) + "</span>" +
             "</button>"
           );
         }).join("")
@@ -1302,7 +1445,7 @@
         : '<div class="empty-state empty-state--stacked"><strong>No rooms yet.</strong><span>Create the first one above.</span></div>');
   }
 
-  function renderChatMessages(pane, thread, messages) {
+  function renderChatMessages(pane, thread, messages, currentUserId) {
     var headerEl = pane.querySelector('[data-role="chat-thread-header"]');
     var messagesEl = pane.querySelector('[data-role="chat-messages"]');
     if (!headerEl || !messagesEl) return;
@@ -1333,9 +1476,10 @@
     }
 
     messagesEl.innerHTML = messages.map(function (message) {
+      var isOwn = String(message.userId) === String(currentUserId);
       return (
-        '<article class="chat-message">' +
-          '<div class="chat-message__meta">@' + escapeHtml(message.username) + " • " + escapeHtml(formatTimestamp(message.createdAt)) + "</div>" +
+        '<article class="chat-message' + (isOwn ? " chat-message--own" : "") + '">' +
+          '<div class="chat-message__meta">' + escapeHtml(isOwn ? "You" : ("@" + message.username)) + " • " + escapeHtml(formatTimestamp(message.createdAt)) + "</div>" +
           '<div class="chat-message__body">' + escapeHtml(message.content) + "</div>" +
         "</article>"
       );
@@ -1343,51 +1487,69 @@
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  function syncChatPane(pane, tab, message) {
+  function syncChatPane(pane, tab, message, forceRefresh) {
     var socialApi = getSocialApi();
     if (!socialApi) {
+      setPaneAuthenticatedState(pane, false);
+      renderChatSessionCard(pane, null);
       setChatStatus(pane, "Chat service unavailable.");
-      renderChatMessages(pane, null, []);
+      renderChatThreads(pane, tab, emptyCommunityBootstrap());
+      renderChatMessages(pane, null, [], "");
       return;
     }
 
-    socialApi.getSession(true).then(function (session) {
-      if (!session || !session.authenticated) {
-        renderChatThreads(pane, tab, { threads: [], rooms: [] });
-        renderChatMessages(pane, null, []);
+    socialApi.getBootstrap(Boolean(forceRefresh)).then(function (community) {
+      var authenticated = Boolean(community && community.authenticated && community.user);
+      var bootstrap = community && community.bootstrap ? community.bootstrap : emptyCommunityBootstrap();
+      var threads = Array.isArray(bootstrap.threads) ? bootstrap.threads : [];
+      setPaneAuthenticatedState(pane, authenticated);
+      renderChatSessionCard(pane, authenticated ? community : null);
+
+      if (!authenticated) {
+        tab.chatState.activeThreadId = "";
+        setChatWizardStep(tab, pane, 1);
+        renderChatThreads(pane, tab, emptyCommunityBootstrap());
+        renderChatMessages(pane, null, [], "");
         setChatStatus(pane, "Log in from Account to use community chat.");
         return null;
       }
 
-      return socialApi.listThreads().then(function (payload) {
-        var threads = Array.isArray(payload && payload.threads) ? payload.threads : [];
-        if (tab.chatState.activeThreadId) {
-          var stillExists = threads.some(function (thread) {
-            return String(thread.id) === String(tab.chatState.activeThreadId);
-          });
-          if (!stillExists) {
-            tab.chatState.activeThreadId = "";
-          }
-        }
-
-        renderChatThreads(pane, tab, payload);
-        if (tab.chatState.wizardStep === 3 && !tab.chatState.activeThreadId) {
-          setChatWizardStep(tab, pane, 2);
-        }
-        if (!tab.chatState.activeThreadId) {
-          renderChatMessages(pane, null, []);
-          setChatStatus(pane, message || "Choose a room or DM.");
-          return null;
-        }
-
-        return socialApi.listMessages(tab.chatState.activeThreadId).then(function (messagesPayload) {
-          renderChatMessages(pane, messagesPayload && messagesPayload.thread, messagesPayload && messagesPayload.messages);
-          setChatStatus(pane, message || ("Chatting as @" + session.user.username + "."));
+      if (tab.chatState.activeThreadId) {
+        var stillExists = threads.some(function (thread) {
+          return String(thread.id) === String(tab.chatState.activeThreadId);
         });
+        if (!stillExists) {
+          tab.chatState.activeThreadId = "";
+        }
+      }
+
+      if (!tab.chatState.activeThreadId && threads.length) {
+        tab.chatState.activeThreadId = String(threads[0].id);
+      }
+
+      renderChatThreads(pane, tab, bootstrap);
+      if (!tab.chatState.activeThreadId) {
+        setChatWizardStep(tab, pane, 2);
+        renderChatMessages(pane, null, [], community.user && community.user.id);
+        setChatStatus(pane, message || "Create a room or open a DM to start talking.");
+        return null;
+      }
+
+      setChatWizardStep(tab, pane, 3);
+      return socialApi.listMessages(tab.chatState.activeThreadId).then(function (messagesPayload) {
+        renderChatMessages(
+          pane,
+          messagesPayload && messagesPayload.thread,
+          messagesPayload && messagesPayload.messages,
+          community.user && community.user.id
+        );
+        setChatStatus(pane, message || ("Chatting as @" + community.user.username + "."));
       });
     }).catch(function (error) {
-      renderChatThreads(pane, tab, { threads: [], rooms: [] });
-      renderChatMessages(pane, null, []);
+      setPaneAuthenticatedState(pane, false);
+      renderChatSessionCard(pane, null);
+      renderChatThreads(pane, tab, emptyCommunityBootstrap());
+      renderChatMessages(pane, null, [], "");
       setChatStatus(pane, cleanText(error && error.message ? error.message : error));
     });
   }
@@ -1446,15 +1608,21 @@
   function submitChatMessage(tab, pane) {
     var socialApi = getSocialApi();
     if (!socialApi || !tab.chatState.activeThreadId) return;
-    var input = pane.querySelector('.chat-room__input');
+    var input = pane.querySelector(".chat-room__input");
     if (!input) return;
 
     var value = cleanText(input.value);
     if (!value) return;
 
-    socialApi.sendMessage(tab.chatState.activeThreadId, value).then(function () {
+    socialApi.sendMessage(tab.chatState.activeThreadId, value).then(function (payload) {
       input.value = "";
       syncAiInputHeight(input);
+      renderChatMessages(
+        pane,
+        payload && payload.thread,
+        payload && payload.messages,
+        payload && payload.message ? payload.message.userId : ""
+      );
       syncChatPane(pane, tab, "Message sent.");
     }).catch(function (error) {
       setChatStatus(pane, cleanText(error && error.message ? error.message : error));
@@ -1516,6 +1684,17 @@
       return nextUrl.toString();
     } catch (error) {
       return window.location.href;
+    }
+  }
+
+  function resolveSettingsFaviconPreviewUrl(raw) {
+    var fav = cleanText(raw);
+    if (!fav) fav = "images/favicon.png?v=4";
+    if (/^(?:https?:|data:|blob:)/i.test(fav)) return fav;
+    try {
+      return new URL(fav, window.location.href).href;
+    } catch (error) {
+      return fav;
     }
   }
 
@@ -1592,14 +1771,30 @@
     var titleInput = pane.querySelector('[name="cloak-title"]');
     var faviconInput = pane.querySelector('[name="cloak-favicon"]');
     var previewTitle = pane.querySelector('[data-role="settings-preview-title"]');
-    var previewFavicon = pane.querySelector('[data-role="settings-preview-favicon"]');
+    var previewFaviconUrl = pane.querySelector('[data-role="settings-preview-favicon-url"]');
+    var previewFaviconImg = pane.querySelector('[data-role="settings-preview-favicon-img"]');
     var previewTheme = pane.querySelector('[data-role="settings-preview-theme"]');
 
     if (titleInput) titleInput.value = cleanText(settings.title);
     if (faviconInput) faviconInput.value = cleanText(settings.favicon);
     if (previewTitle) previewTitle.textContent = cleanText(settings.title) || "Antarctic Games";
-    if (previewFavicon) previewFavicon.textContent = cleanText(settings.favicon) || "images/favicon.png?v=4";
-    if (previewTheme) previewTheme.textContent = "Theme: " + humanizeThemeName(settings.theme || "default");
+
+    var faviconStored = cleanText(settings.favicon) || "images/favicon.png?v=4";
+    if (previewFaviconUrl) previewFaviconUrl.textContent = faviconStored;
+
+    if (previewFaviconImg) {
+      previewFaviconImg.alt = "Favicon preview";
+      var resolvedFavicon = resolveSettingsFaviconPreviewUrl(settings.favicon);
+      previewFaviconImg.onerror = function () {
+        previewFaviconImg.style.visibility = "hidden";
+      };
+      previewFaviconImg.onload = function () {
+        previewFaviconImg.style.visibility = "visible";
+      };
+      previewFaviconImg.src = resolvedFavicon;
+    }
+
+    if (previewTheme) previewTheme.textContent = humanizeThemeName(settings.theme || "default");
 
     renderThemeGrid(pane, settings);
     renderCloakPresets(pane);

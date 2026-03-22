@@ -38,6 +38,7 @@ test("frontend ships a Netlify config for the static shell", () => {
 test("frontend shell references Scramjet assets and sidebar controls", () => {
   const shellPage = fs.readFileSync(path.join(FRONTEND_DIR, "index.html"), "utf8");
   const shellScript = fs.readFileSync(path.join(FRONTEND_DIR, "shell.js"), "utf8");
+  const socialClient = fs.readFileSync(path.join(FRONTEND_DIR, "social-client.js"), "utf8");
 
   assert.match(shellPage, /id="sidebar-toggle"/);
   assert.match(shellPage, /<script src="site-storage\.js"><\/script>\s*<script src="site-settings\.js"><\/script>/);
@@ -52,11 +53,18 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /antarctic:\/\/ai/);
   assert.match(shellPage, /Cloud Saves/);
   assert.match(shellPage, /Community Chat/);
+  assert.match(shellPage, /data-role="account-metrics"/);
+  assert.match(shellPage, /data-role="account-quick-actions"/);
+  assert.match(shellPage, /data-role="chat-session"/);
   assert.match(shellPage, /prompt-list--composer/);
   assert.doesNotMatch(shellPage, /data-role="ai-status"/);
   assert.match(shellScript, /function isRecoverableProxyStorageError\(error\)/);
   assert.match(shellScript, /window\.AntarcticGamesStorage \|\| window\.PalladiumSiteStorage/);
   assert.match(shellScript, /window\.AntarcticSocialClient \|\| window\.PalladiumSocialClient/);
+  assert.match(shellScript, /function renderAccountMetrics\(pane, bootstrap\)/);
+  assert.match(shellScript, /function renderAccountQuickActions\(pane, session, bootstrap\)/);
+  assert.match(shellScript, /function renderChatSessionCard\(pane, community\)/);
+  assert.match(shellScript, /socialApi\.getBootstrap\(Boolean\(forceRefresh\)\)/);
   assert.match(shellScript, /storage\.setJson\(STORAGE_KEY, payload/);
   assert.match(shellScript, /data-game-save="1"/);
   assert.match(shellScript, /data-game-load="1"/);
@@ -68,6 +76,10 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /window\.indexedDB\.deleteDatabase\(name\)/);
   assert.match(shellScript, /Resetting proxy storage and retrying/);
   assert.match(shellScript, /return initializeProxyRuntime\(config, false\);/);
+  assert.match(socialClient, /function getBootstrap\(forceRefresh\)/);
+  assert.match(socialClient, /requestJson\("\/api\/community\/bootstrap"/);
+  assert.match(socialClient, /credentials:\s*"same-origin"/);
+  assert.match(socialClient, /return currentCommunityState\(\);/);
 });
 
 test("service worker bootstraps Scramjet from the static frontend origin", () => {
@@ -102,6 +114,11 @@ test("settings shell keeps the sidebar on a fixed attached rail", () => {
   assert.match(settingsShellCss, /\.shell--sidebar-collapsed \.shell-sidebar\s*\{[\s\S]*flex:\s*0 0 var\(--sidebar-collapsed-width\);/);
   assert.match(settingsShellCss, /\.shell-pane--active\.shell-pane--ai\s*\{[\s\S]*display:\s*grid;/);
   assert.match(settingsShellCss, /\.ai-chat__composer\s*\{/);
+  assert.match(settingsShellCss, /\.account-summary__hero\s*\{/);
+  assert.match(settingsShellCss, /\.account-metric-card\s*\{/);
+  assert.match(settingsShellCss, /\.chat-session-card\s*\{/);
+  assert.match(settingsShellCss, /\.chat-thread-card__badge\s*\{/);
+  assert.match(settingsShellCss, /\.chat-message--own\s*\{/);
   assert.match(settingsShellCss, /\.theme-chip__preview\s*\{/);
   assert.match(settingsShellCss, /\[data-theme\] body\s*\{/);
   assert.match(shellPage, /sidebar-block__header sidebar-block__header--tabs shell-sidebar__row[\s\S]*shell-sidebar__rail shell-sidebar__rail--action[\s\S]*id="shell-new-tab"/);
