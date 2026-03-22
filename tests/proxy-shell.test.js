@@ -149,10 +149,14 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /window\.indexedDB\.deleteDatabase\(name\)/);
   assert.match(shellScript, /Resetting proxy storage and retrying/);
   assert.match(shellScript, /var PROXY_REPAIR_RELOAD_KEY = "antarctic\.proxy\.repair\.reload\.v1"/);
+  assert.match(shellScript, /var PROXY_CONTROLLER_RELOAD_KEY = "antarctic\.proxy\.controller\.reload\.v1"/);
   assert.match(shellScript, /var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-22-proxy-2"/);
   assert.match(shellScript, /var PROXY_RUNTIME_ASSET_VERSION = "2026-03-22-proxy-2"/);
   assert.match(shellScript, /function scheduleProxyRepairReload\(\)/);
+  assert.match(shellScript, /function scheduleProxyControllerReload\(\)/);
   assert.match(shellScript, /window\.location\.reload\(\)/);
+  assert.match(shellScript, /Proxy service worker controller is still unavailable\./);
+  assert.match(shellScript, /writeProxyControllerReloadMarker\(""\)/);
   assert.match(shellScript, /config && config\.services && config\.services\.proxyRequest/);
   assert.match(shellScript, /config && config\.services && \(config\.services\.proxyFetch \|\| config\.services\.proxy\)/);
   assert.match(shellScript, /\.setRemoteTransport\(createHttpProxyTransport\(config\), proxyRequestUrl \|\| "antarctic-http-fallback"\)/);

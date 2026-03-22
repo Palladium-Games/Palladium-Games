@@ -7,6 +7,7 @@
   var PROXY_STORAGE_VERSION_KEY = "antarctic.proxy.storage.version.v1";
   var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-22-proxy-2";
   var PROXY_REPAIR_RELOAD_KEY = "antarctic.proxy.repair.reload.v1";
+  var PROXY_CONTROLLER_RELOAD_KEY = "antarctic.proxy.controller.reload.v1";
   var PROXY_REQUEST_HEADER_METHOD = "x-antarctic-proxy-method";
   var PROXY_REQUEST_HEADER_HEADERS = "x-antarctic-proxy-headers";
   var LOCAL_APP_ASSET_PARAM = "antarctic_asset";
@@ -3192,10 +3193,11 @@
       window.navigator.serviceWorker &&
       window.navigator.serviceWorker.controller
     ) {
+      writeProxyControllerReloadMarker("");
       return Promise.resolve();
     }
 
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
       if (!window.navigator || !window.navigator.serviceWorker) {
         resolve();
         return;
@@ -3204,22 +3206,53 @@
       var settled = false;
       var timeoutId = 0;
 
-      function finish() {
-        if (settled) return;
-        settled = true;
+      function cleanup() {
         if (timeoutId) {
           window.clearTimeout(timeoutId);
         }
         window.navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+      }
+
+      function finishReady() {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        writeProxyControllerReloadMarker("");
         resolve();
       }
 
-      function handleControllerChange() {
-        finish();
+      function finishReload() {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (scheduleProxyControllerReload()) {
+          reject(new Error("Restarting proxy runtime..."));
+          return;
+        }
+        reject(new Error("Proxy service worker controller is still unavailable."));
       }
 
-      timeoutId = window.setTimeout(finish, 1200);
+      function handleControllerChange() {
+        if (window.navigator && window.navigator.serviceWorker && window.navigator.serviceWorker.controller) {
+          finishReady();
+        }
+      }
+
+      timeoutId = window.setTimeout(function () {
+        if (window.navigator && window.navigator.serviceWorker && window.navigator.serviceWorker.controller) {
+          finishReady();
+          return;
+        }
+        finishReload();
+      }, 1600);
       window.navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+      window.navigator.serviceWorker.ready.then(function () {
+        if (window.navigator && window.navigator.serviceWorker && window.navigator.serviceWorker.controller) {
+          finishReady();
+        }
+      }).catch(function () {
+        // Ignore ready failures and let the timeout path handle recovery.
+      });
     });
   }
 
@@ -3401,6 +3434,46 @@
     } catch (error) {
       // Ignore session storage failures during recovery bookkeeping.
     }
+  }
+
+  function readProxyControllerReloadMarker() {
+    try {
+      return cleanText(window.sessionStorage.getItem(PROXY_CONTROLLER_RELOAD_KEY));
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function writeProxyControllerReloadMarker(value) {
+    try {
+      if (value) {
+        window.sessionStorage.setItem(PROXY_CONTROLLER_RELOAD_KEY, cleanText(value));
+      } else {
+        window.sessionStorage.removeItem(PROXY_CONTROLLER_RELOAD_KEY);
+      }
+    } catch (error) {
+      // Ignore session storage failures during service worker recovery bookkeeping.
+    }
+  }
+
+  function scheduleProxyControllerReload() {
+    if (!window.location || typeof window.location.reload !== "function") {
+      return false;
+    }
+
+    if (readProxyControllerReloadMarker() === PROXY_RUNTIME_ASSET_VERSION) {
+      return false;
+    }
+
+    writeProxyControllerReloadMarker(PROXY_RUNTIME_ASSET_VERSION);
+    window.setTimeout(function () {
+      try {
+        window.location.reload();
+      } catch (error) {
+        // Ignore reload failures; the offline state will remain visible instead.
+      }
+    }, 30);
+    return true;
   }
 
   function scheduleProxyRepairReload() {
