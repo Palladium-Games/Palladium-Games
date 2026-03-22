@@ -71,6 +71,9 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /function resolveLocalAppUrl\(value\)/);
   assert.match(shellScript, /function getLocalAppBaseUrl\(\)/);
   assert.match(shellScript, /function appendLocalAssetVersion\(resolvedUrl\)/);
+  assert.match(shellScript, /function resolveProxyRequestUrl\(config\)/);
+  assert.match(shellScript, /function probeWispTransport\(wispUrl\)/);
+  assert.match(shellScript, /function createHttpProxyTransport\(config\)/);
   assert.match(shellScript, /assetUrl\.searchParams\.set\(LOCAL_APP_ASSET_PARAM, LOCAL_APP_ASSET_VERSION\)/);
   assert.match(shellScript, /new URL\(normalized, getLocalAppBaseUrl\(\)\)\.toString\(\)/);
   assert.match(shellScript, /function renderAccountMetrics\(pane, bootstrap\)/);
@@ -96,6 +99,10 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /controller\.db\.close\(\)/);
   assert.match(shellScript, /window\.indexedDB\.deleteDatabase\(name\)/);
   assert.match(shellScript, /Resetting proxy storage and retrying/);
+  assert.match(shellScript, /config && config\.services && config\.services\.proxyRequest/);
+  assert.match(shellScript, /\.setRemoteTransport\(createHttpProxyTransport\(config\), proxyRequestUrl \|\| "antarctic-http-fallback"\)/);
+  assert.match(shellScript, /state\.proxyRuntime\.transportMode = "http-fallback"/);
+  assert.match(shellScript, /"x-antarctic-proxy-method": String\(method \|\| "GET"\)\.toUpperCase\(\)/);
   assert.match(shellScript, /return initializeProxyRuntime\(config, false\);/);
   assert.match(gamesHelper, /var LOCAL_MANIFEST_ASSET_PARAM = "antarctic_asset"/);
   assert.match(gamesHelper, /var LOCAL_MANIFEST_VERSION = "2026-03-22-asset-1"/);

@@ -6,6 +6,8 @@
   var LEGACY_STORAGE_KEY = "palladium.shell.state.v1";
   var PROXY_STORAGE_VERSION_KEY = "antarctic.proxy.storage.version.v1";
   var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-22";
+  var PROXY_REQUEST_HEADER_METHOD = "x-antarctic-proxy-method";
+  var PROXY_REQUEST_HEADER_HEADERS = "x-antarctic-proxy-headers";
   var LOCAL_APP_ASSET_PARAM = "antarctic_asset";
   var LOCAL_APP_ASSET_VERSION = "2026-03-22-asset-1";
   var SCRAMJET_PREFIX = "/service/scramjet/";
@@ -193,6 +195,7 @@
       initPromise: null,
       repairPromise: null,
       ready: false,
+      transportMode: "",
       transportUrl: ""
     },
     sidebarCollapsed: false,
@@ -2427,6 +2430,226 @@
     return toWebSocketUrl(backendBase, config && config.services && config.services.wispPath);
   }
 
+  function resolveProxyRequestUrl(config) {
+    var explicitPath = cleanText(config && config.services && config.services.proxyRequest) || "/api/proxy/request";
+    var backendBase = normalizeBase(config && config.backendBase);
+    var backendApi = getBackendApi();
+    if (!backendBase && backendApi && typeof backendApi.getBaseUrl === "function") {
+      backendBase = normalizeBase(backendApi.getBaseUrl());
+    }
+
+    try {
+      return new URL(explicitPath, backendBase || window.location.origin).toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function cloneProxyRequestBody(body) {
+    if (!body) {
+      return Promise.resolve(undefined);
+    }
+    if (body instanceof ArrayBuffer) {
+      return Promise.resolve(body.slice(0));
+    }
+    if (typeof ArrayBuffer !== "undefined" && ArrayBuffer.isView && ArrayBuffer.isView(body)) {
+      return Promise.resolve(body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength));
+    }
+    if (typeof Blob !== "undefined" && body instanceof Blob) {
+      return body.arrayBuffer();
+    }
+    if (typeof ReadableStream !== "undefined" && body instanceof ReadableStream) {
+      return new Response(body).arrayBuffer();
+    }
+    return Promise.resolve(body);
+  }
+
+  function normalizeProxyHeaders(headers) {
+    if (!headers) return {};
+
+    var flattened = {};
+    if (typeof Headers !== "undefined" && headers instanceof Headers) {
+      headers.forEach(function (value, key) {
+        flattened[String(key || "").toLowerCase()] = String(value == null ? "" : value);
+      });
+      return flattened;
+    }
+
+    Object.keys(headers).forEach(function (key) {
+      var normalizedKey = String(key || "").trim().toLowerCase();
+      if (!normalizedKey) return;
+      var value = headers[key];
+      if (Array.isArray(value)) {
+        flattened[normalizedKey] = value.map(function (entry) {
+          return String(entry == null ? "" : entry);
+        }).join(", ");
+        return;
+      }
+      flattened[normalizedKey] = String(value == null ? "" : value);
+    });
+    return flattened;
+  }
+
+  function collectProxyResponseHeaders(headers) {
+    var collected = {};
+    if (!headers || typeof headers.forEach !== "function") {
+      return collected;
+    }
+
+    headers.forEach(function (value, key) {
+      collected[String(key || "").toLowerCase()] = String(value == null ? "" : value);
+    });
+    return collected;
+  }
+
+  function getProxyStatusText(response) {
+    if (!response || !response.headers || typeof response.headers.get !== "function") {
+      return "";
+    }
+
+    return (
+      cleanText(response.headers.get("x-antarctic-proxy-status-text")) ||
+      cleanText(response.headers.get("x-palladium-proxy-status-text")) ||
+      cleanText(response.statusText)
+    );
+  }
+
+  function probeWispTransport(wispUrl) {
+    if (!wispUrl || typeof window.WebSocket !== "function") {
+      return Promise.resolve(false);
+    }
+
+    return new Promise(function (resolve) {
+      var settled = false;
+      var socket = null;
+      var timer = window.setTimeout(finishFalse, 2200);
+
+      function cleanup() {
+        if (timer) {
+          window.clearTimeout(timer);
+          timer = 0;
+        }
+        if (socket) {
+          socket.onopen = null;
+          socket.onerror = null;
+          socket.onclose = null;
+        }
+      }
+
+      function finish(value) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(Boolean(value));
+      }
+
+      function finishFalse() {
+        try {
+          if (socket && socket.readyState === window.WebSocket.CONNECTING) {
+            socket.close();
+          }
+        } catch (error) {
+          // Ignore best-effort close failures.
+        }
+        finish(false);
+      }
+
+      try {
+        socket = new window.WebSocket(wispUrl);
+      } catch (error) {
+        finish(false);
+        return;
+      }
+
+      socket.onopen = function () {
+        try {
+          socket.close();
+        } catch (error) {
+          // Ignore best-effort close failures.
+        }
+        finish(true);
+      };
+      socket.onerror = function () {
+        finish(false);
+      };
+      socket.onclose = function () {
+        finish(false);
+      };
+    });
+  }
+
+  function createHttpProxyTransport(config) {
+    var proxyRequestUrl = resolveProxyRequestUrl(config);
+
+    return {
+      ready: false,
+      init: function () {
+        if (!proxyRequestUrl) {
+          return Promise.reject(new Error("No backend proxy request endpoint is configured."));
+        }
+        this.ready = true;
+        return Promise.resolve();
+      },
+      request: function (remote, method, body, headers, signal) {
+        return cloneProxyRequestBody(body).then(function (upstreamBody) {
+          var requestUrl = new URL(proxyRequestUrl);
+          requestUrl.searchParams.set("url", remote.toString());
+          return window.fetch(requestUrl.toString(), {
+            method: "POST",
+            headers: {
+              "content-type": "application/octet-stream",
+              "x-antarctic-proxy-method": String(method || "GET").toUpperCase(),
+              "x-antarctic-proxy-headers": JSON.stringify(normalizeProxyHeaders(headers))
+            },
+            body: ["GET", "HEAD"].indexOf(String(method || "GET").toUpperCase()) === -1 ? upstreamBody : undefined,
+            signal: signal || undefined,
+            credentials: "same-origin"
+          });
+        }).then(function (response) {
+          var responseHeaders = collectProxyResponseHeaders(response.headers);
+          var status = Number(response.status || 502);
+          if ([101, 204, 205, 304].indexOf(status) !== -1) {
+            return {
+              body: undefined,
+              headers: responseHeaders,
+              status: status,
+              statusText: getProxyStatusText(response)
+            };
+          }
+
+          return response.arrayBuffer().then(function (buffer) {
+            return {
+              body: buffer,
+              headers: responseHeaders,
+              status: status,
+              statusText: getProxyStatusText(response)
+            };
+          });
+        });
+      },
+      connect: function (remote, protocols, requestHeaders, onopen, onmessage, onclose, onerror) {
+        var message =
+          "WebSocket proxy transport is unavailable because the backend Wisp websocket could not be reached.";
+        window.setTimeout(function () {
+          if (typeof onerror === "function") {
+            onerror(new Error(message));
+          }
+          if (typeof onclose === "function") {
+            onclose(1011, message);
+          }
+        }, 0);
+        return [
+          function () {},
+          function () {
+            if (typeof onclose === "function") {
+              onclose(1000, "");
+            }
+          }
+        ];
+      }
+    };
+  }
+
   function setProxyHealth(ok, message, chipLabel) {
     state.proxyHealth = {
       ok: Boolean(ok),
@@ -2695,6 +2918,7 @@
 
       state.proxyRuntime.controller = null;
       state.proxyRuntime.ready = false;
+      state.proxyRuntime.transportMode = "";
       state.proxyRuntime.transportUrl = "";
       writePersistentValue(PROXY_STORAGE_VERSION_KEY, PROXY_STORAGE_VERSION);
     }).then(function () {
@@ -2709,8 +2933,9 @@
 
   function initializeProxyRuntime(config, allowRepair) {
     var wispUrl = resolveWispUrl(config);
-    if (!wispUrl) {
-      return Promise.reject(new Error("No backend Wisp websocket is configured."));
+    var proxyRequestUrl = resolveProxyRequestUrl(config);
+    if (!wispUrl && !proxyRequestUrl) {
+      return Promise.reject(new Error("No backend proxy transport is configured."));
     }
 
     if (!window.BareMux || typeof window.BareMux.BareMuxConnection !== "function") {
@@ -2730,11 +2955,26 @@
 
       return controller.init().then(function () {
         var mux = new window.BareMux.BareMuxConnection(BAREMUX_WORKER_PATH);
-        return mux.setTransport(LIBCURL_TRANSPORT_PATH, [{ wisp: wispUrl }]).then(function () {
-          state.proxyRuntime.controller = controller;
-          state.proxyRuntime.ready = true;
-          state.proxyRuntime.transportUrl = wispUrl;
-          return state.proxyRuntime;
+        return probeWispTransport(wispUrl).then(function (wispReachable) {
+          if (wispReachable) {
+            return mux.setTransport(LIBCURL_TRANSPORT_PATH, [{ wisp: wispUrl }]).then(function () {
+              state.proxyRuntime.controller = controller;
+              state.proxyRuntime.ready = true;
+              state.proxyRuntime.transportMode = "wisp";
+              state.proxyRuntime.transportUrl = wispUrl;
+              return state.proxyRuntime;
+            });
+          }
+
+          return mux
+            .setRemoteTransport(createHttpProxyTransport(config), proxyRequestUrl || "antarctic-http-fallback")
+            .then(function () {
+              state.proxyRuntime.controller = controller;
+              state.proxyRuntime.ready = true;
+              state.proxyRuntime.transportMode = "http-fallback";
+              state.proxyRuntime.transportUrl = proxyRequestUrl || "backend HTTP fallback";
+              return state.proxyRuntime;
+            });
         });
       });
     }).catch(function (error) {
