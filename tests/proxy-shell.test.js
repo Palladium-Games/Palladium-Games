@@ -161,6 +161,8 @@ test("settings shell keeps the sidebar on a fixed attached rail", () => {
   assert.match(settingsShellCss, /@media \(max-width: 1100px\)\s*\{[\s\S]*\.shell,\s*\.shell--sidebar-collapsed\s*\{[\s\S]*flex-direction:\s*row;/);
   assert.match(settingsShellCss, /\.shell--sidebar-collapsed \.shell-sidebar\s*\{[\s\S]*flex:\s*0 0 var\(--sidebar-collapsed-width\);/);
   assert.match(settingsShellCss, /\.shell-pane--active\.shell-pane--ai\s*\{[\s\S]*display:\s*grid;/);
+  assert.match(settingsShellCss, /\.shell-pane--account,\s*\.shell-pane--chat\s*\{[\s\S]*display:\s*none;/);
+  assert.doesNotMatch(settingsShellCss, /\.shell-pane--internal\.shell-pane--account,\s*\.shell-pane--internal\.shell-pane--chat\s*\{[^}]*display:\s*flex;/);
   assert.match(settingsShellCss, /\.ai-chat__composer\s*\{/);
   assert.match(settingsShellCss, /\.account-summary__hero\s*\{/);
   assert.match(settingsShellCss, /\.account-metric-card\s*\{/);

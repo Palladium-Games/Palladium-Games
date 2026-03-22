@@ -617,8 +617,6 @@
 
 .shell-pane--internal.shell-pane--account,
 .shell-pane--internal.shell-pane--chat {
-  display: flex;
-  flex-direction: column;
   min-height: 0;
   overflow: hidden;
   padding: 0.75rem clamp(1rem, 3.5vw, 2.5rem) 1rem;
@@ -628,6 +626,7 @@
 .shell-pane--active.shell-pane--chat {
   display: flex;
   flex-direction: column;
+  min-height: 0;
 }
 
 /* Discord-style step wizards (account + chat) */
