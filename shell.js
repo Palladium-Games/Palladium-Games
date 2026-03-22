@@ -1289,6 +1289,11 @@
   function setChatWizardStep(tab, pane, step) {
     if (!tab || !pane || !tab.chatState) return;
     var next = Math.max(1, Math.min(CHAT_WIZARD_STEPS, step));
+    if (pane.classList.contains("shell-pane--authenticated")) {
+      next = Math.max(2, next);
+    } else {
+      next = 1;
+    }
     tab.chatState.wizardStep = next;
     var steps = pane.querySelectorAll("[data-chat-step]");
     for (var i = 0; i < steps.length; i += 1) {
