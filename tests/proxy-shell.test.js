@@ -110,8 +110,10 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /function getChatModeConfig\(tab\)/);
   assert.match(shellScript, /function applyChatPaneMode\(tab, pane\)/);
   assert.match(shellScript, /function filterThreadsForChatMode\(threads, tab\)/);
-  assert.match(shellScript, /if \(pane\.classList\.contains\("shell-pane--authenticated"\)\) \{\s*next = Math\.max\(2, next\);\s*\} else \{\s*next = 1;\s*\}/);
-  assert.match(shellScript, /if \(\(tab\.chatState\.wizardStep \|\| 1\) < 2\) \{\s*setChatWizardStep\(tab, pane, 2\);/);
+  assert.match(shellScript, /var next = Math\.max\(2, Math\.min\(CHAT_WIZARD_STEPS, step\)\);/);
+  assert.match(shellScript, /if \(backBtn\) backBtn\.hidden = next <= 2;/);
+  assert.match(shellScript, /if \(nextBtn\) nextBtn\.hidden = true;/);
+  assert.match(shellScript, /if \(\(tab\.chatState\.wizardStep \|\| 2\) < 2\) \{\s*setChatWizardStep\(tab, pane, 2\);/);
   assert.match(shellScript, /incomingDirectRequestCount/);
   assert.match(shellScript, /var CHAT_MESSAGE_MAX_LENGTH = 2000;/);
   assert.match(shellScript, /function syncRoomInviteField\(pane\)/);

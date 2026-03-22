@@ -599,7 +599,7 @@
       chatState: {
         activeThreadId: "",
         pollHandle: 0,
-        wizardStep: 1
+        wizardStep: 2
       },
       gamesQuery: "",
       id: existingId || makeTabId(),
@@ -647,11 +647,13 @@
         tab.chatState = {
           activeThreadId: "",
           pollHandle: 0,
-          wizardStep: 1
+          wizardStep: 2
         };
       }
       tab.chatState.activeThreadId = "";
-      if (Number(tab.chatState.wizardStep || 1) > 2) {
+      if (Number(tab.chatState.wizardStep || 2) < 2) {
+        tab.chatState.wizardStep = 2;
+      } else if (Number(tab.chatState.wizardStep || 2) > 2) {
         tab.chatState.wizardStep = 2;
       }
     } else {
@@ -1288,12 +1290,7 @@
 
   function setChatWizardStep(tab, pane, step) {
     if (!tab || !pane || !tab.chatState) return;
-    var next = Math.max(1, Math.min(CHAT_WIZARD_STEPS, step));
-    if (pane.classList.contains("shell-pane--authenticated")) {
-      next = Math.max(2, next);
-    } else {
-      next = 1;
-    }
+    var next = Math.max(2, Math.min(CHAT_WIZARD_STEPS, step));
     tab.chatState.wizardStep = next;
     var steps = pane.querySelectorAll("[data-chat-step]");
     for (var i = 0; i < steps.length; i += 1) {
@@ -1307,8 +1304,8 @@
     }
     var backBtn = pane.querySelector("[data-chat-wizard-back]");
     var nextBtn = pane.querySelector("[data-chat-wizard-next]");
-    if (backBtn) backBtn.hidden = next <= 1;
-    if (nextBtn) nextBtn.hidden = next !== 1;
+    if (backBtn) backBtn.hidden = next <= 2;
+    if (nextBtn) nextBtn.hidden = true;
   }
 
   function wireChatWizard(tab, pane) {
@@ -1318,7 +1315,7 @@
     var nextBtn = pane.querySelector("[data-chat-wizard-next]");
     if (backBtn) {
       backBtn.addEventListener("click", function () {
-        var current = (tab.chatState && tab.chatState.wizardStep) || 1;
+        var current = (tab.chatState && tab.chatState.wizardStep) || 2;
         if (current === 3) {
           tab.chatState.activeThreadId = "";
           setChatWizardStep(tab, pane, 2);
@@ -1329,7 +1326,7 @@
     }
     if (nextBtn) {
       nextBtn.addEventListener("click", function () {
-        var current = (tab.chatState && tab.chatState.wizardStep) || 1;
+        var current = (tab.chatState && tab.chatState.wizardStep) || 2;
         setChatWizardStep(tab, pane, current + 1);
       });
     }
@@ -1936,7 +1933,9 @@
       syncChatMessageCounter(pane);
     }
 
-    if (typeof tab.chatState.wizardStep !== "number") tab.chatState.wizardStep = 1;
+    if (typeof tab.chatState.wizardStep !== "number" || tab.chatState.wizardStep < 2) {
+      tab.chatState.wizardStep = 2;
+    }
     bindGhostClickGuard(pane);
     wireChatWizard(tab, pane);
     bindSocialPaneListener(pane, function () {
@@ -2226,14 +2225,14 @@
 
       if (!authenticated) {
         tab.chatState.activeThreadId = "";
-        setChatWizardStep(tab, pane, 1);
+        setChatWizardStep(tab, pane, 2);
         renderChatThreads(pane, tab, emptyCommunityBootstrap());
         renderChatMessages(pane, null, [], "");
         setChatStatus(pane, modeConfig.unauthenticatedStatus);
         return null;
       }
 
-      if ((tab.chatState.wizardStep || 1) < 2) {
+      if ((tab.chatState.wizardStep || 2) < 2) {
         setChatWizardStep(tab, pane, 2);
       }
 
@@ -2248,15 +2247,13 @@
 
       renderChatThreads(pane, tab, bootstrap);
       if (!tab.chatState.activeThreadId) {
-        if ((tab.chatState.wizardStep || 1) > 2) {
+        if ((tab.chatState.wizardStep || 2) > 2) {
           setChatWizardStep(tab, pane, 2);
         }
         renderChatMessages(pane, null, [], community.user && community.user.id);
         setChatStatus(
           pane,
-          message || ((tab.chatState.wizardStep || 1) <= 1
-            ? modeConfig.browseStatus
-            : modeConfig.emptyStatus)
+          message || modeConfig.emptyStatus
         );
         return null;
       }
