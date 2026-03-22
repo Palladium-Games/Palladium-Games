@@ -590,14 +590,17 @@
   }
 
   function isChatViewName(value) {
-    return value === "chat" || value === "dms" || value === "groupchats";
+    return value === "chat" || value === "chats" || value === "dms" || value === "groupchats";
   }
 
   function getChatMode(tab) {
-    if (!tab || tab.view === "dms") {
+    if (tab && tab.view === "dms") {
       return "dms";
     }
-    return "groupchats";
+    if (tab && tab.view === "groupchats") {
+      return "groupchats";
+    }
+    return "chats";
   }
 
   function createTab(uri, existingId) {
@@ -1365,6 +1368,29 @@
 
   function getChatModeConfig(tab) {
     var mode = getChatMode(tab);
+    if (mode === "chats") {
+      return {
+        mode: "chats",
+        routeUri: "antarctic://chats",
+        introTitle: "Chats",
+        introLede: "Jump between DMs and group chats, create rooms, invite people, and keep every conversation in one place.",
+        listEyebrow: "Chats",
+        listTitle: "All Conversations",
+        nextLabel: "Open chats",
+        emptyThreadsTitle: "No conversations yet.",
+        emptyThreadsBody: "Send a DM request or create a room to get things moving.",
+        emptySelectionBody: "Pick a DM or room from the left.",
+        browseStatus: "Continue to browse your conversations.",
+        emptyStatus: "Send a DM request or create a room to get things moving.",
+        unauthenticatedStatus: "Log in from Account to use chats.",
+        chattingStatus: "Chatting as @",
+        showRoomForm: true,
+        showDirectForm: true,
+        showIncomingRequests: true,
+        showRoomCatalog: true
+      };
+    }
+
     if (mode === "dms") {
       return {
         mode: "dms",
@@ -1390,8 +1416,8 @@
 
     return {
       mode: "groupchats",
-      routeUri: "antarctic://groupchats",
-      introTitle: "Group Chats",
+      routeUri: "antarctic://chats",
+      introTitle: "Chats",
       introLede: "Create public or private rooms, invite people, and hang out with other Antarctic users.",
       listEyebrow: "Rooms",
       listTitle: "Group Chats",
@@ -1448,7 +1474,14 @@
 
   function filterThreadsForChatMode(threads, tab) {
     var list = Array.isArray(threads) ? threads : [];
-    return getChatMode(tab) === "dms" ? list.filter(isDirectThread) : list.filter(isRoomThread);
+    var mode = getChatMode(tab);
+    if (mode === "dms") {
+      return list.filter(isDirectThread);
+    }
+    if (mode === "groupchats") {
+      return list.filter(isRoomThread);
+    }
+    return list;
   }
 
   function bindSocialPaneListener(pane, callback) {
@@ -1635,11 +1668,7 @@
   }
 
   function getPrimaryCommunityRoute(bootstrap) {
-    var stats = bootstrap && bootstrap.stats ? bootstrap.stats : emptyCommunityBootstrap().stats;
-    if (Number(stats.incomingDirectRequestCount || 0) > 0 || Number(stats.directCount || 0) > 0) {
-      return "antarctic://chats";
-    }
-    return "antarctic://groupchats";
+    return "antarctic://chats";
   }
 
   function createAccountPane(tab) {
@@ -1758,7 +1787,6 @@
         "</div>" +
         '<div class="account-summary__actions">' +
           '<button type="button" class="toolbar-button toolbar-button--accent" data-account-route="' + escapeHtml(primaryCommunityRoute) + '">Open community</button>' +
-          '<button type="button" class="toolbar-button" data-account-route="antarctic://groupchats">Group chats</button>' +
           '<button type="button" class="toolbar-button" data-account-route="antarctic://chats">Chats</button>' +
           '<button type="button" class="toolbar-button" data-account-action="logout">Log out</button>' +
         "</div>" +
@@ -1809,7 +1837,6 @@
           ? "Review " + escapeHtml(String(incomingCount)) + " incoming DMs"
           : "Jump into " + escapeHtml(String(stats.threadCount || 0)) + " chats") +
       "</button>" +
-      '<button type="button" class="toolbar-button" data-account-route="antarctic://groupchats">Open group chats</button>' +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://chats">Open chats</button>' +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://games">Explore games</button>' +
       '<button type="button" class="toolbar-button" data-account-route="antarctic://home">Back home</button>';
@@ -4515,8 +4542,8 @@
       "- `antarctic://account`",
       "- `antarctic://chats`",
       "- `antarctic://dms` as a legacy shortcut to chats",
-      "- `antarctic://groupchats`",
-      "- `antarctic://chat` as a legacy shortcut to group chats",
+      "- `antarctic://groupchats` as a legacy shortcut to chats",
+      "- `antarctic://chat` as a legacy shortcut to chats",
       "- a normal URL like `https://duckduckgo.com`",
       "- or plain search terms like `horror games`"
     ].join("\n");

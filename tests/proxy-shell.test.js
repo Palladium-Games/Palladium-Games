@@ -51,7 +51,6 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /antarctic:\/\/settings/);
   assert.match(shellPage, /antarctic:\/\/account/);
   assert.match(shellPage, /antarctic:\/\/chats/);
-  assert.match(shellPage, /antarctic:\/\/groupchats/);
   assert.match(shellPage, /Open Antarctic In About:Blank/);
   assert.match(shellPage, /antarctic:\/\/ai/);
   assert.match(shellPage, /Cloud Saves/);
@@ -139,7 +138,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /if \(tab && pane && tab\.accountState && tab\.accountState\.allowAutoOpen\) \{\s*setAccountWizardStep\(tab, pane, 2\);\s*tab\.accountState\.allowAutoOpen = false;\s*\}/);
   assert.match(shellScript, /if \(current === 3\) \{\s*tab\.chatState\.activeThreadId = "";\s*setChatWizardStep\(tab, pane, 2\);/);
   assert.doesNotMatch(shellScript, /if \(!tab\.chatState\.activeThreadId && threads\.length\) \{\s*tab\.chatState\.activeThreadId = String\(threads\[0\]\.id\);\s*\}/);
-  assert.match(shellScript, /legacy shortcut to group chats/);
+  assert.match(shellScript, /legacy shortcut to chats/);
   assert.match(shellScript, /socialApi\.getBootstrap\(Boolean\(forceRefresh\)\)/);
   assert.match(shellScript, /if \(!forceRefresh && schedulePaneSyncAfterInteraction\(pane, function \(\) \{\s*syncAccountPane\(pane, tab, message, forceRefresh\);/);
   assert.match(shellScript, /if \(!forceRefresh && schedulePaneSyncAfterInteraction\(pane, function \(\) \{\s*syncChatPane\(pane, tab, message, forceRefresh\);/);

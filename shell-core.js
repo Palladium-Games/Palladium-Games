@@ -7,9 +7,9 @@
     ai: "AI",
     account: "Account",
     chats: "Chats",
-    chat: "Group Chats",
+    chat: "Chats",
     dms: "Chats",
-    groupchats: "Group Chats",
+    groupchats: "Chats",
     settings: "Settings",
     gamelauncher: "Game Launcher"
   };
@@ -43,11 +43,8 @@
 
   function buildInternalUri(route) {
     var normalized = cleanText(route).toLowerCase();
-    if (normalized === "dms") {
+    if (normalized === "dms" || normalized === "chat" || normalized === "groupchats") {
       normalized = "chats";
-    }
-    if (normalized === "chat") {
-      normalized = "groupchats";
     }
     if (normalized === "newtab") {
       normalized = "home";
@@ -126,17 +123,13 @@
         };
       }
 
-      if (route === "chat") {
-        route = "groupchats";
-      }
-
-      if (route === "dms") {
+      if (route === "chat" || route === "groupchats" || route === "dms") {
         route = "chats";
       }
 
       if (route === "chats") {
         return {
-          view: "dms",
+          view: "chats",
           route: "chats",
           title: INTERNAL_ROUTES.chats,
           uri: buildInternalUri("chats")

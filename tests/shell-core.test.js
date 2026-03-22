@@ -46,25 +46,25 @@ test("internal Antarctic routes normalize into view descriptors", () => {
   assert.equal(account.title, "Account");
   assert.equal(account.uri, "antarctic://account");
 
-  assert.equal(chats.view, "dms");
+  assert.equal(chats.view, "chats");
   assert.equal(chats.route, "chats");
   assert.equal(chats.title, "Chats");
   assert.equal(chats.uri, "antarctic://chats");
 
-  assert.equal(dms.view, "dms");
+  assert.equal(dms.view, "chats");
   assert.equal(dms.route, "chats");
   assert.equal(dms.title, "Chats");
   assert.equal(dms.uri, "antarctic://chats");
 
-  assert.equal(groupChats.view, "groupchats");
-  assert.equal(groupChats.route, "groupchats");
-  assert.equal(groupChats.title, "Group Chats");
-  assert.equal(groupChats.uri, "antarctic://groupchats");
+  assert.equal(groupChats.view, "chats");
+  assert.equal(groupChats.route, "chats");
+  assert.equal(groupChats.title, "Chats");
+  assert.equal(groupChats.uri, "antarctic://chats");
 
-  assert.equal(legacyChat.view, "groupchats");
-  assert.equal(legacyChat.route, "groupchats");
-  assert.equal(legacyChat.title, "Group Chats");
-  assert.equal(legacyChat.uri, "antarctic://groupchats");
+  assert.equal(legacyChat.view, "chats");
+  assert.equal(legacyChat.route, "chats");
+  assert.equal(legacyChat.title, "Chats");
+  assert.equal(legacyChat.uri, "antarctic://chats");
 
   assert.equal(settings.view, "settings");
   assert.equal(settings.route, "settings");
