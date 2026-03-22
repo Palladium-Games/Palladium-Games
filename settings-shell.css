@@ -1638,7 +1638,7 @@
 
 .theme-chip__content {
   display: grid;
-  gap: 0.18rem;
+  gap: 0;
 }
 
 .theme-chip__name,
@@ -1647,7 +1647,6 @@
   font-weight: 700;
 }
 
-.theme-chip__meta,
 .preset-chip__meta,
 .settings-preview__meta,
 .settings-field__hint {

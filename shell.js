@@ -2449,7 +2449,6 @@
     var details = THEME_DETAILS[key] || {};
     return {
       label: cleanText(details.label) || fallbackHumanizeThemeName(key),
-      description: cleanText(details.description) || (fallbackHumanizeThemeName(key) + " palette"),
       preview: cleanText(details.preview) || "linear-gradient(135deg, #08101b 0%, #123a58 55%, #6bb6ff 100%)",
       swatches: Array.isArray(details.swatches) && details.swatches.length ? details.swatches.slice(0, 3) : ["#3b8cff", "#6bb6ff", "#a8d4ff"]
     };
@@ -2502,7 +2501,6 @@
           "</span>" +
           '<span class="theme-chip__content">' +
             '<span class="theme-chip__name">' + escapeHtml(details.label) + "</span>" +
-            '<span class="theme-chip__meta">' + escapeHtml(details.description) + "</span>" +
           "</span>" +
         "</button>"
       );

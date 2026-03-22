@@ -107,6 +107,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /function renderAccountMetrics\(pane, bootstrap\)/);
   assert.match(shellScript, /function renderAccountQuickActions\(pane, session, bootstrap\)/);
   assert.match(shellScript, /function renderChatSessionCard\(pane, community\)/);
+  assert.doesNotMatch(shellScript, /theme-chip__meta/);
   assert.match(shellScript, /function getChatModeConfig\(tab\)/);
   assert.match(shellScript, /function applyChatPaneMode\(tab, pane\)/);
   assert.match(shellScript, /function filterThreadsForChatMode\(threads, tab\)/);
