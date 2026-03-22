@@ -64,6 +64,9 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /data-role="chat-session"/);
   assert.match(shellPage, /data-role="chat-incoming-requests"/);
   assert.match(shellPage, /name="room-visibility"/);
+  assert.match(shellPage, /chat-visibility-toggle/);
+  assert.match(shellPage, /segmented-control__button">Public</);
+  assert.match(shellPage, /segmented-control__button">Private</);
   assert.match(shellPage, /data-role="room-invites-field"/);
   assert.match(shellPage, /name="room-invites"/);
   assert.match(shellPage, /data-role="chat-message-counter"/);
@@ -107,6 +110,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /function getChatModeConfig\(tab\)/);
   assert.match(shellScript, /function applyChatPaneMode\(tab, pane\)/);
   assert.match(shellScript, /function filterThreadsForChatMode\(threads, tab\)/);
+  assert.match(shellScript, /if \(\(tab\.chatState\.wizardStep \|\| 1\) < 2\) \{\s*setChatWizardStep\(tab, pane, 2\);/);
   assert.match(shellScript, /incomingDirectRequestCount/);
   assert.match(shellScript, /var CHAT_MESSAGE_MAX_LENGTH = 2000;/);
   assert.match(shellScript, /function syncRoomInviteField\(pane\)/);

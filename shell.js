@@ -1898,12 +1898,12 @@
         event.preventDefault();
         submitRoomCreate(tab, pane);
       });
-      var visibilityField = roomForm.querySelector('[name="room-visibility"]');
-      if (visibilityField) {
-        visibilityField.addEventListener("change", function () {
+      roomForm.addEventListener("change", function (event) {
+        var target = event.target;
+        if (target && target.name === "room-visibility") {
           syncRoomInviteField(pane);
-        });
-      }
+        }
+      });
       syncRoomInviteField(pane);
     }
 
@@ -2228,6 +2228,10 @@
         return null;
       }
 
+      if ((tab.chatState.wizardStep || 1) < 2) {
+        setChatWizardStep(tab, pane, 2);
+      }
+
       if (tab.chatState.activeThreadId) {
         var stillExists = threads.some(function (thread) {
           return String(thread.id) === String(tab.chatState.activeThreadId);
@@ -2276,7 +2280,7 @@
     var form = pane.querySelector('[data-role="chat-room-form"]');
     if (!socialApi || !form) return;
     var input = form.querySelector('[name="room-name"]');
-    var visibilityField = form.querySelector('[name="room-visibility"]');
+    var visibilityField = form.querySelector('[name="room-visibility"]:checked') || form.querySelector('[name="room-visibility"]');
     var invitesField = form.querySelector('[name="room-invites"]');
     var value = cleanText(input && input.value);
     var visibility = cleanText(visibilityField && visibilityField.value).toLowerCase() === "private" ? "private" : "public";
@@ -2292,7 +2296,8 @@
     }).then(function (payload) {
       if (input) input.value = "";
       if (invitesField) invitesField.value = "";
-      if (visibilityField) visibilityField.value = "public";
+      var publicField = form.querySelector('[name="room-visibility"][value="public"]');
+      if (publicField) publicField.checked = true;
       syncRoomInviteField(pane);
       if (payload && payload.thread && payload.thread.id) {
         tab.chatState.activeThreadId = String(payload.thread.id);
@@ -2524,7 +2529,7 @@
     if (!pane) return;
     var roomForm = pane.querySelector('[data-role="chat-room-form"]');
     if (!roomForm) return;
-    var visibilityField = roomForm.querySelector('[name="room-visibility"]');
+    var visibilityField = roomForm.querySelector('[name="room-visibility"]:checked') || roomForm.querySelector('[name="room-visibility"]');
     var inviteField = roomForm.querySelector('[data-role="room-invites-field"]');
     var inviteInput = roomForm.querySelector('[name="room-invites"]');
     if (!visibilityField || !inviteField) return;

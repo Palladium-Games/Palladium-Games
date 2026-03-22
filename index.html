@@ -572,13 +572,19 @@
                     <span class="settings-field__label">Create room</span>
                     <input class="settings-field__input" type="text" name="room-name" placeholder="Late Night Games" autocomplete="off" />
                   </label>
-                  <label class="settings-field">
+                  <div class="settings-field settings-field--segmented">
                     <span class="settings-field__label">Visibility</span>
-                    <select class="settings-field__input" name="room-visibility">
-                      <option value="public">Public</option>
-                      <option value="private">Private</option>
-                    </select>
-                  </label>
+                    <div class="segmented-control chat-visibility-toggle" role="radiogroup" aria-label="Room visibility">
+                      <label class="segmented-control__option">
+                        <input class="segmented-control__input" type="radio" name="room-visibility" value="public" checked />
+                        <span class="segmented-control__button">Public</span>
+                      </label>
+                      <label class="segmented-control__option">
+                        <input class="segmented-control__input" type="radio" name="room-visibility" value="private" />
+                        <span class="segmented-control__button">Private</span>
+                      </label>
+                    </div>
+                  </div>
                   <label class="settings-field" data-role="room-invites-field" hidden>
                     <span class="settings-field__label">Invite usernames</span>
                     <input class="settings-field__input" type="text" name="room-invites" placeholder="guest, aurora" autocomplete="off" />

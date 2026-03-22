@@ -1693,6 +1693,81 @@
   box-shadow: 0 0 0 4px rgba(88, 160, 255, 0.14);
 }
 
+.settings-field--segmented {
+  gap: 0.6rem;
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  padding: 0.4rem;
+  border-radius: calc(var(--radius-md) + 0.15rem);
+  background:
+    linear-gradient(180deg, rgba(9, 17, 28, 0.92), rgba(14, 24, 38, 0.88)),
+    rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.segmented-control__option {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+
+.segmented-control__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.segmented-control__button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.9rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: calc(var(--radius-md) - 0.05rem);
+  border: 1px solid transparent;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-align: center;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
+}
+
+.segmented-control__option:hover .segmented-control__button {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+.segmented-control__input:checked + .segmented-control__button {
+  color: #f5f9ff;
+  background:
+    linear-gradient(135deg, rgba(45, 125, 255, 0.3), rgba(88, 160, 255, 0.12)),
+    rgba(255, 255, 255, 0.05);
+  border-color: rgba(88, 160, 255, 0.34);
+  box-shadow:
+    0 10px 24px rgba(12, 24, 42, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.segmented-control__input:focus-visible + .segmented-control__button {
+  border-color: rgba(88, 160, 255, 0.52);
+  box-shadow:
+    0 0 0 4px rgba(88, 160, 255, 0.14),
+    0 10px 24px rgba(12, 24, 42, 0.28);
+}
+
 .settings-actions {
   display: flex;
   flex-wrap: wrap;
