@@ -1281,7 +1281,7 @@
             "</button>"
           );
         }).join("")
-      : '<div class="empty-state"><strong>No joined chats yet.</strong><span>Create a room or start a DM.</span></div>';
+      : '<div class="empty-state empty-state--stacked"><strong>No joined chats yet.</strong><span>Create a room or start a DM.</span></div>';
 
     roomCatalogEl.innerHTML =
       '<div class="chat-room-catalog__title">Public rooms</div>' +
@@ -1299,7 +1299,7 @@
               "</div>"
             );
           }).join("")
-        : '<div class="empty-state"><strong>No rooms yet.</strong><span>Create the first one above.</span></div>');
+        : '<div class="empty-state empty-state--stacked"><strong>No rooms yet.</strong><span>Create the first one above.</span></div>');
   }
 
   function renderChatMessages(pane, thread, messages) {

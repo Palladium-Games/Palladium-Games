@@ -1004,6 +1004,22 @@
   min-height: 4.5rem;
 }
 
+/* Chat thread / room catalog hints: two clear sentences with periods */
+.empty-state--stacked strong,
+.empty-state--stacked span {
+  display: block;
+}
+
+.empty-state--stacked strong {
+  color: var(--text);
+  font-weight: 700;
+  margin-bottom: 0.4rem;
+}
+
+.empty-state--stacked span {
+  line-height: 1.5;
+}
+
 .game-launcher__cloud-status {
   font-size: 0.75rem;
   color: var(--muted);
