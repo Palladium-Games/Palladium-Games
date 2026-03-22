@@ -7,6 +7,7 @@ const FRONTEND_DIR = path.resolve(__dirname, "..");
 
 test("frontend ships static Scramjet proxy assets", () => {
   const requiredFiles = [
+    "netlify.toml",
     "settings-shell.css",
     "site-storage.js",
     "social-client.js",
@@ -22,6 +23,16 @@ test("frontend ships static Scramjet proxy assets", () => {
   for (const relativePath of requiredFiles) {
     assert.ok(fs.existsSync(path.join(FRONTEND_DIR, relativePath)), `Missing proxy asset: ${relativePath}`);
   }
+});
+
+test("frontend ships a Netlify config for the static shell", () => {
+  const netlifyConfig = fs.readFileSync(path.join(FRONTEND_DIR, "netlify.toml"), "utf8");
+
+  assert.match(netlifyConfig, /\[build\]\s*[\s\S]*publish = "\."/);
+  assert.match(netlifyConfig, /\[build\]\s*[\s\S]*command = "npm run verify"/);
+  assert.match(netlifyConfig, /\[\[headers\]\]\s*[\s\S]*for = "\/sw\.js"[\s\S]*Service-Worker-Allowed = "\/"/);
+  assert.match(netlifyConfig, /\[\[headers\]\]\s*[\s\S]*for = "\/scram\/\*"[\s\S]*immutable/);
+  assert.match(netlifyConfig, /\[\[redirects\]\]\s*[\s\S]*from = "\/\*"[\s\S]*to = "\/index\.html"[\s\S]*status = 200/);
 });
 
 test("frontend shell references Scramjet assets and sidebar controls", () => {
