@@ -52,6 +52,58 @@
     "ember",
     "neon"
   ];
+  var AI_COUNT_WORDS = {
+    a: 1,
+    an: 1,
+    one: 1,
+    two: 2,
+    three: 3,
+    four: 4,
+    five: 5,
+    six: 6,
+    seven: 7,
+    eight: 8,
+    nine: 9,
+    ten: 10,
+    eleven: 11,
+    twelve: 12
+  };
+  var AI_CATALOG_STOPWORDS = {
+    a: true,
+    all: true,
+    an: true,
+    and: true,
+    any: true,
+    best: true,
+    do: true,
+    five: true,
+    for: true,
+    four: true,
+    from: true,
+    game: true,
+    games: true,
+    give: true,
+    have: true,
+    i: true,
+    in: true,
+    list: true,
+    me: true,
+    of: true,
+    recommendations: true,
+    recommend: true,
+    show: true,
+    six: true,
+    some: true,
+    suggest: true,
+    ten: true,
+    the: true,
+    three: true,
+    two: true,
+    what: true,
+    which: true,
+    with: true,
+    you: true
+  };
   var THEME_DETAILS = {
     "default": {
       label: "Default",
@@ -3575,6 +3627,204 @@
     }
   }
 
+  function normalizeCatalogAiText(value) {
+    return String(value == null ? "" : value)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  }
+
+  function tokenizeCatalogAiText(value) {
+    var normalized = normalizeCatalogAiText(value);
+    return normalized ? normalized.split(/\s+/).filter(Boolean) : [];
+  }
+
+  function extractRequestedGameCount(userText) {
+    var normalized = normalizeCatalogAiText(userText);
+    if (!normalized) return 0;
+
+    var numberMatch = normalized.match(/\b(\d{1,2})\b/);
+    if (numberMatch) {
+      return Math.max(0, Math.min(12, Number(numberMatch[1]) || 0));
+    }
+
+    var tokens = normalized.split(/\s+/);
+    for (var index = 0; index < tokens.length; index += 1) {
+      if (AI_COUNT_WORDS[tokens[index]]) {
+        return AI_COUNT_WORDS[tokens[index]];
+      }
+    }
+
+    return 0;
+  }
+
+  function findCatalogCategoryInQuery(userText, games) {
+    var normalizedQuery = normalizeCatalogAiText(userText);
+    if (!normalizedQuery || !Array.isArray(games)) return "";
+
+    var seen = {};
+    for (var index = 0; index < games.length; index += 1) {
+      var category = String(games[index] && games[index].category ? games[index].category : "").trim();
+      if (!category) continue;
+
+      var normalizedCategory = normalizeCatalogAiText(category);
+      if (!normalizedCategory || seen[normalizedCategory]) continue;
+      seen[normalizedCategory] = category;
+
+      if (
+        normalizedQuery.indexOf(normalizedCategory) !== -1 ||
+        (normalizedCategory.slice(-1) === "s" && normalizedQuery.indexOf(normalizedCategory.slice(0, -1)) !== -1) ||
+        normalizedQuery.indexOf(normalizedCategory + "s") !== -1
+      ) {
+        return category;
+      }
+    }
+
+    return "";
+  }
+
+  function scoreCatalogGameForAi(game, queryTokens, matchedCategory) {
+    if (!game) return 0;
+
+    var score = 0;
+    if (matchedCategory && String(game.category || "").toLowerCase() === String(matchedCategory).toLowerCase()) {
+      score += 50;
+    }
+
+    if (!queryTokens.length) {
+      return score;
+    }
+
+    var title = normalizeCatalogAiText(game.title);
+    var author = normalizeCatalogAiText(game.author);
+    var category = normalizeCatalogAiText(game.category);
+    var pathValue = normalizeCatalogAiText(game.path);
+
+    queryTokens.forEach(function (token) {
+      if (!token || AI_CATALOG_STOPWORDS[token]) return;
+      if (title.indexOf(token) !== -1) score += 10;
+      if (author.indexOf(token) !== -1) score += 6;
+      if (category.indexOf(token) !== -1) score += 8;
+      if (pathValue.indexOf(token) !== -1) score += 4;
+    });
+
+    return score;
+  }
+
+  function buildShellHelpAiResponse(userText) {
+    var normalizedQuery = normalizeCatalogAiText(userText);
+    if (!normalizedQuery) {
+      return "";
+    }
+
+    var mentionsAddressBar =
+      normalizedQuery.indexOf("address bar") !== -1 ||
+      normalizedQuery.indexOf("url bar") !== -1 ||
+      normalizedQuery.indexOf("search bar") !== -1 ||
+      normalizedQuery.indexOf("uri") !== -1 ||
+      normalizedQuery.indexOf("address") !== -1;
+    var mentionsShellAction =
+      /\b(type|enter|open|navigate|go|search|use|what can)\b/.test(normalizedQuery) ||
+      normalizedQuery.indexOf("antarctic ") !== -1 ||
+      normalizedQuery.indexOf("antarctic://") !== -1;
+
+    if (!mentionsAddressBar || !mentionsShellAction) {
+      return "";
+    }
+
+    return [
+      "In the Antarctic address bar, you can type:",
+      "- `antarctic://home` or `antarctic://newtab`",
+      "- `antarctic://games`",
+      "- `antarctic://ai`",
+      "- `antarctic://settings`",
+      "- `antarctic://account`",
+      "- `antarctic://chat`",
+      "- a normal URL like `https://duckduckgo.com`",
+      "- or plain search terms like `horror games`"
+    ].join("\n");
+  }
+
+  function buildCatalogAiResponseFromCatalog(userText, games) {
+    var normalizedQuery = normalizeCatalogAiText(userText);
+    if (!normalizedQuery || !Array.isArray(games) || !games.length) {
+      return "";
+    }
+
+    var matchedCategory = findCatalogCategoryInQuery(normalizedQuery, games);
+    var hasGameIntent =
+      /\b(game|games|catalog|library|play|recommend|suggest|show|find|list|genre|category)\b/.test(normalizedQuery) ||
+      Boolean(matchedCategory);
+    if (!hasGameIntent) {
+      return "";
+    }
+
+    var queryTokens = tokenizeCatalogAiText(normalizedQuery);
+    var scored = games.map(function (game) {
+      return {
+        game: game,
+        score: scoreCatalogGameForAi(game, queryTokens, matchedCategory)
+      };
+    }).filter(function (entry) {
+      return matchedCategory ? entry.score >= 50 : entry.score > 0;
+    });
+
+    if (!scored.length && matchedCategory) {
+      scored = games.filter(function (game) {
+        return String(game && game.category ? game.category : "").toLowerCase() === String(matchedCategory).toLowerCase();
+      }).map(function (game) {
+        return { game: game, score: 50 };
+      });
+    }
+
+    if (!scored.length) {
+      return "";
+    }
+
+    scored.sort(function (left, right) {
+      if (right.score !== left.score) {
+        return right.score - left.score;
+      }
+      return String(left.game && left.game.title ? left.game.title : "").localeCompare(
+        String(right.game && right.game.title ? right.game.title : "")
+      );
+    });
+
+    var matches = scored.map(function (entry) {
+      return entry.game;
+    });
+    var wantsCountOnly = /\bhow many\b/.test(normalizedQuery);
+    var wantsAll = /\b(all|every|full)\b/.test(normalizedQuery);
+    var requestedCount = extractRequestedGameCount(normalizedQuery);
+    var limit = wantsAll ? matches.length : Math.max(1, Math.min(matches.length, requestedCount || (matchedCategory ? 5 : 6)));
+    var selected = matches.slice(0, limit);
+
+    if (wantsCountOnly && matchedCategory) {
+      return "There are **" + matches.length + "** " + matchedCategory.toLowerCase() + " games in the Antarctic catalog.";
+    }
+
+    var intro;
+    if (matchedCategory) {
+      intro = "Here " + (selected.length === 1 ? "is" : "are") + " **" + selected.length + "** " + matchedCategory.toLowerCase() + " " + (selected.length === 1 ? "game" : "games") + " from the Antarctic catalog:";
+    } else {
+      intro = "Here " + (selected.length === 1 ? "is" : "are") + " **" + selected.length + "** game" + (selected.length === 1 ? "" : "s") + " from the Antarctic catalog that match your request:";
+    }
+
+    var lines = [intro];
+    selected.forEach(function (game) {
+      lines.push("- **" + game.title + "**" + (game.category ? " (" + game.category + ")" : ""));
+    });
+
+    if (matchedCategory && selected.length < matches.length) {
+      lines.push("");
+      lines.push("There are **" + matches.length + "** total " + matchedCategory.toLowerCase() + " games in the catalog.");
+    }
+
+    lines.push("");
+    lines.push("I only used the local Antarctic catalog for this answer.");
+    return lines.join("\n");
+  }
+
   function extractErrorText(rawText) {
     var trimmed = String(rawText || "").trim();
     if (!trimmed) return "";
@@ -3744,8 +3994,8 @@
       lines.push("When answering about games, use ONLY this catalog.");
       lines.push("Catalog:");
       lines.push(
-        games.slice(0, 16).map(function (game) {
-          return "- " + game.title + " | " + game.author + " | " + game.path;
+        games.map(function (game) {
+          return "- " + game.title + " | " + game.category + " | " + game.author + " | " + game.path;
         }).join("\n")
       );
       return lines.join("\n");
@@ -3759,22 +4009,43 @@
       return Promise.reject(new Error("Backend helper not loaded."));
     }
 
-    return buildAiSystemPrompt(userText).then(function (systemPrompt) {
-      var messages = [{ role: "system", content: systemPrompt }];
-      tab.aiState.memory.slice(-6).forEach(function (message) {
-        messages.push(message);
-      });
+    var shellHelpAnswer = buildShellHelpAiResponse(userText);
+    if (shellHelpAnswer) {
+      if (typeof onDelta === "function") {
+        onDelta(shellHelpAnswer, shellHelpAnswer);
+      }
+      return Promise.resolve(shellHelpAnswer);
+    }
 
-      return requestAi({
-        messages: messages,
-        stream: true,
-        keep_alive: "48h",
-        options: {
-          num_predict: 48,
-          num_ctx: 512,
-          temperature: 0
+    return loadGamesCatalog().then(function (games) {
+      return buildCatalogAiResponseFromCatalog(userText, games);
+    }).catch(function () {
+      return "";
+    }).then(function (catalogAnswer) {
+      if (catalogAnswer) {
+        if (typeof onDelta === "function") {
+          onDelta(catalogAnswer, catalogAnswer);
         }
-      }, onDelta);
+        return catalogAnswer;
+      }
+
+      return buildAiSystemPrompt(userText).then(function (systemPrompt) {
+        var messages = [{ role: "system", content: systemPrompt }];
+        tab.aiState.memory.slice(-6).forEach(function (message) {
+          messages.push(message);
+        });
+
+        return requestAi({
+          messages: messages,
+          stream: true,
+          keep_alive: "48h",
+          options: {
+            num_predict: 48,
+            num_ctx: 512,
+            temperature: 0
+          }
+        }, onDelta);
+      });
     });
   }
 

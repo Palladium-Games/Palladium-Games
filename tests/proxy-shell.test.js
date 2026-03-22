@@ -69,6 +69,10 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /async function requestAi\(payload, onDelta\)/);
   assert.match(shellScript, /function readAiResponseText\(response\)/);
   assert.match(shellScript, /function flattenAssistantContent\(value\)/);
+  assert.match(shellScript, /function buildCatalogAiResponseFromCatalog\(userText, games\)/);
+  assert.match(shellScript, /function buildShellHelpAiResponse\(userText\)/);
+  assert.match(shellScript, /function findCatalogCategoryInQuery\(userText, games\)/);
+  assert.match(shellScript, /function extractRequestedGameCount\(userText\)/);
   assert.match(shellScript, /function resolveLocalAppUrl\(value\)/);
   assert.match(shellScript, /function getLocalAppBaseUrl\(\)/);
   assert.match(shellScript, /function appendLocalAssetVersion\(resolvedUrl\)/);
@@ -95,6 +99,8 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /num_predict:\s*48/);
   assert.match(shellScript, /num_ctx:\s*512/);
   assert.match(shellScript, /temperature:\s*0/);
+  assert.match(shellScript, /matchedCategory\.toLowerCase\(\) \+ " games in the Antarctic catalog\."/);
+  assert.match(shellScript, /I only used the local Antarctic catalog for this answer\./);
   assert.match(shellScript, /normalized === "\$scramjet"/);
   assert.match(shellScript, /window\.indexedDB\.databases\(\)/);
   assert.match(shellScript, /window\.navigator\.serviceWorker\.getRegistrations\(\)/);
