@@ -339,29 +339,6 @@
   justify-self: start;
 }
 
-.route-link--sub .route-link__rail {
-  opacity: 0.78;
-}
-
-.route-link--sub .route-link__label {
-  position: relative;
-  padding-inline-start: calc(0.55rem + var(--gutter));
-  font-size: 0.94em;
-  color: color-mix(in srgb, var(--muted) 72%, var(--text) 28%);
-}
-
-.route-link--sub .route-link__label::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 50%;
-  width: calc(0.4rem + var(--gutter));
-  height: 1px;
-  border-radius: 999px;
-  background: rgba(152, 196, 255, 0.32);
-  transform: translateY(-50%);
-}
-
 .tab-card__close {
   justify-self: end;
 }

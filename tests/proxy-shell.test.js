@@ -56,8 +56,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellPage, /antarctic:\/\/ai/);
   assert.match(shellPage, /Cloud Saves/);
   assert.match(shellPage, />Chats</);
-  assert.match(shellPage, /Group Chats/);
-  assert.match(shellPage, /route-link route-link--sub/);
+  assert.doesNotMatch(shellPage, /route-link route-link--sub/);
   assert.match(shellPage, /data-role="account-metrics"/);
   assert.match(shellPage, /data-role="account-quick-actions"/);
   assert.match(shellPage, /data-role="chat-intro-eyebrow"/);
