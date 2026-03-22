@@ -2445,6 +2445,22 @@
     }
   }
 
+  function resolveProxyFetchUrl(config) {
+    var explicitPath =
+      cleanText(config && config.services && (config.services.proxyFetch || config.services.proxy)) || "/api/proxy/fetch";
+    var backendBase = normalizeBase(config && config.backendBase);
+    var backendApi = getBackendApi();
+    if (!backendBase && backendApi && typeof backendApi.getBaseUrl === "function") {
+      backendBase = normalizeBase(backendApi.getBaseUrl());
+    }
+
+    try {
+      return new URL(explicitPath, backendBase || window.location.origin).toString();
+    } catch (error) {
+      return "";
+    }
+  }
+
   function cloneProxyRequestBody(body) {
     if (!body) {
       return Promise.resolve(undefined);
@@ -2464,20 +2480,43 @@
     return Promise.resolve(body);
   }
 
+  function shouldSkipFrontendProxyHeader(name) {
+    return (
+      !name ||
+      name === "accept-encoding" ||
+      name === "connection" ||
+      name === "content-length" ||
+      name === "cookie" ||
+      name === "host" ||
+      name === "origin" ||
+      name === "referer" ||
+      name === "transfer-encoding" ||
+      name === "upgrade" ||
+      name.indexOf("proxy-") === 0 ||
+      name.indexOf("sec-") === 0 ||
+      name.indexOf("x-antarctic-") === 0 ||
+      name.indexOf("x-palladium-") === 0
+    );
+  }
+
   function normalizeProxyHeaders(headers) {
     if (!headers) return {};
 
     var flattened = {};
     if (typeof Headers !== "undefined" && headers instanceof Headers) {
       headers.forEach(function (value, key) {
-        flattened[String(key || "").toLowerCase()] = String(value == null ? "" : value);
+        var normalizedKey = String(key || "").trim().toLowerCase();
+        if (!normalizedKey || shouldSkipFrontendProxyHeader(normalizedKey)) {
+          return;
+        }
+        flattened[normalizedKey] = String(value == null ? "" : value);
       });
       return flattened;
     }
 
     Object.keys(headers).forEach(function (key) {
       var normalizedKey = String(key || "").trim().toLowerCase();
-      if (!normalizedKey) return;
+      if (!normalizedKey || shouldSkipFrontendProxyHeader(normalizedKey)) return;
       var value = headers[key];
       if (Array.isArray(value)) {
         flattened[normalizedKey] = value.map(function (entry) {
@@ -2579,18 +2618,50 @@
   }
 
   function createHttpProxyTransport(config) {
+    var proxyFetchUrl = resolveProxyFetchUrl(config);
     var proxyRequestUrl = resolveProxyRequestUrl(config);
 
     return {
       ready: false,
       init: function () {
-        if (!proxyRequestUrl) {
-          return Promise.reject(new Error("No backend proxy request endpoint is configured."));
+        if (!proxyFetchUrl && !proxyRequestUrl) {
+          return Promise.reject(new Error("No backend HTTP proxy endpoints are configured."));
         }
         this.ready = true;
         return Promise.resolve();
       },
       request: function (remote, method, body, headers, signal) {
+        var normalizedMethod = String(method || "GET").toUpperCase();
+        if ((normalizedMethod === "GET" || normalizedMethod === "HEAD") && proxyFetchUrl) {
+          var fetchUrl = new URL(proxyFetchUrl);
+          fetchUrl.searchParams.set("url", remote.toString());
+          return window.fetch(fetchUrl.toString(), {
+            method: normalizedMethod,
+            signal: signal || undefined,
+            credentials: "same-origin"
+          }).then(function (response) {
+            var responseHeaders = collectProxyResponseHeaders(response.headers);
+            var status = Number(response.status || 502);
+            if ([101, 204, 205, 304].indexOf(status) !== -1 || normalizedMethod === "HEAD") {
+              return {
+                body: undefined,
+                headers: responseHeaders,
+                status: status,
+                statusText: getProxyStatusText(response)
+              };
+            }
+
+            return response.arrayBuffer().then(function (buffer) {
+              return {
+                body: buffer,
+                headers: responseHeaders,
+                status: status,
+                statusText: getProxyStatusText(response)
+              };
+            });
+          });
+        }
+
         return cloneProxyRequestBody(body).then(function (upstreamBody) {
           var requestUrl = new URL(proxyRequestUrl);
           requestUrl.searchParams.set("url", remote.toString());
@@ -2598,10 +2669,10 @@
             method: "POST",
             headers: {
               "content-type": "application/octet-stream",
-              "x-antarctic-proxy-method": String(method || "GET").toUpperCase(),
+              "x-antarctic-proxy-method": normalizedMethod,
               "x-antarctic-proxy-headers": JSON.stringify(normalizeProxyHeaders(headers))
             },
-            body: ["GET", "HEAD"].indexOf(String(method || "GET").toUpperCase()) === -1 ? upstreamBody : undefined,
+            body: ["GET", "HEAD"].indexOf(normalizedMethod) === -1 ? upstreamBody : undefined,
             signal: signal || undefined,
             credentials: "same-origin"
           });
