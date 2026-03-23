@@ -5,14 +5,15 @@
   var STORAGE_KEY = "antarctic.shell.state.v1";
   var LEGACY_STORAGE_KEY = "palladium.shell.state.v1";
   var PROXY_STORAGE_VERSION_KEY = "antarctic.proxy.storage.version.v1";
-  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-3";
+  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-4";
   var PROXY_REPAIR_RELOAD_KEY = "antarctic.proxy.repair.reload.v1";
   var PROXY_CONTROLLER_RELOAD_KEY = "antarctic.proxy.controller.reload.v1";
+  var PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS = 3;
   var PROXY_REQUEST_HEADER_METHOD = "x-antarctic-proxy-method";
   var PROXY_REQUEST_HEADER_HEADERS = "x-antarctic-proxy-headers";
   var LOCAL_APP_ASSET_PARAM = "antarctic_asset";
   var LOCAL_APP_ASSET_VERSION = "2026-03-22-asset-1";
-  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-3";
+  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4";
   var SCRAMJET_PREFIX = "/service/scramjet/";
   var SCRAMJET_SW_PATH = "/sw.js";
   var BAREMUX_WORKER_PATH = "/baremux/worker.js";
@@ -3545,7 +3546,7 @@
           return;
         }
         finishReload();
-      }, 1600);
+      }, 3200);
       window.navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
       window.navigator.serviceWorker.ready.then(function () {
         if (hasCurrentProxyServiceWorkerController()) {
@@ -3745,10 +3746,42 @@
     }
   }
 
-  function writeProxyControllerReloadMarker(value) {
+  function getProxyControllerReloadState() {
+    var marker = readProxyControllerReloadMarker();
+    if (!marker) {
+      return {
+        version: "",
+        attempts: 0
+      };
+    }
+
+    var separatorIndex = marker.lastIndexOf("|");
+    if (separatorIndex === -1) {
+      return {
+        version: marker,
+        attempts: 1
+      };
+    }
+
+    var version = cleanText(marker.slice(0, separatorIndex));
+    var attempts = Number(marker.slice(separatorIndex + 1));
+    if (!Number.isFinite(attempts) || attempts < 1) {
+      attempts = 1;
+    }
+
+    return {
+      version: version,
+      attempts: Math.floor(attempts)
+    };
+  }
+
+  function writeProxyControllerReloadMarker(value, attempts) {
     try {
       if (value) {
-        window.sessionStorage.setItem(PROXY_CONTROLLER_RELOAD_KEY, cleanText(value));
+        window.sessionStorage.setItem(
+          PROXY_CONTROLLER_RELOAD_KEY,
+          cleanText(value) + "|" + Math.max(1, Math.floor(Number(attempts) || 1))
+        );
       } else {
         window.sessionStorage.removeItem(PROXY_CONTROLLER_RELOAD_KEY);
       }
@@ -3762,11 +3795,18 @@
       return false;
     }
 
-    if (readProxyControllerReloadMarker() === PROXY_RUNTIME_ASSET_VERSION) {
+    var reloadState = getProxyControllerReloadState();
+    if (
+      reloadState.version === PROXY_RUNTIME_ASSET_VERSION &&
+      reloadState.attempts >= PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS
+    ) {
       return false;
     }
 
-    writeProxyControllerReloadMarker(PROXY_RUNTIME_ASSET_VERSION);
+    writeProxyControllerReloadMarker(
+      PROXY_RUNTIME_ASSET_VERSION,
+      reloadState.version === PROXY_RUNTIME_ASSET_VERSION ? reloadState.attempts + 1 : 1
+    );
     window.setTimeout(function () {
       try {
         window.location.reload();

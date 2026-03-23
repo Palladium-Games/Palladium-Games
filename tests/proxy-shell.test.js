@@ -166,13 +166,18 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /Resetting proxy storage and retrying/);
   assert.match(shellScript, /var PROXY_REPAIR_RELOAD_KEY = "antarctic\.proxy\.repair\.reload\.v1"/);
   assert.match(shellScript, /var PROXY_CONTROLLER_RELOAD_KEY = "antarctic\.proxy\.controller\.reload\.v1"/);
-  assert.match(shellScript, /var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-3"/);
-  assert.match(shellScript, /var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-3"/);
+  assert.match(shellScript, /var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-4"/);
+  assert.match(shellScript, /var PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS = 3;/);
+  assert.match(shellScript, /var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4"/);
   assert.match(shellScript, /function scheduleProxyRepairReload\(\)/);
   assert.match(shellScript, /function scheduleProxyControllerReload\(\)/);
+  assert.match(shellScript, /function getProxyControllerReloadState\(\)/);
   assert.match(shellScript, /window\.location\.reload\(\)/);
   assert.match(shellScript, /Proxy service worker controller is still unavailable\./);
   assert.match(shellScript, /writeProxyControllerReloadMarker\(""\)/);
+  assert.match(shellScript, /reloadState\.attempts >= PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS/);
+  assert.match(shellScript, /cleanText\(value\) \+ "\\|" \+ Math\.max\(1, Math\.floor\(Number\(attempts\) \|\| 1\)\)/);
+  assert.match(shellScript, /\}, 3200\);/);
   assert.match(shellScript, /var scriptUrl = window\.navigator\.serviceWorker\.controller\.scriptURL;/);
   assert.match(shellScript, /if \(!isKnownProxyServiceWorkerScript\(scriptUrl\)\) \{\s*return false;\s*\}/);
   assert.match(shellScript, /var activeVersion = readProxyServiceWorkerAssetVersion\(scriptUrl\);/);
@@ -220,7 +225,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
 test("service worker bootstraps Scramjet from the static frontend origin", () => {
   const serviceWorker = fs.readFileSync(path.join(FRONTEND_DIR, "sw.js"), "utf8");
 
-  assert.match(serviceWorker, /const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-3";/);
+  assert.match(serviceWorker, /const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4";/);
   assert.match(serviceWorker, /const SCRAMJET_BUNDLE_PATH =/);
   assert.match(serviceWorker, /\/scram\/scramjet\.all\.js\?antarctic_asset=/);
   assert.match(serviceWorker, /importScripts\(SCRAMJET_BUNDLE_PATH\)/);
