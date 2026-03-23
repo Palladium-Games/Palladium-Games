@@ -1,6 +1,6 @@
 /* global $scramjetLoadWorker */
 
-const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4";
+const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-5";
 const SCRAMJET_BUNDLE_PATH =
   "/scram/scramjet.all.js?antarctic_asset=" + encodeURIComponent(PROXY_RUNTIME_ASSET_VERSION);
 

@@ -75,6 +75,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.doesNotMatch(shellPage, /data-account-wizard-next/);
   assert.doesNotMatch(shellPage, /data-role="ai-status"/);
   assert.match(shellScript, /function isRecoverableProxyStorageError\(error\)/);
+  assert.match(shellScript, /function isRecoverableProxyControllerError\(error\)/);
   assert.match(shellScript, /var PROXY_STORAGE_VERSION_KEY = "antarctic\.proxy\.storage\.version\.v1"/);
   assert.match(shellScript, /window\.AntarcticGamesStorage \|\| window\.PalladiumSiteStorage/);
   assert.match(shellScript, /window\.AntarcticSocialClient \|\| window\.PalladiumSocialClient/);
@@ -166,9 +167,9 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /Resetting proxy storage and retrying/);
   assert.match(shellScript, /var PROXY_REPAIR_RELOAD_KEY = "antarctic\.proxy\.repair\.reload\.v1"/);
   assert.match(shellScript, /var PROXY_CONTROLLER_RELOAD_KEY = "antarctic\.proxy\.controller\.reload\.v1"/);
-  assert.match(shellScript, /var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-4"/);
+  assert.match(shellScript, /var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-5"/);
   assert.match(shellScript, /var PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS = 3;/);
-  assert.match(shellScript, /var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4"/);
+  assert.match(shellScript, /var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-5"/);
   assert.match(shellScript, /function scheduleProxyRepairReload\(\)/);
   assert.match(shellScript, /function scheduleProxyControllerReload\(\)/);
   assert.match(shellScript, /function getProxyControllerReloadState\(\)/);
@@ -178,10 +179,13 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
   assert.match(shellScript, /reloadState\.attempts >= PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS/);
   assert.match(shellScript, /cleanText\(value\) \+ "\\|" \+ Math\.max\(1, Math\.floor\(Number\(attempts\) \|\| 1\)\)/);
   assert.match(shellScript, /\}, 3200\);/);
+  assert.match(shellScript, /writeProxyControllerReloadMarker\(""\);\s*writeProxyRepairReloadMarker\(""\);/);
   assert.match(shellScript, /var scriptUrl = window\.navigator\.serviceWorker\.controller\.scriptURL;/);
   assert.match(shellScript, /if \(!isKnownProxyServiceWorkerScript\(scriptUrl\)\) \{\s*return false;\s*\}/);
   assert.match(shellScript, /var activeVersion = readProxyServiceWorkerAssetVersion\(scriptUrl\);/);
   assert.match(shellScript, /return !activeVersion \|\| activeVersion === PROXY_RUNTIME_ASSET_VERSION;/);
+  assert.match(shellScript, /var recoverableControllerError = isRecoverableProxyControllerError\(error\);/);
+  assert.match(shellScript, /resetControllerBudget:\s*recoverableControllerError/);
   assert.match(shellScript, /config && config\.services && config\.services\.proxyRequest/);
   assert.match(shellScript, /config && config\.services && \(config\.services\.proxyFetch \|\| config\.services\.proxy\)/);
   assert.match(shellScript, /var httpTransportUrl = proxyRequestUrl \|\| proxyFetchUrl;/);
@@ -225,7 +229,7 @@ test("frontend shell references Scramjet assets and sidebar controls", () => {
 test("service worker bootstraps Scramjet from the static frontend origin", () => {
   const serviceWorker = fs.readFileSync(path.join(FRONTEND_DIR, "sw.js"), "utf8");
 
-  assert.match(serviceWorker, /const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4";/);
+  assert.match(serviceWorker, /const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-5";/);
   assert.match(serviceWorker, /const SCRAMJET_BUNDLE_PATH =/);
   assert.match(serviceWorker, /\/scram\/scramjet\.all\.js\?antarctic_asset=/);
   assert.match(serviceWorker, /importScripts\(SCRAMJET_BUNDLE_PATH\)/);

@@ -5,7 +5,7 @@
   var STORAGE_KEY = "antarctic.shell.state.v1";
   var LEGACY_STORAGE_KEY = "palladium.shell.state.v1";
   var PROXY_STORAGE_VERSION_KEY = "antarctic.proxy.storage.version.v1";
-  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-4";
+  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-5";
   var PROXY_REPAIR_RELOAD_KEY = "antarctic.proxy.repair.reload.v1";
   var PROXY_CONTROLLER_RELOAD_KEY = "antarctic.proxy.controller.reload.v1";
   var PROXY_CONTROLLER_RELOAD_MAX_ATTEMPTS = 3;
@@ -13,7 +13,7 @@
   var PROXY_REQUEST_HEADER_HEADERS = "x-antarctic-proxy-headers";
   var LOCAL_APP_ASSET_PARAM = "antarctic_asset";
   var LOCAL_APP_ASSET_VERSION = "2026-03-22-asset-1";
-  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-4";
+  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-5";
   var SCRAMJET_PREFIX = "/service/scramjet/";
   var SCRAMJET_SW_PATH = "/sw.js";
   var BAREMUX_WORKER_PATH = "/baremux/worker.js";
@@ -3570,6 +3570,11 @@
     return /IDBDatabase/i.test(message) || /object stores? was not found/i.test(message) || /NotFoundError/i.test(message);
   }
 
+  function isRecoverableProxyControllerError(error) {
+    var message = getProxyStorageErrorMessage(error);
+    return /Proxy service worker controller is still unavailable/i.test(message);
+  }
+
   function getProxyOrigin() {
     try {
       return cleanText(window.location.origin);
@@ -3863,6 +3868,7 @@
 
   function repairProxyRuntimeStorage(options) {
     var silent = Boolean(options && options.silent);
+    var resetControllerBudget = Boolean(options && options.resetControllerBudget);
     if (state.proxyRuntime.repairPromise) {
       return state.proxyRuntime.repairPromise;
     }
@@ -3888,6 +3894,11 @@
         window.localStorage.removeItem("bare-mux-path");
       } catch (error) {
         // Ignore storage access failures during recovery.
+      }
+
+      if (resetControllerBudget) {
+        writeProxyControllerReloadMarker("");
+        writeProxyRepairReloadMarker("");
       }
 
       state.proxyRuntime.controller = null;
@@ -3957,11 +3968,15 @@
         });
       });
     }).catch(function (error) {
-      if (!allowRepair || !isRecoverableProxyStorageError(error)) {
+      var recoverableStorageError = isRecoverableProxyStorageError(error);
+      var recoverableControllerError = isRecoverableProxyControllerError(error);
+      if (!allowRepair || (!recoverableStorageError && !recoverableControllerError)) {
         throw error;
       }
 
-      return repairProxyRuntimeStorage().then(function () {
+      return repairProxyRuntimeStorage({
+        resetControllerBudget: recoverableControllerError
+      }).then(function () {
         if (state.proxyRuntime.reloadScheduled) {
           throw new Error("Restarting proxy runtime...");
         }
