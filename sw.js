@@ -1,6 +1,10 @@
 /* global $scramjetLoadWorker */
 
-importScripts("/scram/scramjet.all.js");
+const PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-3";
+const SCRAMJET_BUNDLE_PATH =
+  "/scram/scramjet.all.js?antarctic_asset=" + encodeURIComponent(PROXY_RUNTIME_ASSET_VERSION);
+
+importScripts(SCRAMJET_BUNDLE_PATH);
 
 const SCRAMJET_PREFIX = "/service/scramjet/";
 const SCRAMJET_WASM_PATH = "/scram/scramjet.wasm.wasm";

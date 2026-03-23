@@ -5,14 +5,14 @@
   var STORAGE_KEY = "antarctic.shell.state.v1";
   var LEGACY_STORAGE_KEY = "palladium.shell.state.v1";
   var PROXY_STORAGE_VERSION_KEY = "antarctic.proxy.storage.version.v1";
-  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-22-proxy-2";
+  var PROXY_STORAGE_VERSION = "scramjet-storage-2026-03-23-proxy-3";
   var PROXY_REPAIR_RELOAD_KEY = "antarctic.proxy.repair.reload.v1";
   var PROXY_CONTROLLER_RELOAD_KEY = "antarctic.proxy.controller.reload.v1";
   var PROXY_REQUEST_HEADER_METHOD = "x-antarctic-proxy-method";
   var PROXY_REQUEST_HEADER_HEADERS = "x-antarctic-proxy-headers";
   var LOCAL_APP_ASSET_PARAM = "antarctic_asset";
   var LOCAL_APP_ASSET_VERSION = "2026-03-22-asset-1";
-  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-22-proxy-2";
+  var PROXY_RUNTIME_ASSET_VERSION = "2026-03-23-proxy-3";
   var SCRAMJET_PREFIX = "/service/scramjet/";
   var SCRAMJET_SW_PATH = "/sw.js";
   var BAREMUX_WORKER_PATH = "/baremux/worker.js";
