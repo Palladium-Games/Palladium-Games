@@ -1,9 +1,9 @@
 # Palladium Games
 
 ## Our Purpose
-Our purpose is to provide gaming fun to everybody who is probably sitting bored in a classroom while their teacher drones on about the Civil War.
-The frontend is now a single-shell browser experience where the main page is the proxy and internal routes like `palladium://home`, `palladium://games`, and `palladium://ai` live inside the built-in address bar.
+Our purpose is to provide gaming fun to everybody who is probably sitting bored in a classroom while their teacher drones on about the Civil War.  
 
+We have games and a AI agent, and a proxy will be coming soon!
 ## Our Tech Infrastructure
 We use games from [GN-MATH](https://gn-math.dev), and the [Internet Archive](https://archive.org)
 
