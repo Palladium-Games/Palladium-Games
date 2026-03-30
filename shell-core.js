@@ -1,5 +1,9 @@
 (function () {
   var PRIMARY_SCHEME = "antarctic://";
+  var DEFAULT_WEB_SEARCH_PROVIDER = {
+    name: "duckduckgo",
+    url: "https://duckduckgo.com/"
+  };
   var INTERNAL_ROUTES = {
     home: "Home",
     newtab: "New Tab",
@@ -168,7 +172,7 @@
     if (!raw) return "";
     if (/^https?:\/\//i.test(raw)) return raw;
     if (/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw)) return "https://" + raw;
-    return "https://duckduckgo.com/?q=" + encodeURIComponent(raw);
+    return DEFAULT_WEB_SEARCH_PROVIDER.url;
   }
 
   function inferWebTitle(targetUrl) {
@@ -204,12 +208,15 @@
     }
 
     var webTarget = normalizeWebTarget(raw);
+    var isPlainSearch = webTarget === DEFAULT_WEB_SEARCH_PROVIDER.url && !/^https?:\/\//i.test(raw) && !/^[a-z0-9.-]+\.[a-z]{2,}(\/.*)?$/i.test(raw);
     return {
       view: "web",
       route: "web",
       title: inferWebTitle(webTarget),
       targetUrl: webTarget,
-      uri: webTarget
+      uri: webTarget,
+      searchProvider: isPlainSearch ? DEFAULT_WEB_SEARCH_PROVIDER.name : "",
+      searchQuery: isPlainSearch ? raw : ""
     };
   }
 

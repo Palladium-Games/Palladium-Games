@@ -184,4 +184,5 @@ test("buildShellHelpAiResponse explains supported address bar inputs", () => {
   assert.match(answer, /antarctic:\/\/games/);
   assert.match(answer, /https:\/\/duckduckgo\.com/);
   assert.match(answer, /plain search terms/);
+  assert.match(answer, /without exposing the query in the shell URL bar/);
 });

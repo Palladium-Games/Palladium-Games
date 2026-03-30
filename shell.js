@@ -17,6 +17,8 @@
   var PROXY_DISABLED_MESSAGE = "Built-in web browsing is temporarily disabled right now.";
   var PROXY_IDLE_MESSAGE = "Web browsing will connect when you open a page.";
   var SHELL_SCALE_MIN = 0.78;
+  var PRIVATE_SEARCH_AUTOFILL_RETRY_MS = 180;
+  var PRIVATE_SEARCH_AUTOFILL_MAX_ATTEMPTS = 12;
   var SCRAMJET_PREFIX = "/service/scramjet/";
   var SCRAMJET_SW_PATH = "/sw.js";
   var BAREMUX_WORKER_PATH = "/baremux/worker.js";
@@ -654,6 +656,26 @@
     return core.describeInput(value || core.buildInternalUri("home"));
   }
 
+  function createEmptyWebState(pendingSearchQuery) {
+    return {
+      currentTarget: "",
+      frameController: null,
+      pendingSearchQuery: cleanText(pendingSearchQuery),
+      searchRetryTimer: 0
+    };
+  }
+
+  function clearPendingWebSearch(tab) {
+    if (!tab || !tab.webState) {
+      return;
+    }
+
+    if (tab.webState.searchRetryTimer) {
+      window.clearTimeout(tab.webState.searchRetryTimer);
+      tab.webState.searchRetryTimer = 0;
+    }
+  }
+
   function isChatViewName(value) {
     return value === "chat" || value === "chats" || value === "dms" || value === "groupchats";
   }
@@ -686,13 +708,12 @@
       gamesQuery: "",
       id: existingId || makeTabId(),
       paneEl: null,
+      searchProvider: descriptor.searchProvider || "",
+      searchQuery: descriptor.searchQuery || "",
       title: descriptor.title,
       route: descriptor.route,
       targetUrl: descriptor.targetUrl || "",
-      webState: {
-        currentTarget: "",
-        frameController: null
-      },
+      webState: createEmptyWebState(descriptor.searchQuery),
       path: descriptor.path || "",
       author: descriptor.author || "",
       uri: descriptor.uri,
@@ -703,11 +724,10 @@
   function assignDescriptor(tab, descriptor) {
     tab.title = descriptor.title;
     tab.route = descriptor.route;
+    tab.searchProvider = descriptor.searchProvider || "";
+    tab.searchQuery = descriptor.searchQuery || "";
     tab.targetUrl = descriptor.targetUrl || "";
-    tab.webState = {
-      currentTarget: "",
-      frameController: null
-    };
+    tab.webState = createEmptyWebState(descriptor.searchQuery);
     tab.path = descriptor.path || "";
     tab.author = descriptor.author || "";
     tab.uri = descriptor.uri;
@@ -761,6 +781,7 @@
       window.clearInterval(tab.chatState.pollHandle);
       tab.chatState.pollHandle = 0;
     }
+    clearPendingWebSearch(tab);
     if (tab && tab.paneEl && tab.paneEl.__paneSyncTimer) {
       window.clearTimeout(tab.paneEl.__paneSyncTimer);
       tab.paneEl.__paneSyncTimer = 0;
@@ -774,11 +795,35 @@
     }
     if (tab) {
       tab.paneEl = null;
-      tab.webState = {
-        currentTarget: "",
-        frameController: null
-      };
+      tab.webState = createEmptyWebState("");
     }
+  }
+
+  function restoreTab(entry) {
+    var tab = createTab(entry && entry.uri, entry && entry.id);
+    var savedUri = cleanText(entry && entry.uri);
+    var savedTargetUrl = cleanText(entry && entry.targetUrl);
+    var savedTitle = cleanText(entry && entry.title);
+    var savedSearchProvider = cleanText(entry && entry.searchProvider);
+    var savedSearchQuery = cleanText(entry && entry.searchQuery);
+
+    if (savedUri) {
+      tab.uri = savedUri;
+    }
+    if (savedTargetUrl) {
+      tab.targetUrl = savedTargetUrl;
+    }
+    if (savedTitle) {
+      tab.title = savedTitle;
+    }
+    if (savedSearchProvider) {
+      tab.searchProvider = savedSearchProvider;
+    }
+    if (savedSearchQuery) {
+      tab.searchQuery = savedSearchQuery;
+    }
+    tab.webState = createEmptyWebState(savedTargetUrl && savedTargetUrl !== savedUri ? "" : savedSearchQuery);
+    return tab;
   }
 
   function persistState() {
@@ -788,6 +833,10 @@
       tabs: state.tabs.map(function (tab) {
         return {
           id: tab.id,
+          searchProvider: tab.searchProvider || "",
+          searchQuery: tab.searchQuery || "",
+          targetUrl: tab.view === "web" ? tab.targetUrl : "",
+          title: tab.title,
           uri: tab.uri
         };
       })
@@ -888,7 +937,7 @@
 
     if (restored && Array.isArray(restored.tabs) && restored.tabs.length) {
       state.tabs = restored.tabs.map(function (entry) {
-        return createTab(entry && entry.uri, entry && entry.id);
+        return restoreTab(entry);
       });
       state.activeTabId = restored.activeTabId || state.tabs[0].id;
     }
@@ -902,6 +951,10 @@
     }
 
     if (requestedUri) {
+      var active = getActiveTab();
+      if (active && cleanText(active.uri) === requestedUri) {
+        return;
+      }
       navigateCurrent(requestedUri);
     }
   }
@@ -4147,13 +4200,178 @@
     });
   }
 
+  function isDuckDuckGoHost(hostname) {
+    var normalized = cleanText(hostname).toLowerCase();
+    return (
+      normalized === "duckduckgo.com" ||
+      normalized === "www.duckduckgo.com" ||
+      normalized === "html.duckduckgo.com" ||
+      normalized === "lite.duckduckgo.com" ||
+      normalized === "start.duckduckgo.com"
+    );
+  }
+
+  function extractPrivateSearchDetails(value) {
+    var targetUrl = cleanText(value);
+    if (!targetUrl) {
+      return {
+        displayUrl: "",
+        provider: "",
+        query: ""
+      };
+    }
+
+    try {
+      var parsed = new URL(targetUrl);
+      if (!isDuckDuckGoHost(parsed.hostname)) {
+        return {
+          displayUrl: "",
+          provider: "",
+          query: ""
+        };
+      }
+
+      var query = cleanText(parsed.searchParams.get("q"));
+      if (!query) {
+        return {
+          displayUrl: "",
+          provider: "",
+          query: ""
+        };
+      }
+
+      return {
+        displayUrl: parsed.origin.replace(/\/+$/, "") + "/",
+        provider: "duckduckgo",
+        query: query
+      };
+    } catch (error) {
+      return {
+        displayUrl: "",
+        provider: "",
+        query: ""
+      };
+    }
+  }
+
+  function resolveVisibleWebUri(tab, targetUrl) {
+    var nextUrl = cleanText(targetUrl);
+    if (!nextUrl) return "";
+
+    var privateSearch = extractPrivateSearchDetails(nextUrl);
+    if (!privateSearch.displayUrl) {
+      return nextUrl;
+    }
+
+    if (tab) {
+      tab.searchProvider = privateSearch.provider;
+      tab.searchQuery = privateSearch.query;
+    }
+
+    return privateSearch.displayUrl;
+  }
+
+  function findPrivateSearchField(doc) {
+    if (!doc || typeof doc.querySelector !== "function") {
+      return null;
+    }
+
+    return doc.querySelector(
+      'input[name="q"]:not([type="hidden"]), textarea[name="q"], input[type="search"]:not([type="hidden"]), input[role="searchbox"]:not([type="hidden"]), textarea[role="searchbox"]'
+    );
+  }
+
+  function submitPrivateSearchFromFrame(frame, query) {
+    var normalizedQuery = cleanText(query);
+    if (!frame || !normalizedQuery) {
+      return false;
+    }
+
+    var doc = null;
+    try {
+      doc = frame.contentDocument;
+    } catch (error) {
+      return false;
+    }
+
+    var field = findPrivateSearchField(doc);
+    if (!field) {
+      return false;
+    }
+
+    try {
+      if (typeof field.focus === "function") {
+        field.focus();
+      }
+    } catch (error) {
+      // Ignore focus failures while populating the proxied search field.
+    }
+
+    field.value = normalizedQuery;
+    if (typeof field.setAttribute === "function") {
+      field.setAttribute("value", normalizedQuery);
+    }
+    if (typeof field.dispatchEvent === "function" && typeof Event === "function") {
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+      field.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+
+    var form = field.form;
+    if (form) {
+      if (typeof form.requestSubmit === "function") {
+        form.requestSubmit();
+        return true;
+      }
+      if (typeof form.submit === "function") {
+        form.submit();
+        return true;
+      }
+    }
+
+    if (doc && typeof doc.querySelector === "function") {
+      var submitButton = doc.querySelector('button[type="submit"], input[type="submit"]');
+      if (submitButton && typeof submitButton.click === "function") {
+        submitButton.click();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  function schedulePrivateSearchSubmission(tab, frame, attempt) {
+    clearPendingWebSearch(tab);
+    if (!tab || !tab.webState) {
+      return;
+    }
+
+    var nextAttempt = Math.max(1, Math.floor(Number(attempt) || 1));
+    var query = cleanText(tab.webState.pendingSearchQuery || tab.searchQuery);
+    if (!query || !frame) {
+      return;
+    }
+
+    if (submitPrivateSearchFromFrame(frame, query)) {
+      tab.webState.pendingSearchQuery = "";
+      return;
+    }
+
+    if (nextAttempt >= PRIVATE_SEARCH_AUTOFILL_MAX_ATTEMPTS) {
+      return;
+    }
+
+    tab.webState.searchRetryTimer = window.setTimeout(function () {
+      schedulePrivateSearchSubmission(tab, frame, nextAttempt + 1);
+    }, PRIVATE_SEARCH_AUTOFILL_RETRY_MS);
+  }
+
   function syncWebTabFromUrl(tab, value) {
     var nextUrl = decodeScramjetUrl(value);
     if (!nextUrl) return;
 
     tab.targetUrl = nextUrl;
-    tab.uri = nextUrl;
-    tab.title = core.inferWebTitle(nextUrl);
+    tab.uri = resolveVisibleWebUri(tab, nextUrl);
+    tab.title = core.inferWebTitle(tab.uri || nextUrl);
     tab.webState.currentTarget = nextUrl;
     renderShell();
   }
@@ -4185,6 +4403,10 @@
       frame.__antarcticWebLoadBound = true;
       frame.addEventListener("load", function () {
         if (!tab.webState || !tab.webState.frameController) return;
+        clearPendingWebSearch(tab);
+        if (tab.webState.pendingSearchQuery) {
+          schedulePrivateSearchSubmission(tab, frame, 1);
+        }
         try {
           if (tab.webState.frameController.url && tab.webState.frameController.url.href) {
             syncWebTabFromUrl(tab, tab.webState.frameController.url.href);
@@ -4776,7 +4998,7 @@
       "- `antarctic://groupchats` as a legacy shortcut to chats",
       "- `antarctic://chat` as a legacy shortcut to chats",
       "- a normal URL like `https://duckduckgo.com`",
-      "- or plain search terms like `horror games`"
+      "- or plain search terms like `horror games`, which Antarctic submits through the proxied search page without exposing the query in the shell URL bar"
     ].join("\n");
   }
 
