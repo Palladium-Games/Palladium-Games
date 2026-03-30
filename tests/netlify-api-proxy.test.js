@@ -20,13 +20,35 @@ test("netlify API proxy function claims the same-origin /api route", async () =>
   assert.equal(proxyModule.config && proxyModule.config.path, "/api/*");
 });
 
-test("netlify API proxy preserves the backend path and query string", async () => {
+test("netlify API proxy builds same-origin browsing config without backend fetches", async () => {
+  const proxyModule = await loadProxyModule();
+  const payload = proxyModule.buildPublicConfig("https://antarctic-games.netlify.app");
+
+  assert.equal(payload.ok, true);
+  assert.equal(payload.backendBase, "https://antarctic-games.netlify.app");
+  assert.equal(payload.services.proxyMode, "http-fallback");
+  assert.equal(payload.services.proxyTransport, "http-fallback");
+  assert.equal(payload.services.wispUrl, "");
+  assert.equal(payload.services.proxyFetch, "/api/proxy/fetch");
+  assert.equal(payload.services.proxyRequest, "/api/proxy/request");
+  assert.equal(payload.services.aiChat, "/api/ai/chat");
+  assert.equal(payload.discord.inviteUrl, "https://discord.gg/FNACSCcE26");
+});
+
+test("netlify API proxy preserves the backend path and query string for non-browsing fallbacks", async () => {
   const proxyModule = await loadProxyModule();
 
   assert.equal(
-    proxyModule.buildBackendUrl("https://antarctic-games.netlify.app/api/config/public?cache=0"),
-    "https://api.antarctic.games/api/config/public?cache=0"
+    proxyModule.buildBackendUrl("https://antarctic-games.netlify.app/api/account/session?cache=0"),
+    "https://api.antarctic.games/api/account/session?cache=0"
   );
+});
+
+test("netlify API proxy normalizes browser target URLs safely", async () => {
+  const proxyModule = await loadProxyModule();
+
+  assert.equal(proxyModule.normalizeUserUrl("duckduckgo.com"), "https://duckduckgo.com/");
+  assert.equal(proxyModule.normalizeUserUrl("javascript:alert(1)"), "");
 });
 
 test("netlify API proxy forwards request headers without hop-by-hop metadata", async () => {
@@ -44,7 +66,55 @@ test("netlify API proxy forwards request headers without hop-by-hop metadata", a
   assert.equal(forwarded.has("x-nf-request-id"), false);
 });
 
-test("netlify API proxy relays upstream responses for GET requests", async () => {
+test("netlify API proxy strips frontend-only proxy request headers and forces identity encoding", async () => {
+  const proxyModule = await loadProxyModule();
+  const headers = proxyModule.parseProxyRequestHeaders(JSON.stringify({
+    accept: "text/html",
+    cookie: "nope",
+    origin: "https://antarctic-games.netlify.app",
+    "x-antarctic-proxy-method": "GET"
+  }));
+
+  assert.equal(headers.get("accept"), "text/html");
+  assert.equal(headers.get("accept-encoding"), "identity");
+  assert.equal(headers.has("cookie"), false);
+  assert.equal(headers.has("origin"), false);
+  assert.equal(headers.has("x-antarctic-proxy-method"), false);
+});
+
+test("netlify API proxy answers config/public locally", async () => {
+  const proxyModule = await loadProxyModule();
+  const originalFetch = global.fetch;
+  let calledFetch = false;
+
+  global.fetch = async () => {
+    calledFetch = true;
+    throw new Error("config route should not hit upstream fetch");
+  };
+
+  try {
+    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/config/public"));
+    const payload = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(payload.services.proxyFetch, "/api/proxy/fetch");
+    assert.equal(calledFetch, false);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("netlify API proxy reports browsing readiness locally", async () => {
+  const proxyModule = await loadProxyModule();
+  const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/proxy/health"));
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(payload.ok, true);
+  assert.equal(payload.transport, "http-fallback");
+});
+
+test("netlify API proxy relays upstream responses for GET browsing fetches", async () => {
   const proxyModule = await loadProxyModule();
   const originalFetch = global.fetch;
   let capturedUrl = "";
@@ -53,37 +123,30 @@ test("netlify API proxy relays upstream responses for GET requests", async () =>
   global.fetch = async (url, init) => {
     capturedUrl = url;
     capturedInit = init;
-    return new Response(JSON.stringify({ ok: true }), {
+    return new Response("<html>ok</html>", {
       status: 200,
+      statusText: "OK",
       headers: {
-        "content-type": "application/json",
-        connection: "keep-alive"
+        "content-type": "text/html; charset=utf-8"
       }
     });
   };
 
   try {
-    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/config/public?cache=0", {
-      headers: {
-        accept: "application/json",
-        host: "antarctic-games.netlify.app"
-      }
-    }));
+    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/proxy/fetch?url=https%3A%2F%2Fduckduckgo.com%2F"));
 
-    assert.equal(capturedUrl, "https://api.antarctic.games/api/config/public?cache=0");
+    assert.equal(capturedUrl, "https://duckduckgo.com/");
     assert.equal(capturedInit.method, "GET");
-    assert.equal(capturedInit.headers.get("accept"), "application/json");
-    assert.equal(capturedInit.headers.has("host"), false);
+    assert.equal(capturedInit.headers.get("accept-encoding"), "identity");
     assert.equal(response.status, 200);
-    assert.equal(response.headers.get("content-type"), "application/json");
-    assert.equal(response.headers.has("connection"), false);
-    assert.deepEqual(await response.json(), { ok: true });
+    assert.equal(response.headers.get("x-antarctic-final-url"), "https://duckduckgo.com/");
+    assert.match(await response.text(), /<html>ok<\/html>/);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("netlify API proxy streams POST bodies to the backend proxy endpoint", async () => {
+test("netlify API proxy streams POST bodies to the direct browsing request endpoint", async () => {
   const proxyModule = await loadProxyModule();
   const originalFetch = global.fetch;
   let capturedUrl = "";
@@ -95,34 +158,73 @@ test("netlify API proxy streams POST bodies to the backend proxy endpoint", asyn
     capturedInit = init;
     capturedBody = new Uint8Array(await new Response(init.body).arrayBuffer());
     return new Response(new Uint8Array([9, 8, 7]), {
-      status: 200,
+      status: 207,
+      statusText: "Multi-Status",
       headers: {
-        "content-type": "application/octet-stream"
+        "content-type": "application/octet-stream",
+        "x-upstream-method": "POST"
       }
     });
   };
 
   try {
     const requestBody = new Uint8Array([1, 2, 3, 4]);
-    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/proxy/request", {
+    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/proxy/request?url=https%3A%2F%2Fexample.com%2Fecho", {
       method: "POST",
       headers: {
-        "content-type": "application/octet-stream"
+        "content-type": "application/octet-stream",
+        "x-antarctic-proxy-method": "POST",
+        "x-antarctic-proxy-headers": JSON.stringify({
+          accept: "application/json",
+          "content-type": "text/plain",
+          cookie: "nope"
+        })
       },
       body: requestBody
     }));
 
-    assert.equal(capturedUrl, "https://api.antarctic.games/api/proxy/request");
+    assert.equal(capturedUrl, "https://example.com/echo");
     assert.equal(capturedInit.method, "POST");
     assert.equal(capturedInit.duplex, "half");
+    assert.equal(capturedInit.headers.get("accept"), "application/json");
+    assert.equal(capturedInit.headers.get("content-type"), "text/plain");
+    assert.equal(capturedInit.headers.get("accept-encoding"), "identity");
+    assert.equal(capturedInit.headers.has("cookie"), false);
     assert.deepEqual(Array.from(capturedBody), [1, 2, 3, 4]);
+    assert.equal(response.status, 207);
+    assert.equal(response.headers.get("x-antarctic-proxy-status-text"), "Multi-Status");
     assert.deepEqual(Array.from(new Uint8Array(await response.arrayBuffer())), [9, 8, 7]);
   } finally {
     global.fetch = originalFetch;
   }
 });
 
-test("netlify API proxy returns a 502 when the backend cannot be reached", async () => {
+test("netlify API proxy falls back to the backend origin for non-browsing APIs", async () => {
+  const proxyModule = await loadProxyModule();
+  const originalFetch = global.fetch;
+  let capturedUrl = "";
+
+  global.fetch = async (url) => {
+    capturedUrl = url;
+    return new Response(JSON.stringify({ ok: true }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json"
+      }
+    });
+  };
+
+  try {
+    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/account/session"));
+
+    assert.equal(capturedUrl, "https://api.antarctic.games/api/account/session");
+    assert.deepEqual(await response.json(), { ok: true });
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("netlify API proxy returns a 502 when the backend fallback cannot be reached", async () => {
   const proxyModule = await loadProxyModule();
   const originalFetch = global.fetch;
 
@@ -131,7 +233,7 @@ test("netlify API proxy returns a 502 when the backend cannot be reached", async
   };
 
   try {
-    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/config/public"));
+    const response = await proxyModule.default(new Request("https://antarctic-games.netlify.app/api/account/session"));
 
     assert.equal(response.status, 502);
     assert.match(await response.text(), /Antarctic API proxy failed: connect ECONNREFUSED/);

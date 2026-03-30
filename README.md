@@ -49,7 +49,7 @@ The sync script looks for `../antarctic-backend` first, then `../palladium-backe
 ## Static Proxy Shell
 The frontend stays fully static. Scramjet, BareMux, libcurl, and the service worker are committed into this repo so the shell can deploy to any static host without a long-running frontend server.
 Plain text lookups from the Antarctic address bar now open DuckDuckGo through the proxied page flow without exposing the remote web URL in the real browser URL bar.
-The Netlify deploy runs a same-origin `/api/*` proxy function back to `https://api.antarctic.games`, so the browser shell does not have to reach the backend origin directly just to bootstrap web browsing.
+The Netlify deploy now serves `/api/config/public`, `/api/proxy/health`, `/api/proxy/fetch`, and `/api/proxy/request` directly from a same-origin Netlify function so built-in web browsing can still boot even when `api.antarctic.games` is blocked or unavailable.
 
 The live backend contract is:
 
