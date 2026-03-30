@@ -214,7 +214,8 @@
       route: "web",
       title: inferWebTitle(webTarget),
       targetUrl: webTarget,
-      uri: webTarget,
+      uri: isPlainSearch ? raw : webTarget,
+      browserUri: webTarget,
       searchProvider: isPlainSearch ? DEFAULT_WEB_SEARCH_PROVIDER.name : "",
       searchQuery: isPlainSearch ? raw : ""
     };

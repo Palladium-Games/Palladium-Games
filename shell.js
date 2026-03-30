@@ -708,6 +708,7 @@
       gamesQuery: "",
       id: existingId || makeTabId(),
       paneEl: null,
+      browserUri: descriptor.browserUri || descriptor.uri,
       searchProvider: descriptor.searchProvider || "",
       searchQuery: descriptor.searchQuery || "",
       title: descriptor.title,
@@ -722,6 +723,7 @@
   }
 
   function assignDescriptor(tab, descriptor) {
+    tab.browserUri = descriptor.browserUri || descriptor.uri;
     tab.title = descriptor.title;
     tab.route = descriptor.route;
     tab.searchProvider = descriptor.searchProvider || "";
@@ -801,6 +803,7 @@
 
   function restoreTab(entry) {
     var tab = createTab(entry && entry.uri, entry && entry.id);
+    var savedBrowserUri = cleanText(entry && entry.browserUri);
     var savedUri = cleanText(entry && entry.uri);
     var savedTargetUrl = cleanText(entry && entry.targetUrl);
     var savedTitle = cleanText(entry && entry.title);
@@ -809,6 +812,9 @@
 
     if (savedUri) {
       tab.uri = savedUri;
+    }
+    if (savedBrowserUri) {
+      tab.browserUri = savedBrowserUri;
     }
     if (savedTargetUrl) {
       tab.targetUrl = savedTargetUrl;
@@ -822,7 +828,9 @@
     if (savedSearchQuery) {
       tab.searchQuery = savedSearchQuery;
     }
-    tab.webState = createEmptyWebState(savedTargetUrl && savedTargetUrl !== savedUri ? "" : savedSearchQuery);
+    tab.webState = createEmptyWebState(
+      savedTargetUrl && savedTargetUrl !== (savedBrowserUri || savedUri) ? "" : savedSearchQuery
+    );
     return tab;
   }
 
@@ -832,6 +840,7 @@
       sidebarCollapsed: state.sidebarCollapsed,
       tabs: state.tabs.map(function (tab) {
         return {
+          browserUri: tab.browserUri || "",
           id: tab.id,
           searchProvider: tab.searchProvider || "",
           searchQuery: tab.searchQuery || "",
@@ -843,12 +852,17 @@
     });
   }
 
+  function getTabBrowserUri(tab) {
+    return cleanText((tab && tab.browserUri) || (tab && tab.uri));
+  }
+
   function syncBrowserUrl() {
     var active = getActiveTab();
     try {
       var params = new URLSearchParams(window.location.search || "");
-      if (active && active.uri) {
-        params.set("uri", active.uri);
+      var nextUri = getTabBrowserUri(active);
+      if (nextUri) {
+        params.set("uri", nextUri);
       } else {
         params.delete("uri");
       }
@@ -952,7 +966,10 @@
 
     if (requestedUri) {
       var active = getActiveTab();
-      if (active && cleanText(active.uri) === requestedUri) {
+      if (
+        active &&
+        (cleanText(active.uri) === requestedUri || getTabBrowserUri(active) === requestedUri)
+      ) {
         return;
       }
       navigateCurrent(requestedUri);
@@ -4271,6 +4288,41 @@
     return privateSearch.displayUrl;
   }
 
+  function resolveShellAddressWebUri(tab, targetUrl) {
+    var nextUrl = cleanText(targetUrl);
+    if (!nextUrl) {
+      return "";
+    }
+
+    var privateSearch = extractPrivateSearchDetails(nextUrl);
+    if (privateSearch.displayUrl) {
+      if (tab) {
+        tab.searchProvider = privateSearch.provider;
+        tab.searchQuery = privateSearch.query;
+      }
+      return privateSearch.query;
+    }
+
+    try {
+      var parsed = new URL(nextUrl);
+      if (isDuckDuckGoHost(parsed.hostname)) {
+        var pendingSearchQuery = cleanText(tab && tab.webState && tab.webState.pendingSearchQuery);
+        if (pendingSearchQuery) {
+          return pendingSearchQuery;
+        }
+      }
+    } catch (error) {
+      // Fall through to the raw target URL.
+    }
+
+    if (tab) {
+      tab.searchProvider = "";
+      tab.searchQuery = "";
+    }
+
+    return nextUrl;
+  }
+
   function findPrivateSearchField(doc) {
     if (!doc || typeof doc.querySelector !== "function") {
       return null;
@@ -4370,8 +4422,9 @@
     if (!nextUrl) return;
 
     tab.targetUrl = nextUrl;
-    tab.uri = resolveVisibleWebUri(tab, nextUrl);
-    tab.title = core.inferWebTitle(tab.uri || nextUrl);
+    tab.browserUri = resolveVisibleWebUri(tab, nextUrl);
+    tab.uri = resolveShellAddressWebUri(tab, nextUrl);
+    tab.title = core.inferWebTitle(nextUrl);
     tab.webState.currentTarget = nextUrl;
     renderShell();
   }
@@ -4998,7 +5051,7 @@
       "- `antarctic://groupchats` as a legacy shortcut to chats",
       "- `antarctic://chat` as a legacy shortcut to chats",
       "- a normal URL like `https://duckduckgo.com`",
-      "- or plain search terms like `horror games`, which Antarctic submits through the proxied search page without exposing the query in the shell URL bar"
+      "- or plain search terms like `horror games`, which Antarctic submits through the proxied search page without exposing the query in the real browser URL bar"
     ].join("\n");
   }
 

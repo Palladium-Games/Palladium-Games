@@ -124,7 +124,8 @@ test("plain browser input falls back to web navigation or search", () => {
   const searchDescriptor = core.describeInput("best horror games");
   assert.equal(searchDescriptor.view, "web");
   assert.equal(searchDescriptor.targetUrl, "https://duckduckgo.com/");
-  assert.equal(searchDescriptor.uri, "https://duckduckgo.com/");
+  assert.equal(searchDescriptor.uri, "best horror games");
+  assert.equal(searchDescriptor.browserUri, "https://duckduckgo.com/");
   assert.equal(searchDescriptor.searchProvider, "duckduckgo");
   assert.equal(searchDescriptor.searchQuery, "best horror games");
 });

@@ -36,6 +36,7 @@ function extractFunctionSource(name) {
 function loadPrivateSearchHelpers() {
   const context = {
     URL,
+    URLSearchParams,
     Event: function Event(type, init) {
       this.type = type;
       this.bubbles = Boolean(init && init.bubbles);
@@ -46,10 +47,16 @@ function loadPrivateSearchHelpers() {
     extractFunctionSource("isDuckDuckGoHost"),
     extractFunctionSource("extractPrivateSearchDetails"),
     extractFunctionSource("resolveVisibleWebUri"),
+    extractFunctionSource("resolveShellAddressWebUri"),
+    extractFunctionSource("getTabBrowserUri"),
+    extractFunctionSource("syncBrowserUrl"),
     extractFunctionSource("findPrivateSearchField"),
     extractFunctionSource("submitPrivateSearchFromFrame"),
     "this.extractPrivateSearchDetails = extractPrivateSearchDetails;",
     "this.resolveVisibleWebUri = resolveVisibleWebUri;",
+    "this.resolveShellAddressWebUri = resolveShellAddressWebUri;",
+    "this.getTabBrowserUri = getTabBrowserUri;",
+    "this.syncBrowserUrl = syncBrowserUrl;",
     "this.submitPrivateSearchFromFrame = submitPrivateSearchFromFrame;"
   ].join("\n\n");
 
@@ -57,7 +64,7 @@ function loadPrivateSearchHelpers() {
   return context;
 }
 
-test("resolveVisibleWebUri keeps DuckDuckGo queries out of the shell address bar", () => {
+test("resolveVisibleWebUri keeps DuckDuckGo queries out of the real browser URL bar", () => {
   const { resolveVisibleWebUri } = loadPrivateSearchHelpers();
   const tab = {
     searchProvider: "",
@@ -69,6 +76,55 @@ test("resolveVisibleWebUri keeps DuckDuckGo queries out of the shell address bar
   assert.equal(visibleUrl, "https://duckduckgo.com/");
   assert.equal(tab.searchProvider, "duckduckgo");
   assert.equal(tab.searchQuery, "best horror games");
+});
+
+test("resolveShellAddressWebUri keeps the shell address bar on the search text", () => {
+  const { resolveShellAddressWebUri } = loadPrivateSearchHelpers();
+  const tab = {
+    searchProvider: "",
+    searchQuery: "",
+    webState: {
+      pendingSearchQuery: ""
+    }
+  };
+
+  const shellUri = resolveShellAddressWebUri(tab, "https://duckduckgo.com/?q=best+horror+games&t=ffab");
+
+  assert.equal(shellUri, "best horror games");
+  assert.equal(tab.searchProvider, "duckduckgo");
+  assert.equal(tab.searchQuery, "best horror games");
+});
+
+test("syncBrowserUrl prefers the sanitized browser URI over the shell address value", () => {
+  const context = loadPrivateSearchHelpers();
+  const { syncBrowserUrl } = context;
+  const calls = [];
+
+  const tab = {
+    uri: "best horror games",
+    browserUri: "https://duckduckgo.com/"
+  };
+
+  const windowStub = {
+    history: {
+      replaceState(_state, _title, url) {
+        calls.push(url);
+      }
+    },
+    location: {
+      pathname: "/",
+      search: ""
+    }
+  };
+
+  context.window = windowStub;
+  context.getActiveTab = function getActiveTab() {
+    return tab;
+  };
+
+  syncBrowserUrl();
+
+  assert.deepEqual(calls, ["/?uri=https%3A%2F%2Fduckduckgo.com%2F"]);
 });
 
 test("resolveVisibleWebUri leaves normal destinations unchanged", () => {
